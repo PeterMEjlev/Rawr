@@ -1,0 +1,366 @@
+<Window x:Class="Rawr.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+        xmlns:vm="clr-namespace:Rawr.App.ViewModels"
+        xmlns:models="clr-namespace:Rawr.Core.Models;assembly=Rawr.Core"
+        mc:Ignorable="d"
+        Title="RAWR — RAW Photo Culling"
+        Height="800" Width="1280"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Window.InputBindings>
+        <!-- Folder / file ops -->
+        <KeyBinding Modifiers="Control" Key="O" Command="{Binding OpenFolderCommand}" />
+        <KeyBinding Modifiers="Control" Key="E" Command="{Binding ExportFileListCommand}" />
+        <KeyBinding Modifiers="Control" Key="C" Command="{Binding CopyPickedCommand}" />
+
+        <!-- Navigation -->
+        <KeyBinding Key="Right" Command="{Binding NextPhotoCommand}" />
+        <KeyBinding Key="Left" Command="{Binding PreviousPhotoCommand}" />
+        <KeyBinding Key="Down" Command="{Binding NextPhotoCommand}" />
+        <KeyBinding Key="Up" Command="{Binding PreviousPhotoCommand}" />
+
+        <!-- Flags -->
+        <KeyBinding Key="P" Command="{Binding TogglePickCommand}" />
+        <KeyBinding Key="X" Command="{Binding ToggleRejectCommand}" />
+        <KeyBinding Key="U" Command="{Binding UnflagCommand}" />
+        <KeyBinding Modifiers="Shift" Key="P" Command="{Binding PickAndAdvanceCommand}" />
+        <KeyBinding Modifiers="Shift" Key="X" Command="{Binding RejectAndAdvanceCommand}" />
+
+        <!-- Ratings (0-5) -->
+        <KeyBinding Key="D0" Command="{Binding SetRatingCommand}">
+            <KeyBinding.CommandParameter><sys:Int32>0</sys:Int32></KeyBinding.CommandParameter>
+        </KeyBinding>
+        <KeyBinding Key="D1" Command="{Binding SetRatingCommand}">
+            <KeyBinding.CommandParameter><sys:Int32>1</sys:Int32></KeyBinding.CommandParameter>
+        </KeyBinding>
+        <KeyBinding Key="D2" Command="{Binding SetRatingCommand}">
+            <KeyBinding.CommandParameter><sys:Int32>2</sys:Int32></KeyBinding.CommandParameter>
+        </KeyBinding>
+        <KeyBinding Key="D3" Command="{Binding SetRatingCommand}">
+            <KeyBinding.CommandParameter><sys:Int32>3</sys:Int32></KeyBinding.CommandParameter>
+        </KeyBinding>
+        <KeyBinding Key="D4" Command="{Binding SetRatingCommand}">
+            <KeyBinding.CommandParameter><sys:Int32>4</sys:Int32></KeyBinding.CommandParameter>
+        </KeyBinding>
+        <KeyBinding Key="D5" Command="{Binding SetRatingCommand}">
+            <KeyBinding.CommandParameter><sys:Int32>5</sys:Int32></KeyBinding.CommandParameter>
+        </KeyBinding>
+
+        <!-- Color labels (6-9 like Lightroom) -->
+        <KeyBinding Key="D6" Command="{Binding SetColorLabelCommand}"
+                    CommandParameter="{x:Static models:ColorLabel.Red}" />
+        <KeyBinding Key="D7" Command="{Binding SetColorLabelCommand}"
+                    CommandParameter="{x:Static models:ColorLabel.Yellow}" />
+        <KeyBinding Key="D8" Command="{Binding SetColorLabelCommand}"
+                    CommandParameter="{x:Static models:ColorLabel.Green}" />
+        <KeyBinding Key="D9" Command="{Binding SetColorLabelCommand}"
+                    CommandParameter="{x:Static models:ColorLabel.Blue}" />
+
+        <!-- Filters -->
+        <KeyBinding Modifiers="Control+Shift" Key="R" Command="{Binding CycleRatingFilterCommand}" />
+        <KeyBinding Modifiers="Control+Shift" Key="F" Command="{Binding CycleFlagFilterCommand}" />
+        <KeyBinding Modifiers="Control+Shift" Key="X" Command="{Binding ClearFiltersCommand}" />
+    </Window.InputBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />  <!-- Toolbar -->
+            <RowDefinition Height="*" />     <!-- Main split: preview + metadata -->
+            <RowDefinition Height="Auto" />  <!-- Filmstrip -->
+            <RowDefinition Height="Auto" />  <!-- Status bar -->
+        </Grid.RowDefinitions>
+
+        <!-- ================ TOOLBAR ================ -->
+        <Border Grid.Row="0"
+                Background="{StaticResource BgToolbarBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,6">
+            <DockPanel LastChildFill="False">
+                <Button DockPanel.Dock="Left" Content="📂 Open Folder…" Command="{Binding OpenFolderCommand}" Margin="0,0,8,0" ToolTip="Ctrl+O" />
+                <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
+
+                <Button DockPanel.Dock="Left" Content="Rating Filter" Command="{Binding CycleRatingFilterCommand}" Margin="0,0,4,0" ToolTip="Ctrl+Shift+R" />
+                <Button DockPanel.Dock="Left" Content="Flag Filter"   Command="{Binding CycleFlagFilterCommand}"   Margin="0,0,4,0" ToolTip="Ctrl+Shift+F" />
+                <Button DockPanel.Dock="Left" Content="Clear Filters" Command="{Binding ClearFiltersCommand}"      Margin="0,0,8,0" ToolTip="Ctrl+Shift+X" />
+
+                <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
+
+                <Button DockPanel.Dock="Left" Content="📋 Copy Picks…"      Command="{Binding CopyPickedCommand}"     Margin="0,0,4,0" ToolTip="Ctrl+C — copy picked photos to a folder" />
+                <Button DockPanel.Dock="Left" Content="📝 Export List…"     Command="{Binding ExportFileListCommand}" Margin="0,0,4,0" ToolTip="Ctrl+E — export list of picked file paths" />
+
+                <!-- Extractor indicator -->
+                <Border DockPanel.Dock="Right"
+                        Background="#33FFFFFF"
+                        CornerRadius="3"
+                        Padding="6,2"
+                        Margin="8,0,0,0"
+                        ToolTip="Preview extractor in use. LibRaw = fast embedded JPEG; WIC = Windows codec (slower, needs Raw Image Extension)">
+                    <TextBlock Text="{Binding ExtractorName}" FontSize="10" Foreground="{StaticResource TextDimBrush}" />
+                </Border>
+
+                <!-- Right-aligned filter description -->
+                <TextBlock DockPanel.Dock="Right" Margin="8,0" Foreground="{StaticResource TextDimBrush}">
+                    <Run Text="Filter: " />
+                    <Run Text="{Binding FilterDescription, Mode=OneWay}" Foreground="{StaticResource TextBrush}" />
+                    <Run Text="    " />
+                    <Run Text="{Binding VisibleCount, Mode=OneWay}" />
+                    <Run Text=" / " />
+                    <Run Text="{Binding TotalCount, Mode=OneWay}" />
+                    <Run Text=" photos" />
+                </TextBlock>
+            </DockPanel>
+        </Border>
+
+        <!-- ================ MAIN SPLIT (preview + metadata) ================ -->
+        <Grid Grid.Row="1" Background="{StaticResource BgBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Preview area -->
+            <Grid Grid.Column="0" Background="#FF0E0E0E">
+                <Border x:Name="PreviewHost"
+                        Background="Transparent"
+                        ClipToBounds="True"
+                        MouseWheel="PreviewHost_MouseWheel"
+                        MouseLeftButtonDown="PreviewHost_MouseLeftButtonDown"
+                        MouseLeftButtonUp="PreviewHost_MouseLeftButtonUp"
+                        MouseMove="PreviewHost_MouseMove">
+                    <Image x:Name="PreviewImageElement"
+                           Source="{Binding PreviewImage}"
+                           Stretch="Uniform"
+                           SnapsToDevicePixels="True"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           Margin="8"
+                           RenderTransformOrigin="0,0">
+                        <Image.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform x:Name="PreviewScale" ScaleX="1" ScaleY="1" />
+                                <TranslateTransform x:Name="PreviewTranslate" X="0" Y="0" />
+                            </TransformGroup>
+                        </Image.RenderTransform>
+                    </Image>
+                </Border>
+
+                <!-- Empty-state overlay -->
+                <TextBlock Text="Press Ctrl+O to open a folder of RAW photos"
+                           Foreground="{StaticResource TextDimBrush}"
+                           FontSize="16"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding PreviewImage, Converter={StaticResource NotNullToCollapsed}}" />
+
+                <!-- Loading indicator -->
+                <Border Background="#A0000000"
+                        Padding="16,10"
+                        CornerRadius="4"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top"
+                        Margin="0,16,0,0"
+                        IsHitTestVisible="False"
+                        Visibility="{Binding IsLoading, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Text="Loading…" Foreground="{StaticResource TextBrush}" />
+                </Border>
+
+                <!-- Star rating overlay (top-right of preview) -->
+                <Border Background="#80000000"
+                        Padding="8,4"
+                        CornerRadius="3"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0,16,16,0"
+                        IsHitTestVisible="False"
+                        Visibility="{Binding SelectedPhoto, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Text="{Binding SelectedPhoto.Rating, Converter={StaticResource RatingToStars}}"
+                               Foreground="{StaticResource StarBrush}"
+                               FontSize="18"
+                               FontWeight="Bold" />
+                </Border>
+
+                <!-- Zoom indicator (bottom-right) -->
+                <Border Background="#80000000"
+                        Padding="6,2"
+                        CornerRadius="3"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Margin="0,0,16,16"
+                        IsHitTestVisible="False"
+                        x:Name="ZoomIndicator"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="ZoomIndicatorText"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="11" />
+                </Border>
+            </Grid>
+
+            <!-- Metadata panel -->
+            <Border Grid.Column="1"
+                    Width="280"
+                    Background="{StaticResource BgPanelBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1,0,0,0"
+                    Padding="12">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="PHOTO" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding SelectedPhoto.FileName, FallbackValue='(no selection)'}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <!-- Flags / labels -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Border Width="14" Height="14" CornerRadius="2"
+                                    Background="{Binding SelectedPhoto.Flag, Converter={StaticResource FlagToBrush}}"
+                                    Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding SelectedPhoto.Flag, FallbackValue=''}" Margin="0,0,12,0" />
+                            <Ellipse Width="10" Height="10"
+                                     Fill="{Binding SelectedPhoto.ColorLabel, Converter={StaticResource LabelToBrush}}"
+                                     Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding SelectedPhoto.ColorLabel, FallbackValue=''}" />
+                        </StackPanel>
+
+                        <TextBlock Text="CAMERA" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding SelectedPhoto.Metadata.CameraModel, FallbackValue='—'}" Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding SelectedPhoto.Metadata.LensModel,   FallbackValue=''}"
+                                   Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,12" />
+
+                        <TextBlock Text="EXPOSURE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="ISO " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ISOFormatted, FallbackValue='—'}" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Aperture " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ApertureFormatted, FallbackValue='—'}" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Shutter " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ShutterSpeedFormatted, FallbackValue='—'}" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Focal " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.FocalLengthFormatted, FallbackValue='—'}" />
+                        </Grid>
+
+                        <TextBlock Text="FILE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding SelectedPhoto.Extension, FallbackValue=''}" />
+                        <TextBlock Text="{Binding SelectedPhoto.FilePath, FallbackValue=''}"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   TextWrapping="Wrap" FontSize="10" Margin="0,4,0,0" />
+
+                        <Separator Margin="0,16" />
+
+                        <TextBlock Text="SHORTCUTS" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
+                        <TextBlock Text="←/→  Navigate" Margin="0,1" />
+                        <TextBlock Text="0–5  Rating" Margin="0,1" />
+                        <TextBlock Text="6–9  Color label" Margin="0,1" />
+                        <TextBlock Text="P / X  Pick / Reject" Margin="0,1" />
+                        <TextBlock Text="⇧+P / ⇧+X  Flag &amp; advance" Margin="0,1" />
+                        <TextBlock Text="U  Unflag" Margin="0,1" />
+                        <TextBlock Text="Ctrl+O  Open folder" Margin="0,1" />
+                        <TextBlock Text="Ctrl+C  Copy picks" Margin="0,1" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- ================ FILMSTRIP ================ -->
+        <Border Grid.Row="2"
+                Height="148"
+                Background="{StaticResource BgFilmstripBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,1">
+            <ListBox x:Name="Filmstrip"
+                     ItemsSource="{Binding FilteredPhotos}"
+                     SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                     ItemContainerStyle="{StaticResource FilmstripItemStyle}"
+                     SelectionChanged="Filmstrip_SelectionChanged"
+                     PreviewMouseWheel="Filmstrip_PreviewMouseWheel">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type models:PhotoItem}">
+                        <Grid Width="140" Margin="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Thumbnail area -->
+                            <Border Grid.Row="0" Background="#FF0E0E0E">
+                                <Grid>
+                                    <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"
+                                           Stretch="Uniform"
+                                           SnapsToDevicePixels="True"
+                                           RenderOptions.BitmapScalingMode="LowQuality" />
+
+                                    <!-- Flag bar (left edge) -->
+                                    <Rectangle Width="3"
+                                               HorizontalAlignment="Left"
+                                               Fill="{Binding Flag, Converter={StaticResource FlagToBrush}}" />
+
+                                    <!-- Color label dot (top-right) -->
+                                    <Ellipse Width="8" Height="8"
+                                             HorizontalAlignment="Right" VerticalAlignment="Top"
+                                             Margin="0,4,4,0"
+                                             Fill="{Binding ColorLabel, Converter={StaticResource LabelToBrush}}" />
+
+                                    <!-- Stars (bottom-left) -->
+                                    <Border HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                            Background="#A0000000"
+                                            Padding="4,1" Margin="2"
+                                            CornerRadius="2"
+                                            Visibility="{Binding Rating, Converter={StaticResource NullToVisibility}}">
+                                        <TextBlock Text="{Binding Rating, Converter={StaticResource RatingToStars}}"
+                                                   Foreground="{StaticResource StarBrush}"
+                                                   FontSize="10" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- Filename -->
+                            <TextBlock Grid.Row="1"
+                                       Text="{Binding FileName}"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       TextTrimming="CharacterEllipsis"
+                                       Padding="2,2,2,0" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <!-- ================ STATUS BAR ================ -->
+        <Border Grid.Row="3"
+                Background="{StaticResource BgToolbarBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+            <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Right"
+                           Text="{Binding CurrentFolder}"
+                           Foreground="{StaticResource TextDimBrush}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextBrush}" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

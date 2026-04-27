@@ -1,0 +1,15 @@
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\bin\Release\net9.0-windows\Rawr.Raw.deps.json
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\bin\Release\net9.0-windows\Rawr.Raw.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\bin\Release\net9.0-windows\Rawr.Raw.pdb
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\bin\Release\net9.0-windows\Rawr.Core.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\bin\Release\net9.0-windows\Rawr.Core.pdb
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.csproj.AssemblyReference.cache
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.AssemblyInfoInputs.cache
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.AssemblyInfo.cs
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.csproj.CoreCompileInputs.cache
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.csproj.Up2Date
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\refint\Rawr.Raw.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.pdb
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\ref\Rawr.Raw.dll

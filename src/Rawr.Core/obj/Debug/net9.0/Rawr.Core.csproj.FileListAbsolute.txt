@@ -1,0 +1,12 @@
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\bin\Debug\net9.0\Rawr.Core.deps.json
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\bin\Debug\net9.0\Rawr.Core.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\bin\Debug\net9.0\Rawr.Core.pdb
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.csproj.AssemblyReference.cache
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.AssemblyInfoInputs.cache
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.AssemblyInfo.cs
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.csproj.CoreCompileInputs.cache
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\refint\Rawr.Core.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.pdb
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\ref\Rawr.Core.dll
