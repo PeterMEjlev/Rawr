@@ -29,6 +29,9 @@ public sealed class PhotoMetadata
     public string FocalLengthFormatted =>
         FocalLength > 0 ? $"{FocalLength:F0}mm" : "";
 
+    public string CaptureDateFormatted =>
+        CaptureTime.HasValue ? CaptureTime.Value.ToString("dd-MM-yyyy  HH:mm:ss") : "";
+
     public string ISOFormatted =>
         ISO > 0 ? $"ISO {ISO:F0}" : "";
 }

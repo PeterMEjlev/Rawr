@@ -256,6 +256,9 @@
                             <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.FocalLengthFormatted, FallbackValue='—'}" />
                         </Grid>
 
+                        <TextBlock Text="DATE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding SelectedPhoto.Metadata.CaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
+
                         <TextBlock Text="FILE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
                         <TextBlock Text="{Binding SelectedPhoto.Extension, FallbackValue=''}" />
                         <TextBlock Text="{Binding SelectedPhoto.FilePath, FallbackValue=''}"
