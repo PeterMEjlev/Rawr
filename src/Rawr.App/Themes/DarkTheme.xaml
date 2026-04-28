@@ -323,4 +323,145 @@
         <Setter Property="Margin" Value="4,2" />
     </Style>
 
+    <!-- TextBox -->
+    <Style TargetType="{x:Type TextBox}">
+        <Setter Property="Background" Value="{StaticResource BgControlBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="6,4" />
+        <Setter Property="CaretBrush" Value="{StaticResource TextBrush}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ContextMenu -->
+    <Style TargetType="{x:Type ContextMenu}">
+        <Setter Property="Background" Value="{StaticResource BgControlBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="0,4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ContextMenu}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3"
+                            Padding="{TemplateBinding Padding}">
+                        <ItemsPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- MenuItem -->
+    <Style TargetType="{x:Type MenuItem}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type MenuItem}">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <!-- Checkmark column -->
+                            <TextBlock x:Name="Check"
+                                       Grid.Column="0"
+                                       Text="✓"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       Visibility="Collapsed"
+                                       VerticalAlignment="Center" />
+                            <!-- Header -->
+                            <ContentPresenter Grid.Column="1"
+                                              ContentSource="Header"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                            <!-- Submenu arrow -->
+                            <TextBlock x:Name="Arrow"
+                                       Grid.Column="2"
+                                       Text="▶"
+                                       FontSize="8"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       Visibility="Collapsed"
+                                       VerticalAlignment="Center"
+                                       Margin="8,0,0,0" />
+                            <!-- Submenu popup -->
+                            <Popup x:Name="PART_Popup"
+                                   Grid.Column="1"
+                                   IsOpen="{TemplateBinding IsSubmenuOpen}"
+                                   AllowsTransparency="True"
+                                   Placement="Right"
+                                   HorizontalOffset="-4">
+                                <Border Background="{StaticResource BgControlBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        Padding="0,4">
+                                    <ItemsPresenter />
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+                        </Trigger>
+                        <Trigger Property="Role" Value="TopLevelHeader">
+                            <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="Role" Value="SubmenuHeader">
+                            <Setter TargetName="Arrow" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="Role" Value="SubmenuHeader" />
+                                <Condition Property="IsSubmenuOpen" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

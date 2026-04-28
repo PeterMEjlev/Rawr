@@ -19,6 +19,8 @@ public sealed partial class PhotoItem : ObservableObject
     [ObservableProperty] private bool _isBestInGroup;
     [ObservableProperty] private bool _isSelected;
 
+    public HashSet<int> GroupTags { get; } = new();
+
     // Preview state (set by background workers, consumed by UI)
     [ObservableProperty] private byte[]? _thumbnailJpeg;  // small JPEG bytes (~320px)
     [ObservableProperty] private byte[]? _previewJpeg;    // medium JPEG bytes (~1620px)

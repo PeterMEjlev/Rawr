@@ -233,6 +233,18 @@ public partial class MainWindow : Window
         }
     }
 
+    // ── Context menu: select item on right-click so ToggleGroupForSelected works on the right photo ──
+
+    private void PhotoList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox) return;
+        var source = e.OriginalSource as DependencyObject;
+        while (source != null && source is not ListBoxItem)
+            source = VisualTreeHelper.GetParent(source);
+        if (source is ListBoxItem item)
+            item.IsSelected = true;
+    }
+
     // ── Helpers ──
 
     private static ScrollViewer? FindScrollViewer(DependencyObject root)

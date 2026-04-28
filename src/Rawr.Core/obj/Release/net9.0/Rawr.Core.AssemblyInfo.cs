@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Rawr.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+eff078cc707dd53245b4cfd9bff5bb62e54e2764")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+06a3d1bdb815c92054934320215d64f2a00043b7")]
 [assembly: System.Reflection.AssemblyProductAttribute("Rawr.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Rawr.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

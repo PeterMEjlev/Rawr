@@ -35,6 +35,8 @@ public sealed class CullingDatabase : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
+            PRAGMA foreign_keys = ON;
+
             CREATE TABLE IF NOT EXISTS photos (
                 file_name   TEXT PRIMARY KEY,
                 rating      INTEGER NOT NULL DEFAULT 0,
@@ -42,6 +44,18 @@ public sealed class CullingDatabase : IDisposable
                 color_label INTEGER NOT NULL DEFAULT 0,
                 group_id    INTEGER NOT NULL DEFAULT 0,
                 is_best     INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS custom_groups (
+                id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS photo_groups (
+                file_name TEXT NOT NULL,
+                group_id  INTEGER NOT NULL,
+                PRIMARY KEY (file_name, group_id),
+                FOREIGN KEY (group_id) REFERENCES custom_groups(id) ON DELETE CASCADE
             );
             """;
         cmd.ExecuteNonQuery();
@@ -104,6 +118,80 @@ public sealed class CullingDatabase : IDisposable
             Save(photo);
         }
         tx.Commit();
+    }
+
+    // ── Custom groups ──
+
+    public List<CustomGroup> LoadGroups()
+    {
+        var result = new List<CustomGroup>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, name FROM custom_groups ORDER BY id";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            result.Add(new CustomGroup { Id = reader.GetInt32(0), Name = reader.GetString(1) });
+        return result;
+    }
+
+    public CustomGroup CreateGroup(string name)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO custom_groups (name) VALUES ($name) RETURNING id";
+        cmd.Parameters.AddWithValue("$name", name);
+        var id = Convert.ToInt32(cmd.ExecuteScalar());
+        return new CustomGroup { Id = id, Name = name };
+    }
+
+    public void DeleteGroup(int id)
+    {
+        using var cmd = _db.CreateCommand();
+        // Enable FK cascades for this connection
+        cmd.CommandText = "PRAGMA foreign_keys = ON; DELETE FROM custom_groups WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void RenameGroup(int id, string name)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE custom_groups SET name = $name WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$name", name);
+        cmd.ExecuteNonQuery();
+    }
+
+    public Dictionary<string, HashSet<int>> LoadAllPhotoGroups()
+    {
+        var result = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT file_name, group_id FROM photo_groups";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var fileName = reader.GetString(0);
+            if (!result.TryGetValue(fileName, out var set))
+                result[fileName] = set = new HashSet<int>();
+            set.Add(reader.GetInt32(1));
+        }
+        return result;
+    }
+
+    public void AssignGroup(string fileName, int groupId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO photo_groups (file_name, group_id) VALUES ($name, $group)";
+        cmd.Parameters.AddWithValue("$name", fileName);
+        cmd.Parameters.AddWithValue("$group", groupId);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void UnassignGroup(string fileName, int groupId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "DELETE FROM photo_groups WHERE file_name = $name AND group_id = $group";
+        cmd.Parameters.AddWithValue("$name", fileName);
+        cmd.Parameters.AddWithValue("$group", groupId);
+        cmd.ExecuteNonQuery();
     }
 
     public void Dispose()

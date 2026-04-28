@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using Rawr.App.Dialogs;
 using Rawr.Core.Data;
 using Rawr.Core.Models;
 using Rawr.Core.Services;
@@ -71,7 +72,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     private ColorLabel? _colorLabelFilter;
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue;
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || CustomGroupFilter != null;
+
+    // ── Custom groups ──
+
+    [ObservableProperty] private ObservableCollection<CustomGroup> _customGroups = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(SelectedPhotoGroupAssignments))]
+    private CustomGroup? _customGroupFilter;
+
+    public IEnumerable<GroupAssignmentItem> SelectedPhotoGroupAssignments =>
+        CustomGroups.Select(g => new GroupAssignmentItem(g, SelectedPhoto?.GroupTags.Contains(g.Id) ?? false));
+
+    public record GroupAssignmentItem(CustomGroup Group, bool IsAssigned);
 
     // Copy criteria state (independent of filter; defaults to "Pick" to match original behaviour)
     [ObservableProperty]
@@ -174,6 +189,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         AllPhotos.Clear();
         FilteredPhotos.Clear();
+        CustomGroups.Clear();
+        CustomGroupFilter = null;
         PreviewImage = null;
         SelectedPhoto = null;
         SelectedIndex = -1;
@@ -212,6 +229,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
 
             AllPhotos.Add(photo);
+        }
+
+        // Load custom groups and photo-group assignments
+        foreach (var g in _db.LoadGroups())
+            CustomGroups.Add(g);
+        var allPhotoGroups = _db.LoadAllPhotoGroups();
+        foreach (var photo in AllPhotos)
+        {
+            if (allPhotoGroups.TryGetValue(photo.FileName, out var tagIds))
+                foreach (var id in tagIds)
+                    photo.GroupTags.Add(id);
         }
 
         ApplyFilter();
@@ -309,6 +337,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _ = LoadPreviewForSelectedAsync();
             UpdateStatus();
         }
+    }
+
+    partial void OnSelectedPhotoChanged(PhotoItem? value)
+    {
+        OnPropertyChanged(nameof(SelectedPhotoGroupAssignments));
     }
 
     [RelayCommand]
@@ -627,12 +660,104 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
 
+    // ── Custom group commands ──
+
+    [RelayCommand]
+    private void SetGroupFilter(CustomGroup group)
+    {
+        CustomGroupFilter = CustomGroupFilter?.Id == group.Id ? null : group;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearGroupFilter()
+    {
+        CustomGroupFilter = null;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void CreateGroup()
+    {
+        if (_db == null) return;
+        var name = InputDialog.Show(Application.Current.MainWindow, "New Group", "Group name:");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var group = _db.CreateGroup(name);
+        CustomGroups.Add(group);
+    }
+
+    [RelayCommand]
+    private void RenameGroup(CustomGroup group)
+    {
+        if (_db == null) return;
+        var name = InputDialog.Show(Application.Current.MainWindow, "Rename Group", "New name:", group.Name);
+        if (string.IsNullOrWhiteSpace(name) || name == group.Name) return;
+        _db.RenameGroup(group.Id, name);
+        group.Name = name;
+        // Refresh bindings that show the group name
+        var idx = CustomGroups.IndexOf(group);
+        if (idx >= 0)
+        {
+            CustomGroups.RemoveAt(idx);
+            CustomGroups.Insert(idx, group);
+        }
+        if (CustomGroupFilter?.Id == group.Id)
+        {
+            CustomGroupFilter = group;
+            UpdateFilterDescription();
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteGroup(CustomGroup group)
+    {
+        if (_db == null) return;
+        _db.DeleteGroup(group.Id);
+        // Remove tag from all photos in memory
+        foreach (var photo in AllPhotos)
+            photo.GroupTags.Remove(group.Id);
+        CustomGroups.Remove(group);
+        if (CustomGroupFilter?.Id == group.Id)
+        {
+            CustomGroupFilter = null;
+            ApplyFilter();
+        }
+        OnPropertyChanged(nameof(SelectedPhotoGroupAssignments));
+    }
+
+    [RelayCommand]
+    private void ToggleGroupForSelected(CustomGroup group)
+    {
+        if (SelectedPhoto == null || _db == null) return;
+        if (SelectedPhoto.GroupTags.Contains(group.Id))
+        {
+            SelectedPhoto.GroupTags.Remove(group.Id);
+            _db.UnassignGroup(SelectedPhoto.FileName, group.Id);
+        }
+        else
+        {
+            SelectedPhoto.GroupTags.Add(group.Id);
+            _db.AssignGroup(SelectedPhoto.FileName, group.Id);
+        }
+        OnPropertyChanged(nameof(SelectedPhotoGroupAssignments));
+        if (CustomGroupFilter != null)
+            ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void AssignGroupByIndex(int index)
+    {
+        if (index < 0 || index >= CustomGroups.Count) return;
+        ToggleGroupForSelected(CustomGroups[index]);
+    }
+
     [RelayCommand]
     private void ClearFilters()
     {
         RatingFilterMode = RatingFilterMode.Any;
         FlagFilter = null;
         ColorLabelFilter = null;
+        CustomGroupFilter = null;
         ApplyFilter();
     }
 
@@ -677,6 +802,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             visible = visible.Where(p => p.Flag == FlagFilter.Value);
         if (ColorLabelFilter.HasValue)
             visible = visible.Where(p => p.ColorLabel == ColorLabelFilter.Value);
+        if (CustomGroupFilter != null)
+            visible = visible.Where(p => p.GroupTags.Contains(CustomGroupFilter.Id));
 
         foreach (var photo in ApplySorting(visible))
             FilteredPhotos.Add(photo);
@@ -724,6 +851,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             parts.Add(FlagFilter.Value.ToString());
         if (ColorLabelFilter.HasValue)
             parts.Add(ColorLabelFilter.Value.ToString());
+        if (CustomGroupFilter != null)
+            parts.Add(CustomGroupFilter.Name);
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }
