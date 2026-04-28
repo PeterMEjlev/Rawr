@@ -13,6 +13,8 @@ using Rawr.Raw;
 
 namespace Rawr.App.ViewModels;
 
+public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag }
+
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IPreviewExtractor _extractor;
@@ -34,10 +36,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _visibleCount;
     [ObservableProperty] private double _gridThumbnailSize = 90.0; // derived in code-behind from GridColumnCount
     [ObservableProperty] private int _gridColumnCount = 2;
+    [ObservableProperty] private double _filmstripItemWidth = 140.0; // derived in code-behind from filmstrip height
 
     // Filter state
     [ObservableProperty] private int _minRatingFilter; // 0 = no filter
     [ObservableProperty] private CullFlag? _flagFilter; // null = no filter
+
+    // Sort state
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SortDirectionLabel))]
+    private SortField _sortField = SortField.FileName;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SortDirectionLabel))]
+    private bool _sortDescending;
+
+    public string SortDirectionLabel => SortDescending ? "↓" : "↑";
+
+    partial void OnSortFieldChanged(SortField value) => ApplyFilter();
+    partial void OnSortDescendingChanged(bool value) => ApplyFilter();
 
     public ObservableCollection<PhotoItem> AllPhotos { get; } = [];
     public ObservableCollection<PhotoItem> FilteredPhotos { get; } = [];
@@ -474,20 +491,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
 
+    // ── Sorting ──
+
+    [RelayCommand]
+    private void ToggleSortDirection() => SortDescending = !SortDescending;
+
+    private IEnumerable<PhotoItem> ApplySorting(IEnumerable<PhotoItem> items) => SortField switch
+    {
+        SortField.Rating => SortDescending
+            ? items.OrderByDescending(p => p.Rating)
+            : items.OrderBy(p => p.Rating),
+        SortField.CaptureDate => SortDescending
+            ? items.OrderByDescending(p => p.Metadata?.CaptureTime ?? DateTime.MinValue)
+            : items.OrderBy(p => p.Metadata?.CaptureTime ?? DateTime.MaxValue),
+        SortField.ColorLabel => SortDescending
+            ? items.OrderByDescending(p => (int)p.ColorLabel)
+            : items.OrderBy(p => (int)p.ColorLabel),
+        SortField.Flag => SortDescending
+            ? items.OrderByDescending(p => (int)p.Flag)
+            : items.OrderBy(p => (int)p.Flag),
+        _ => SortDescending
+            ? items.OrderByDescending(p => p.FileName, StringComparer.OrdinalIgnoreCase)
+            : items.OrderBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
+    };
+
     private void ApplyFilter()
     {
         var previousSelection = SelectedPhoto;
         FilteredPhotos.Clear();
 
-        foreach (var photo in AllPhotos)
-        {
-            if (MinRatingFilter > 0 && photo.Rating < MinRatingFilter)
-                continue;
-            if (FlagFilter.HasValue && photo.Flag != FlagFilter.Value)
-                continue;
+        IEnumerable<PhotoItem> visible = AllPhotos;
+        if (MinRatingFilter > 0)
+            visible = visible.Where(p => p.Rating >= MinRatingFilter);
+        if (FlagFilter.HasValue)
+            visible = visible.Where(p => p.Flag == FlagFilter.Value);
 
+        foreach (var photo in ApplySorting(visible))
             FilteredPhotos.Add(photo);
-        }
 
         VisibleCount = FilteredPhotos.Count;
         UpdateFilterDescription();

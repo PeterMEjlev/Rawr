@@ -42,6 +42,7 @@ public partial class MainWindow : Window
             if (DataContext is MainViewModel vm)
                 await vm.RestoreLastFolderAsync();
             RecalcGridThumbnailSize();
+            RecalcFilmstripItemWidth();
         };
     }
 
@@ -82,6 +83,17 @@ public partial class MainWindow : Window
     {
         if (sender is not ListBox lb || lb.SelectedItem is null) return;
         lb.ScrollIntoView(lb.SelectedItem);
+    }
+
+    // ── Filmstrip: size tracks height so items shrink when strip is made smaller ──
+
+    private void Filmstrip_SizeChanged(object sender, SizeChangedEventArgs e) => RecalcFilmstripItemWidth();
+
+    private void RecalcFilmstripItemWidth()
+    {
+        if (DataContext is not MainViewModel vm) return;
+        var available = Filmstrip.ActualHeight - SystemParameters.HorizontalScrollBarHeight;
+        vm.FilmstripItemWidth = Math.Max(60, Math.Floor(available));
     }
 
     // ── Filmstrip: wheel scrolls horizontally ──

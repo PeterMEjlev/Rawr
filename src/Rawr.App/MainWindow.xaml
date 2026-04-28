@@ -72,10 +72,11 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />  <!-- Toolbar -->
-            <RowDefinition Height="*" />     <!-- Main split: preview + metadata -->
-            <RowDefinition Height="Auto" />  <!-- Filmstrip -->
-            <RowDefinition Height="Auto" />  <!-- Status bar -->
+            <RowDefinition Height="Auto" />                              <!-- Toolbar -->
+            <RowDefinition Height="*" />                                 <!-- Main split: preview + metadata -->
+            <RowDefinition Height="4" />                                 <!-- Filmstrip splitter -->
+            <RowDefinition Height="148" MinHeight="80" MaxHeight="400"/> <!-- Filmstrip -->
+            <RowDefinition Height="Auto" />                              <!-- Status bar -->
         </Grid.RowDefinitions>
 
         <!-- ================ TOOLBAR ================ -->
@@ -91,6 +92,25 @@
                 <Button DockPanel.Dock="Left" Content="Rating Filter" Command="{Binding CycleRatingFilterCommand}" Margin="0,0,4,0" ToolTip="Ctrl+Shift+R" />
                 <Button DockPanel.Dock="Left" Content="Flag Filter"   Command="{Binding CycleFlagFilterCommand}"   Margin="0,0,4,0" ToolTip="Ctrl+Shift+F" />
                 <Button DockPanel.Dock="Left" Content="Clear Filters" Command="{Binding ClearFiltersCommand}"      Margin="0,0,8,0" ToolTip="Ctrl+Shift+X" />
+
+                <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
+
+                <TextBlock DockPanel.Dock="Left"
+                           Text="Sort"
+                           Foreground="{StaticResource TextDimBrush}"
+                           Margin="0,0,6,0" />
+                <ComboBox DockPanel.Dock="Left"
+                          SelectedValue="{Binding SortField, Mode=TwoWay}"
+                          SelectedValuePath="Tag"
+                          MinWidth="70"
+                          Margin="0,0,4,0">
+                    <ComboBoxItem Content="Name"   Tag="{x:Static vm:SortField.FileName}" />
+                    <ComboBoxItem Content="Rating" Tag="{x:Static vm:SortField.Rating}" />
+                    <ComboBoxItem Content="Date"   Tag="{x:Static vm:SortField.CaptureDate}" />
+                    <ComboBoxItem Content="Color"  Tag="{x:Static vm:SortField.ColorLabel}" />
+                    <ComboBoxItem Content="Flag"   Tag="{x:Static vm:SortField.Flag}" />
+                </ComboBox>
+                <Button DockPanel.Dock="Left" Content="{Binding SortDirectionLabel}" Command="{Binding ToggleSortDirectionCommand}" Margin="0,0,8,0" ToolTip="Reverse sort order" />
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
@@ -387,9 +407,16 @@
             </Border>
         </Grid>
 
+        <!-- ================ FILMSTRIP SPLITTER ================ -->
+        <GridSplitter Grid.Row="2"
+                      Height="4"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      Background="{StaticResource BorderBrush}"
+                      Cursor="SizeNS" />
+
         <!-- ================ FILMSTRIP ================ -->
-        <Border Grid.Row="2"
-                Height="148"
+        <Border Grid.Row="3"
                 Background="{StaticResource BgFilmstripBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,1">
@@ -398,7 +425,8 @@
                      SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
                      ItemContainerStyle="{StaticResource FilmstripItemStyle}"
                      SelectionChanged="Filmstrip_SelectionChanged"
-                     PreviewMouseWheel="Filmstrip_PreviewMouseWheel">
+                     PreviewMouseWheel="Filmstrip_PreviewMouseWheel"
+                     SizeChanged="Filmstrip_SizeChanged">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <VirtualizingStackPanel Orientation="Horizontal" />
@@ -406,7 +434,7 @@
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type models:PhotoItem}">
-                        <Grid Width="140" Margin="0">
+                        <Grid Width="{Binding DataContext.FilmstripItemWidth, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
@@ -458,7 +486,7 @@
         </Border>
 
         <!-- ================ STATUS BAR ================ -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Background="{StaticResource BgToolbarBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
