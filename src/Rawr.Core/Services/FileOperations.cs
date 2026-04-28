@@ -29,10 +29,7 @@ public static class FileOperations
             var photo = fileList[i];
             var destPath = Path.Combine(destinationFolder, photo.FileName);
 
-            // Avoid overwriting — append suffix if file exists
-            destPath = GetUniqueDestPath(destPath);
-
-            await Task.Run(() => File.Copy(photo.FilePath, destPath, overwrite: false), ct);
+            await Task.Run(() => File.Copy(photo.FilePath, destPath, overwrite: true), ct);
             copied++;
 
             progress?.Report((i + 1, fileList.Count, photo.FileName));

@@ -73,6 +73,32 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue;
 
+    // Copy criteria state (independent of filter; defaults to "Pick" to match original behaviour)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyActiveRatingValue))]
+    [NotifyPropertyChangedFor(nameof(CopyRatingModeLabel))]
+    private RatingFilterMode _copyRatingFilterMode = RatingFilterMode.Any;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyActiveRatingValue))]
+    private int _copyRatingFilterValue;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyRatingModeLabel))]
+    private RatingFilterMode _copyRatingCycleMode = RatingFilterMode.Exact;
+
+    [ObservableProperty] private CullFlag? _copyFlagFilter = CullFlag.Pick;
+    [ObservableProperty] private ColorLabel? _copyColorLabelFilter;
+
+    public int CopyActiveRatingValue => CopyRatingFilterMode == RatingFilterMode.Any ? -1 : CopyRatingFilterValue;
+
+    public string CopyRatingModeLabel => CopyRatingCycleMode switch
+    {
+        RatingFilterMode.AtLeast  => "≥",
+        RatingFilterMode.LessThan => "<",
+        _                         => "="
+    };
+
     // Sort state
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SortDirectionLabel))]
@@ -529,6 +555,50 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
 
+    // ── Copy criteria ──
+
+    [RelayCommand]
+    private void ClearCopyRatingFilter() => CopyRatingFilterMode = RatingFilterMode.Any;
+
+    [RelayCommand]
+    private void CycleCopyRatingMode()
+    {
+        CopyRatingCycleMode = CopyRatingCycleMode switch
+        {
+            RatingFilterMode.Exact    => RatingFilterMode.AtLeast,
+            RatingFilterMode.AtLeast  => RatingFilterMode.LessThan,
+            _                         => RatingFilterMode.Exact
+        };
+        if (CopyRatingFilterMode != RatingFilterMode.Any)
+            CopyRatingFilterMode = CopyRatingCycleMode;
+    }
+
+    [RelayCommand]
+    private void SetCopyRatingValue(int value)
+    {
+        if (CopyRatingFilterMode == CopyRatingCycleMode && CopyRatingFilterValue == value)
+            CopyRatingFilterMode = RatingFilterMode.Any;
+        else
+        {
+            CopyRatingFilterMode = CopyRatingCycleMode;
+            CopyRatingFilterValue = value;
+        }
+    }
+
+    [RelayCommand]
+    private void SetCopyFlagFilter(CullFlag flag) => CopyFlagFilter = CopyFlagFilter == flag ? null : flag;
+
+    [RelayCommand]
+    private void ClearCopyFlagFilter() => CopyFlagFilter = null;
+
+    [RelayCommand]
+    private void SetCopyColorLabelFilter(ColorLabel label) => CopyColorLabelFilter = CopyColorLabelFilter == label ? null : label;
+
+    [RelayCommand]
+    private void ClearCopyColorLabelFilter() => CopyColorLabelFilter = null;
+
+    // ── Flag filter ──
+
     [RelayCommand]
     private void SetFlagFilter(CullFlag flag)
     {
@@ -663,33 +733,59 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task CopyPickedAsync()
     {
-        var picked = FilteredPhotos.Where(p => p.Flag == CullFlag.Pick).ToList();
-        if (picked.Count == 0)
+        IEnumerable<PhotoItem> candidates = AllPhotos;
+        candidates = CopyRatingFilterMode switch
         {
-            StatusText = "No picked photos to copy.";
+            RatingFilterMode.Exact    => candidates.Where(p => p.Rating == CopyRatingFilterValue),
+            RatingFilterMode.AtLeast  => candidates.Where(p => p.Rating >= CopyRatingFilterValue),
+            RatingFilterMode.LessThan => candidates.Where(p => p.Rating < CopyRatingFilterValue),
+            _                         => candidates
+        };
+        if (CopyFlagFilter.HasValue)
+            candidates = candidates.Where(p => p.Flag == CopyFlagFilter.Value);
+        if (CopyColorLabelFilter.HasValue)
+            candidates = candidates.Where(p => p.ColorLabel == CopyColorLabelFilter.Value);
+
+        var photos = candidates.ToList();
+        if (photos.Count == 0)
+        {
+            StatusText = "No photos match the copy criteria.";
             return;
         }
 
         var dialog = new OpenFolderDialog { Title = "Select destination folder" };
         if (dialog.ShowDialog() != true) return;
 
-        StatusText = $"Copying {picked.Count} photos...";
+        StatusText = $"Copying {photos.Count} photos...";
         var progress = new Progress<(int current, int total, string fileName)>(p =>
         {
             StatusText = $"Copying {p.current}/{p.total}: {p.fileName}";
         });
 
-        var count = await FileOperations.CopyFilesAsync(picked, dialog.FolderName, progress);
+        var count = await FileOperations.CopyFilesAsync(photos, dialog.FolderName, progress);
         StatusText = $"Copied {count} photos to {dialog.FolderName}";
     }
 
     [RelayCommand]
     private async Task ExportFileListAsync()
     {
-        var picked = FilteredPhotos.Where(p => p.Flag == CullFlag.Pick).ToList();
+        IEnumerable<PhotoItem> candidates = AllPhotos;
+        candidates = CopyRatingFilterMode switch
+        {
+            RatingFilterMode.Exact    => candidates.Where(p => p.Rating == CopyRatingFilterValue),
+            RatingFilterMode.AtLeast  => candidates.Where(p => p.Rating >= CopyRatingFilterValue),
+            RatingFilterMode.LessThan => candidates.Where(p => p.Rating < CopyRatingFilterValue),
+            _                         => candidates
+        };
+        if (CopyFlagFilter.HasValue)
+            candidates = candidates.Where(p => p.Flag == CopyFlagFilter.Value);
+        if (CopyColorLabelFilter.HasValue)
+            candidates = candidates.Where(p => p.ColorLabel == CopyColorLabelFilter.Value);
+
+        var picked = candidates.ToList();
         if (picked.Count == 0)
         {
-            StatusText = "No picked photos to export.";
+            StatusText = "No photos match the copy criteria.";
             return;
         }
 

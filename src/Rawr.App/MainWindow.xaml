@@ -366,7 +366,187 @@
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
-                <Button DockPanel.Dock="Left" Content="📋 Copy Picks…"      Command="{Binding CopyPickedCommand}"     Margin="0,0,4,0" ToolTip="Ctrl+C — copy picked photos to a folder" />
+                <!-- Copy dropdown -->
+                <Grid DockPanel.Dock="Left" Margin="0,0,4,0">
+                    <ToggleButton x:Name="CopyToggleButton"
+                                  IsChecked="{Binding IsOpen, ElementName=CopyPopup, Mode=TwoWay}"
+                                  Content="📋 Copy…"
+                                  ToolTip="Choose which photos to copy" />
+                    <Popup x:Name="CopyPopup"
+                           StaysOpen="False"
+                           Placement="Bottom"
+                           PlacementTarget="{Binding ElementName=CopyToggleButton}"
+                           AllowsTransparency="True">
+                        <Border Background="{StaticResource BgControlBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                Padding="10,8">
+                            <StackPanel>
+
+                                <!-- Rating -->
+                                <TextBlock Text="RATING" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                        <Button Content="Any" Command="{Binding ClearCopyRatingFilterCommand}" Margin="0,0,3,0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CopyRatingFilterMode}" Value="Any">
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Content="{Binding CopyRatingModeLabel}" Command="{Binding CycleCopyRatingModeCommand}" Width="28" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Command="{Binding SetCopyRatingValueCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>0</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyActiveRatingValue}" Value="0"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            0★
+                                        </Button>
+                                        <Button Command="{Binding SetCopyRatingValueCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyActiveRatingValue}" Value="1"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            1★
+                                        </Button>
+                                        <Button Command="{Binding SetCopyRatingValueCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyActiveRatingValue}" Value="2"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            2★
+                                        </Button>
+                                        <Button Command="{Binding SetCopyRatingValueCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyActiveRatingValue}" Value="3"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            3★
+                                        </Button>
+                                        <Button Command="{Binding SetCopyRatingValueCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyActiveRatingValue}" Value="4"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            4★
+                                        </Button>
+                                        <Button Command="{Binding SetCopyRatingValueCommand}">
+                                            <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyActiveRatingValue}" Value="5"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            5★
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Flag -->
+                                <TextBlock Text="FLAG" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Any" Command="{Binding ClearCopyFlagFilterCommand}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyFlagFilter}" Value="{x:Null}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Pick" Command="{Binding SetCopyFlagFilterCommand}"
+                                            CommandParameter="{x:Static models:CullFlag.Pick}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyFlagFilter}" Value="{x:Static models:CullFlag.Pick}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Reject" Command="{Binding SetCopyFlagFilterCommand}"
+                                            CommandParameter="{x:Static models:CullFlag.Reject}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyFlagFilter}" Value="{x:Static models:CullFlag.Reject}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Unflagged" Command="{Binding SetCopyFlagFilterCommand}"
+                                            CommandParameter="{x:Static models:CullFlag.Unflagged}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyFlagFilter}" Value="{x:Static models:CullFlag.Unflagged}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+
+                                <!-- Color -->
+                                <TextBlock Text="COLOR" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Any" Command="{Binding ClearCopyColorLabelFilterCommand}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyColorLabelFilter}" Value="{x:Null}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="No Color" Command="{Binding SetCopyColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.None}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyColorLabelFilter}" Value="{x:Static models:ColorLabel.None}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Command="{Binding SetCopyColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Red}" Margin="0,0,3,0">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyColorLabelFilter}" Value="{x:Static models:ColorLabel.Red}"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Margin="0,0,5,0" Fill="{Binding Source={x:Static models:ColorLabel.Red}, Converter={StaticResource LabelToBrush}}" /><TextBlock Text="Red" /></StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SetCopyColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Yellow}" Margin="0,0,3,0">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyColorLabelFilter}" Value="{x:Static models:ColorLabel.Yellow}"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Margin="0,0,5,0" Fill="{Binding Source={x:Static models:ColorLabel.Yellow}, Converter={StaticResource LabelToBrush}}" /><TextBlock Text="Yellow" /></StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SetCopyColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Green}" Margin="0,0,3,0">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyColorLabelFilter}" Value="{x:Static models:ColorLabel.Green}"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Margin="0,0,5,0" Fill="{Binding Source={x:Static models:ColorLabel.Green}, Converter={StaticResource LabelToBrush}}" /><TextBlock Text="Green" /></StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SetCopyColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Blue}" Margin="0,0,3,0">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyColorLabelFilter}" Value="{x:Static models:ColorLabel.Blue}"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Margin="0,0,5,0" Fill="{Binding Source={x:Static models:ColorLabel.Blue}, Converter={StaticResource LabelToBrush}}" /><TextBlock Text="Blue" /></StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SetCopyColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Purple}">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding CopyColorLabelFilter}" Value="{x:Static models:ColorLabel.Purple}"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Margin="0,0,5,0" Fill="{Binding Source={x:Static models:ColorLabel.Purple}, Converter={StaticResource LabelToBrush}}" /><TextBlock Text="Purple" /></StackPanel>
+                                    </Button>
+                                </StackPanel>
+
+                                <Separator Margin="0,2,0,8" />
+                                <Button Content="📋 Copy…" Command="{Binding CopyPickedCommand}"
+                                        HorizontalAlignment="Stretch" ToolTip="Ctrl+C — copy matching photos to a folder" />
+
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
                 <Button DockPanel.Dock="Left" Content="📝 Export List…"     Command="{Binding ExportFileListCommand}" Margin="0,0,4,0" ToolTip="Ctrl+E — export list of picked file paths" />
 
                 <!-- Extractor indicator -->
