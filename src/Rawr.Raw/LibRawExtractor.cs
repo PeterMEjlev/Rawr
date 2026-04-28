@@ -43,10 +43,23 @@ public sealed class LibRawExtractor : IPreviewExtractor
     public PhotoMetadata? ExtractMetadata(string filePath)
     {
         if (!_isAvailable) return null;
-        // Extract the embedded JPEG (which carries the full EXIF block) then parse
-        // EXIF from those bytes — avoids needing a C wrapper for libraw_data_t struct access.
-        var jpeg = ExtractDefaultThumb(filePath);
+
         var size = new FileInfo(filePath).Length;
+
+        // Primary: read EXIF directly from the CR3 file via WIC — complete EXIF including
+        // focal length, which Canon CR3 embedded JPEGs commonly strip from their EXIF block.
+        // Requires Microsoft Raw Image Extension; silently falls through if unavailable.
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            var wicMeta = ExifHelper.ReadFromStream(stream, size);
+            if (!string.IsNullOrEmpty(wicMeta.CameraModel))
+                return wicMeta;
+        }
+        catch { }
+
+        // Fallback: extract the embedded JPEG and parse its EXIF
+        var jpeg = ExtractDefaultThumb(filePath);
         return jpeg != null
             ? ExifHelper.ReadFromJpegBytes(jpeg, size)
             : new PhotoMetadata { FileSizeBytes = size };
