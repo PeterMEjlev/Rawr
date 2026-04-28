@@ -43,43 +43,13 @@ public sealed class LibRawExtractor : IPreviewExtractor
     public PhotoMetadata? ExtractMetadata(string filePath)
     {
         if (!_isAvailable) return null;
-
-        nint handle = 0;
-        try
-        {
-            handle = LibRawInterop.Init(0);
-            if (handle == 0) return null;
-
-            int ret = LibRawInterop.OpenFile(handle, filePath);
-            if (ret != 0) return null;
-
-            // TODO: Read metadata from libraw_data_t struct fields.
-            // This requires either:
-            // 1. Mapping the imgdata.other struct (version-dependent offsets)
-            // 2. Building a C accessor wrapper
-            // 3. Using Sdcb.LibRaw NuGet for managed struct access
-            //
-            // For MVP, we return a minimal metadata object with file info only.
-            // Full EXIF extraction will be added when the C wrapper is built.
-            var fileInfo = new FileInfo(filePath);
-            return new PhotoMetadata
-            {
-                FileSizeBytes = fileInfo.Length,
-                CaptureTime = fileInfo.LastWriteTime, // Placeholder until EXIF parsing works
-            };
-        }
-        catch
-        {
-            return null;
-        }
-        finally
-        {
-            if (handle != 0)
-            {
-                LibRawInterop.Recycle(handle);
-                LibRawInterop.Close(handle);
-            }
-        }
+        // Extract the embedded JPEG (which carries the full EXIF block) then parse
+        // EXIF from those bytes — avoids needing a C wrapper for libraw_data_t struct access.
+        var jpeg = ExtractDefaultThumb(filePath);
+        var size = new FileInfo(filePath).Length;
+        return jpeg != null
+            ? ExifHelper.ReadFromJpegBytes(jpeg, size)
+            : new PhotoMetadata { FileSizeBytes = size };
     }
 
     private byte[]? ExtractDefaultThumb(string filePath)

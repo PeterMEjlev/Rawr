@@ -42,12 +42,28 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public string ExtractorName { get; }
 
+    private static readonly string SettingsDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR");
+    private static readonly string LastFolderFile = Path.Combine(SettingsDir, "lastfolder.txt");
+
     public MainViewModel()
     {
         // Try LibRaw first, fall back to WIC
         var libraw = new LibRawExtractor();
         _extractor = libraw.IsAvailable ? libraw : new WicExtractor();
         ExtractorName = libraw.IsAvailable ? "LibRaw" : "WIC";
+    }
+
+    public async Task RestoreLastFolderAsync()
+    {
+        try
+        {
+            if (!File.Exists(LastFolderFile)) return;
+            var folder = (await File.ReadAllTextAsync(LastFolderFile)).Trim();
+            if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+                await LoadFolderAsync(folder);
+        }
+        catch { /* non-critical */ }
     }
 
     // ── Folder operations ──
@@ -140,62 +156,65 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             StatusText = $"{files.Count} photos ready. [{_extractor.GetType().Name}]";
             IsLoading = false;
+            try
+            {
+                Directory.CreateDirectory(SettingsDir);
+                await File.WriteAllTextAsync(LastFolderFile, folderPath, ct);
+            }
+            catch { /* non-critical */ }
         }
     }
 
     private async Task GeneratePreviewsAsync(CancellationToken ct)
     {
-        // First pass: load cached thumbnails (instant)
+        // First pass: load cached thumbnails on the UI thread (instant)
+        var toExtract = new List<PhotoItem>();
         foreach (var photo in AllPhotos)
         {
             if (ct.IsCancellationRequested) return;
-
             var cached = _cache!.LoadThumbnail(photo.FileName);
             if (cached != null)
-            {
                 photo.ThumbnailJpeg = cached;
-            }
+            else
+                toExtract.Add(photo);
         }
 
-        // Second pass: extract missing thumbnails in parallel.
-        // Extraction is CPU+IO bound and per-call independent (each P/Invoke into
-        // LibRaw or WIC builds its own decoder), so it parallelises cleanly.
+        // Second pass: extract missing thumbnails + metadata for all photos in parallel.
+        // Extraction is CPU+IO bound and per-call independent, so it parallelises cleanly.
         // Cap at ProcessorCount/2 to leave headroom for the UI thread + decode.
-        var toExtract = AllPhotos.Where(p => p.ThumbnailJpeg == null).ToList();
         int done = 0;
+        int total = AllPhotos.Count;
         int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2));
+        var needsThumb = new HashSet<PhotoItem>(toExtract);
 
         await Task.Run(() =>
         {
-            var po = new ParallelOptions
-            {
-                MaxDegreeOfParallelism = parallelism,
-                CancellationToken = ct,
-            };
-
+            var po = new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = ct };
             try
             {
-                Parallel.ForEach(toExtract, po, photo =>
+                Parallel.ForEach(AllPhotos, po, photo =>
                 {
-                    var jpeg = _extractor.ExtractThumbnail(photo.FilePath);
-                    if (jpeg != null)
+                    if (needsThumb.Contains(photo))
                     {
-                        // LibRaw always returns the full sensor-sized JPEG; we shrink it to
-                        // a small JPEG with orientation baked into the pixels so the filmstrip
-                        // can decode each item in ~1ms during scroll.
-                        var thumb = ProcessJpegForCache(jpeg, ThumbnailDecodeWidth) ?? jpeg;
-                        _cache!.SaveThumbnail(photo.FileName, thumb);
-                        Application.Current.Dispatcher.Invoke(() => photo.ThumbnailJpeg = thumb);
+                        var jpeg = _extractor.ExtractThumbnail(photo.FilePath);
+                        if (jpeg != null)
+                        {
+                            var thumb = ProcessJpegForCache(jpeg, ThumbnailDecodeWidth) ?? jpeg;
+                            _cache!.SaveThumbnail(photo.FileName, thumb);
+                            Application.Current.Dispatcher.Invoke(() => photo.ThumbnailJpeg = thumb);
+                        }
                     }
+
+                    var metadata = _extractor.ExtractMetadata(photo.FilePath);
+                    if (metadata != null)
+                        Application.Current.Dispatcher.Invoke(() => photo.Metadata = metadata);
 
                     var d = Interlocked.Increment(ref done);
                     if (d % 10 == 0)
                     {
                         var snapshot = d;
                         Application.Current.Dispatcher.BeginInvoke(() =>
-                        {
-                            StatusText = $"Generating previews... {snapshot}/{toExtract.Count}";
-                        });
+                            StatusText = $"Generating previews... {snapshot}/{total}");
                     }
                 });
             }

@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     private const double MinZoom = 1.0;
     private const double MaxZoom = 8.0;
     private const double ZoomStep = 1.2;
+    private const double DoubleClickZoom = 3.0;
 
     private bool _isPanning;
     private Point _panStart;
@@ -34,6 +35,11 @@ public partial class MainWindow : Window
         }
 
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
+        Loaded += async (_, _) =>
+        {
+            if (DataContext is MainViewModel vm)
+                await vm.RestoreLastFolderAsync();
+        };
     }
 
     // ── Filmstrip: wheel scrolls horizontally ──
@@ -102,6 +108,28 @@ public partial class MainWindow : Window
     private void PreviewHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement host) return;
+
+        if (e.ClickCount == 2)
+        {
+            if (PreviewScale.ScaleX > MinZoom + 1e-3)
+            {
+                ResetPreviewZoom();
+            }
+            else
+            {
+                var pt = e.GetPosition(PreviewImageElement);
+                var ratio = DoubleClickZoom / PreviewScale.ScaleX;
+                PreviewTranslate.X = pt.X * (1 - ratio) + PreviewTranslate.X * ratio;
+                PreviewTranslate.Y = pt.Y * (1 - ratio) + PreviewTranslate.Y * ratio;
+                PreviewScale.ScaleX = PreviewScale.ScaleY = DoubleClickZoom;
+                UpdateZoomIndicator(DoubleClickZoom);
+                if (DataContext is MainViewModel vm)
+                    _ = vm.LoadHighResPreviewAsync();
+            }
+            e.Handled = true;
+            return;
+        }
+
         if (PreviewScale.ScaleX <= MinZoom + 1e-3) return; // nothing to pan
 
         _isPanning = true;

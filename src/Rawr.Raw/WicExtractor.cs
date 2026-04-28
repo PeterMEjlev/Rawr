@@ -36,41 +36,11 @@ public sealed class WicExtractor : IPreviewExtractor
     {
         try
         {
+            var size = new FileInfo(filePath).Length;
             using var stream = File.OpenRead(filePath);
-            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-            var frame = decoder.Frames[0];
-
-            var metadata = frame.Metadata as BitmapMetadata;
-            var fileInfo = new FileInfo(filePath);
-
-            DateTime? captureTime = null;
-            if (metadata != null)
-            {
-                try
-                {
-                    var dateTaken = metadata.DateTaken;
-                    if (!string.IsNullOrEmpty(dateTaken) && DateTime.TryParse(dateTaken, out var dt))
-                        captureTime = dt;
-                }
-                catch { /* metadata field may not exist */ }
-            }
-
-            return new PhotoMetadata
-            {
-                WidthPx = (int)frame.PixelWidth,
-                HeightPx = (int)frame.PixelHeight,
-                CameraMake = TryGetMetadata(metadata, "/app1/ifd/{ushort=271}") ?? "",
-                CameraModel = TryGetMetadata(metadata, "/app1/ifd/{ushort=272}") ?? "",
-                FileSizeBytes = fileInfo.Length,
-                CaptureTime = captureTime,
-                // WIC doesn't easily expose these without deeper metadata queries
-                // TODO: Add EXIF queries for ISO, aperture, shutter, focal length
-            };
+            return ExifHelper.ReadFromStream(stream, size);
         }
-        catch
-        {
-            return null;
-        }
+        catch { return null; }
     }
 
     /// <summary>
@@ -155,15 +125,4 @@ public sealed class WicExtractor : IPreviewExtractor
         return ms.ToArray();
     }
 
-    private static string? TryGetMetadata(BitmapMetadata? metadata, string query)
-    {
-        try
-        {
-            return metadata?.GetQuery(query)?.ToString();
-        }
-        catch
-        {
-            return null;
-        }
-    }
 }
