@@ -68,34 +68,34 @@
         <KeyBinding Modifiers="Control+Shift" Key="X" Command="{Binding ClearFiltersCommand}" />
 
         <!-- Custom group assignment (Shift+1 through Shift+0 = group index 0–9) -->
-        <KeyBinding Modifiers="Shift" Key="D1" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D1" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>0</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D2" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D2" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>1</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D3" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D3" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>2</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D4" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D4" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>3</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D5" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D5" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>4</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D6" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D6" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>5</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D7" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D7" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>6</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D8" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D8" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>7</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D9" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D9" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>8</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
-        <KeyBinding Modifiers="Shift" Key="D0" Command="{Binding AssignGroupByIndexCommand}">
+        <KeyBinding Modifiers="Shift" Key="D0" Command="{Binding AssignTagByIndexCommand}">
             <KeyBinding.CommandParameter><sys:Int32>9</sys:Int32></KeyBinding.CommandParameter>
         </KeyBinding>
     </Window.InputBindings>
@@ -369,20 +369,20 @@
                                 </StackPanel>
 
                                 <!-- Groups -->
-                                <TextBlock Text="GROUPS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <TextBlock Text="TAGS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
                                 <WrapPanel Margin="0,0,0,6">
-                                    <Button Content="Any" Command="{Binding ClearGroupFilterCommand}" Margin="0,0,3,3">
+                                    <Button Content="Any" Command="{Binding ClearTagFilterCommand}" Margin="0,0,3,3">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CustomGroupFilter}" Value="{x:Null}">
+                                                    <DataTrigger Binding="{Binding TagFilter}" Value="{x:Null}">
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <ItemsControl ItemsSource="{Binding CustomGroups}">
+                                    <ItemsControl ItemsSource="{Binding Tags}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel Orientation="Horizontal" />
@@ -391,13 +391,13 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Button Content="{Binding Name}"
-                                                        Command="{Binding DataContext.SetGroupFilterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        Command="{Binding DataContext.SetTagFilterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"
                                                         Margin="0,0,3,3">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding DataContext.CustomGroupFilter, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="{Binding}">
+                                                                <DataTrigger Binding="{Binding DataContext.TagFilter, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="{Binding}">
                                                                     <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -405,11 +405,11 @@
                                                     </Button.Style>
                                                     <Button.ContextMenu>
                                                         <ContextMenu>
-                                                            <MenuItem Header="Rename…"
-                                                                      Command="{Binding PlacementTarget.Tag.RenameGroupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                            <MenuItem Header="Rename tag…"
+                                                                      Command="{Binding PlacementTarget.Tag.RenameTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                                            <MenuItem Header="Delete"
-                                                                      Command="{Binding PlacementTarget.Tag.DeleteGroupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                            <MenuItem Header="Delete tag"
+                                                                      Command="{Binding PlacementTarget.Tag.DeleteTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                                         </ContextMenu>
                                                     </Button.ContextMenu>
@@ -420,13 +420,63 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <Button Content="+" Command="{Binding CreateGroupCommand}" ToolTip="Create new group" Margin="0,0,0,3" />
+                                    <Button Content="+" Command="{Binding CreateTagCommand}" ToolTip="Create new tag" Margin="0,0,0,3" />
                                 </WrapPanel>
 
                                 <Separator Margin="0,2,0,8" />
                                 <Button Content="Clear All Filters" Command="{Binding ClearFiltersCommand}"
                                         HorizontalAlignment="Stretch" ToolTip="Ctrl+Shift+X" />
 
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
+
+                <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
+
+                <!-- Tags management button -->
+                <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
+                    <ToggleButton x:Name="TagsToggleButton"
+                                  IsChecked="{Binding IsOpen, ElementName=TagsPopup, Mode=TwoWay}"
+                                  Content="Tags" />
+                    <Popup x:Name="TagsPopup"
+                           StaysOpen="False"
+                           Placement="Bottom"
+                           PlacementTarget="{Binding ElementName=TagsToggleButton}"
+                           AllowsTransparency="True">
+                        <Border Background="{StaticResource BgControlBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                Padding="10,8"
+                                MinWidth="200">
+                            <StackPanel>
+                                <TextBlock Text="TAGS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{Binding Tags}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="0,0,0,4">
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="✕"
+                                                        Padding="6,2"
+                                                        Margin="4,0,0,0"
+                                                        Command="{Binding DataContext.DeleteTagCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Delete tag" />
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="✎"
+                                                        Padding="6,2"
+                                                        Margin="4,0,0,0"
+                                                        Command="{Binding DataContext.RenameTagCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Rename tag" />
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Separator Margin="0,4,0,8" />
+                                <Button Content="+ New Tag" Command="{Binding CreateTagCommand}"
+                                        HorizontalAlignment="Stretch" />
                             </StackPanel>
                         </Border>
                     </Popup>
@@ -730,21 +780,21 @@
                                 <StackPanel Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                                     <StackPanel.ContextMenu>
                                         <ContextMenu>
-                                            <MenuItem Header="Groups"
-                                                      ItemsSource="{Binding PlacementTarget.Tag.SelectedPhotoGroupAssignments, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                            <MenuItem Header="Tags"
+                                                      ItemsSource="{Binding PlacementTarget.Tag.SelectedPhotoTagAssignments, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
                                                 <MenuItem.ItemContainerStyle>
                                                     <Style TargetType="MenuItem">
-                                                        <Setter Property="Header" Value="{Binding Group.Name}" />
+                                                        <Setter Property="Header" Value="{Binding Tag.Name}" />
                                                         <Setter Property="IsCheckable" Value="True" />
                                                         <Setter Property="IsChecked" Value="{Binding IsAssigned, Mode=OneWay}" />
-                                                        <Setter Property="Command" Value="{Binding PlacementTarget.Tag.ToggleGroupForSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                                        <Setter Property="CommandParameter" Value="{Binding Group}" />
+                                                        <Setter Property="Command" Value="{Binding PlacementTarget.Tag.ToggleTagForSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                        <Setter Property="CommandParameter" Value="{Binding Tag}" />
                                                     </Style>
                                                 </MenuItem.ItemContainerStyle>
                                             </MenuItem>
                                             <Separator />
-                                            <MenuItem Header="New Group…"
-                                                      Command="{Binding PlacementTarget.Tag.CreateGroupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="New Tag…"
+                                                      Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         </ContextMenu>
                                     </StackPanel.ContextMenu>
                                     <Border Height="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -769,6 +819,16 @@
                                                 <TextBlock Text="{Binding Rating, Converter={StaticResource RatingToStars}}"
                                                            Foreground="{StaticResource StarBrush}"
                                                            FontSize="10" />
+                                            </Border>
+                                            <!-- Tag indicator -->
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                    Background="#CC007ACC"
+                                                    Padding="4,1" Margin="2"
+                                                    CornerRadius="2"
+                                                    Visibility="{Binding TagDisplay, Converter={StaticResource NullToVisibility}}">
+                                                <TextBlock Text="{Binding TagDisplay}"
+                                                           Foreground="White"
+                                                           FontSize="9" />
                                             </Border>
                                         </Grid>
                                     </Border>
@@ -797,10 +857,30 @@
                 <Border x:Name="PreviewHost"
                         Background="Transparent"
                         ClipToBounds="True"
+                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                         MouseWheel="PreviewHost_MouseWheel"
                         MouseLeftButtonDown="PreviewHost_MouseLeftButtonDown"
                         MouseLeftButtonUp="PreviewHost_MouseLeftButtonUp"
                         MouseMove="PreviewHost_MouseMove">
+                    <Border.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Tags"
+                                      ItemsSource="{Binding PlacementTarget.Tag.SelectedPhotoTagAssignments, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                <MenuItem.ItemContainerStyle>
+                                    <Style TargetType="MenuItem">
+                                        <Setter Property="Header" Value="{Binding Tag.Name}" />
+                                        <Setter Property="IsCheckable" Value="True" />
+                                        <Setter Property="IsChecked" Value="{Binding IsAssigned, Mode=OneWay}" />
+                                        <Setter Property="Command" Value="{Binding PlacementTarget.Tag.ToggleTagForSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        <Setter Property="CommandParameter" Value="{Binding Tag}" />
+                                    </Style>
+                                </MenuItem.ItemContainerStyle>
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="New Tag…"
+                                      Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        </ContextMenu>
+                    </Border.ContextMenu>
                     <Image x:Name="PreviewImageElement"
                            Source="{Binding PreviewImage}"
                            Stretch="Uniform"
@@ -939,7 +1019,7 @@
                         <TextBlock Text="P / X  Pick / Reject" Margin="0,1" />
                         <TextBlock Text="⇧+P / ⇧+X  Flag &amp; advance" Margin="0,1" />
                         <TextBlock Text="U  Unflag" Margin="0,1" />
-                        <TextBlock Text="⇧+1–0  Assign group" Margin="0,1" />
+                        <TextBlock Text="⇧+1–0  Assign tag" Margin="0,1" />
                         <TextBlock Text="Ctrl+O  Open folder" Margin="0,1" />
                         <TextBlock Text="Ctrl+C  Copy picks" Margin="0,1" />
                     </StackPanel>
@@ -979,21 +1059,21 @@
                               Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                             <Grid.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Groups"
-                                              ItemsSource="{Binding PlacementTarget.Tag.SelectedPhotoGroupAssignments, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                    <MenuItem Header="Tags"
+                                              ItemsSource="{Binding PlacementTarget.Tag.SelectedPhotoTagAssignments, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
                                         <MenuItem.ItemContainerStyle>
                                             <Style TargetType="MenuItem">
-                                                <Setter Property="Header" Value="{Binding Group.Name}" />
+                                                <Setter Property="Header" Value="{Binding Tag.Name}" />
                                                 <Setter Property="IsCheckable" Value="True" />
                                                 <Setter Property="IsChecked" Value="{Binding IsAssigned, Mode=OneWay}" />
-                                                <Setter Property="Command" Value="{Binding PlacementTarget.Tag.ToggleGroupForSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                                <Setter Property="CommandParameter" Value="{Binding Group}" />
+                                                <Setter Property="Command" Value="{Binding PlacementTarget.Tag.ToggleTagForSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <Setter Property="CommandParameter" Value="{Binding Tag}" />
                                             </Style>
                                         </MenuItem.ItemContainerStyle>
                                     </MenuItem>
                                     <Separator />
-                                    <MenuItem Header="New Group…"
-                                              Command="{Binding PlacementTarget.Tag.CreateGroupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <MenuItem Header="New Tag…"
+                                              Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 </ContextMenu>
                             </Grid.ContextMenu>
                             <Grid.RowDefinitions>
@@ -1029,6 +1109,16 @@
                                         <TextBlock Text="{Binding Rating, Converter={StaticResource RatingToStars}}"
                                                    Foreground="{StaticResource StarBrush}"
                                                    FontSize="10" />
+                                    </Border>
+                                    <!-- Tag indicator (bottom-right) -->
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            Background="#CC007ACC"
+                                            Padding="4,1" Margin="2"
+                                            CornerRadius="2"
+                                            Visibility="{Binding TagDisplay, Converter={StaticResource NullToVisibility}}">
+                                        <TextBlock Text="{Binding TagDisplay}"
+                                                   Foreground="White"
+                                                   FontSize="9" />
                                     </Border>
                                 </Grid>
                             </Border>

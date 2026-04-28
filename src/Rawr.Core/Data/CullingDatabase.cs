@@ -122,24 +122,24 @@ public sealed class CullingDatabase : IDisposable
 
     // ── Custom groups ──
 
-    public List<CustomGroup> LoadGroups()
+    public List<PhotoTag> LoadGroups()
     {
-        var result = new List<CustomGroup>();
+        var result = new List<PhotoTag>();
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "SELECT id, name FROM custom_groups ORDER BY id";
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
-            result.Add(new CustomGroup { Id = reader.GetInt32(0), Name = reader.GetString(1) });
+            result.Add(new PhotoTag { Id = reader.GetInt32(0), Name = reader.GetString(1) });
         return result;
     }
 
-    public CustomGroup CreateGroup(string name)
+    public PhotoTag CreateGroup(string name)
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "INSERT INTO custom_groups (name) VALUES ($name) RETURNING id";
         cmd.Parameters.AddWithValue("$name", name);
         var id = Convert.ToInt32(cmd.ExecuteScalar());
-        return new CustomGroup { Id = id, Name = name };
+        return new PhotoTag { Id = id, Name = name };
     }
 
     public void DeleteGroup(int id)
