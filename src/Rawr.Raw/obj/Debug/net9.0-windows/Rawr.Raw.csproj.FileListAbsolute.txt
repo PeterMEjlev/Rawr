@@ -29,3 +29,4 @@ C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\obj\Debug\net9.0-windows\Rawr
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\obj\Debug\net9.0-windows\refint\Rawr.Raw.dll
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\obj\Debug\net9.0-windows\Rawr.Raw.pdb
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\obj\Debug\net9.0-windows\ref\Rawr.Raw.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Debug\net9.0-windows\Rawr.Raw.sourcelink.json

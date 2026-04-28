@@ -125,3 +125,4 @@ C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\re
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\RAWR.pdb
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Rawr.App.genruntimeconfig.cache
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\ref\RAWR.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Rawr.App.sourcelink.json

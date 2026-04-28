@@ -119,7 +119,7 @@
                                 <TextBlock Text="RATING" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
                                 <StackPanel Margin="0,0,0,10">
 
-                                    <!-- Any / No Stars -->
+                                    <!-- Any + mode toggle -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
                                         <Button Content="Any" Command="{Binding ClearRatingFilterCommand}" Margin="0,0,3,0">
                                             <Button.Style>
@@ -132,98 +132,40 @@
                                                 </Style>
                                             </Button.Style>
                                         </Button>
-                                        <Button Content="No Stars" Command="{Binding SetRatingNoStarsCommand}">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding RatingFilterMode}" Value="NoStars">
-                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
+                                        <Button Content="{Binding RatingModeLabel}" Command="{Binding CycleRatingModeCommand}" Width="28" />
                                     </StackPanel>
 
-                                    <!-- Exactly N stars -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                                        <Button Command="{Binding SetRatingExactCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="1" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            = 1★
-                                        </Button>
-                                        <Button Command="{Binding SetRatingExactCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="2" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            = 2★
-                                        </Button>
-                                        <Button Command="{Binding SetRatingExactCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="3" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            = 3★
-                                        </Button>
-                                        <Button Command="{Binding SetRatingExactCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="4" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            = 4★
-                                        </Button>
-                                        <Button Command="{Binding SetRatingExactCommand}">
-                                            <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="5" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            = 5★
-                                        </Button>
-                                    </StackPanel>
-
-                                    <!-- At least N stars -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                                        <Button Command="{Binding SetRatingAtLeastCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="1" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            ≥ 1★
-                                        </Button>
-                                        <Button Command="{Binding SetRatingAtLeastCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="2" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            ≥ 2★
-                                        </Button>
-                                        <Button Command="{Binding SetRatingAtLeastCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="3" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            ≥ 3★
-                                        </Button>
-                                        <Button Command="{Binding SetRatingAtLeastCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="4" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            ≥ 4★
-                                        </Button>
-                                        <Button Command="{Binding SetRatingAtLeastCommand}">
-                                            <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="5" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            ≥ 5★
-                                        </Button>
-                                    </StackPanel>
-
-                                    <!-- Less than N stars -->
+                                    <!-- Star buttons 0–5 -->
                                     <StackPanel Orientation="Horizontal">
-                                        <Button Command="{Binding SetRatingLessThanCommand}" Margin="0,0,3,0">
+                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>0</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="0"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            0★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="1"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            1★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
                                             <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="LessThan" /><Condition Binding="{Binding RatingFilterValue}" Value="2" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            &lt; 2★
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="2"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            2★
                                         </Button>
-                                        <Button Command="{Binding SetRatingLessThanCommand}" Margin="0,0,3,0">
+                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
                                             <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="LessThan" /><Condition Binding="{Binding RatingFilterValue}" Value="3" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            &lt; 3★
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="3"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            3★
                                         </Button>
-                                        <Button Command="{Binding SetRatingLessThanCommand}" Margin="0,0,3,0">
+                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
                                             <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="LessThan" /><Condition Binding="{Binding RatingFilterValue}" Value="4" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            &lt; 4★
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="4"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            4★
                                         </Button>
-                                        <Button Command="{Binding SetRatingLessThanCommand}">
+                                        <Button Command="{Binding SetRatingValueCommand}">
                                             <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="LessThan" /><Condition Binding="{Binding RatingFilterValue}" Value="5" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
-                                            &lt; 5★
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="5"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                            5★
                                         </Button>
                                     </StackPanel>
 

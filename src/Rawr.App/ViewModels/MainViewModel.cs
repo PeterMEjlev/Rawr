@@ -14,7 +14,7 @@ using Rawr.Raw;
 namespace Rawr.App.ViewModels;
 
 public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag }
-public enum RatingFilterMode { Any, NoStars, Exact, AtLeast, LessThan }
+public enum RatingFilterMode { Any, Exact, AtLeast, LessThan }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -42,9 +42,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // Filter state
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(ActiveRatingValue))]
+    [NotifyPropertyChangedFor(nameof(RatingModeLabel))]
     private RatingFilterMode _ratingFilterMode;
 
-    [ObservableProperty] private int _ratingFilterValue;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveRatingValue))]
+    private int _ratingFilterValue;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RatingModeLabel))]
+    private RatingFilterMode _ratingCycleMode = RatingFilterMode.Exact;
+
+    public int ActiveRatingValue => RatingFilterMode == RatingFilterMode.Any ? -1 : RatingFilterValue;
+
+    public string RatingModeLabel => RatingCycleMode switch
+    {
+        RatingFilterMode.AtLeast  => "≥",
+        RatingFilterMode.LessThan => "<",
+        _                         => "="
+    };
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
@@ -484,36 +501,31 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void SetRatingNoStars()
+    private void CycleRatingMode()
     {
-        RatingFilterMode = RatingFilterMode == RatingFilterMode.NoStars ? RatingFilterMode.Any : RatingFilterMode.NoStars;
-        ApplyFilter();
+        RatingCycleMode = RatingCycleMode switch
+        {
+            RatingFilterMode.Exact    => RatingFilterMode.AtLeast,
+            RatingFilterMode.AtLeast  => RatingFilterMode.LessThan,
+            _                         => RatingFilterMode.Exact
+        };
+        if (RatingFilterMode != RatingFilterMode.Any)
+        {
+            RatingFilterMode = RatingCycleMode;
+            ApplyFilter();
+        }
     }
 
     [RelayCommand]
-    private void SetRatingExact(int value)
+    private void SetRatingValue(int value)
     {
-        if (RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == value)
+        if (RatingFilterMode == RatingCycleMode && RatingFilterValue == value)
             RatingFilterMode = RatingFilterMode.Any;
-        else { RatingFilterMode = RatingFilterMode.Exact; RatingFilterValue = value; }
-        ApplyFilter();
-    }
-
-    [RelayCommand]
-    private void SetRatingAtLeast(int value)
-    {
-        if (RatingFilterMode == RatingFilterMode.AtLeast && RatingFilterValue == value)
-            RatingFilterMode = RatingFilterMode.Any;
-        else { RatingFilterMode = RatingFilterMode.AtLeast; RatingFilterValue = value; }
-        ApplyFilter();
-    }
-
-    [RelayCommand]
-    private void SetRatingLessThan(int value)
-    {
-        if (RatingFilterMode == RatingFilterMode.LessThan && RatingFilterValue == value)
-            RatingFilterMode = RatingFilterMode.Any;
-        else { RatingFilterMode = RatingFilterMode.LessThan; RatingFilterValue = value; }
+        else
+        {
+            RatingFilterMode = RatingCycleMode;
+            RatingFilterValue = value;
+        }
         ApplyFilter();
     }
 
@@ -586,7 +598,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         IEnumerable<PhotoItem> visible = AllPhotos;
         visible = RatingFilterMode switch
         {
-            RatingFilterMode.NoStars  => visible.Where(p => p.Rating == 0),
             RatingFilterMode.Exact    => visible.Where(p => p.Rating == RatingFilterValue),
             RatingFilterMode.AtLeast  => visible.Where(p => p.Rating >= RatingFilterValue),
             RatingFilterMode.LessThan => visible.Where(p => p.Rating < RatingFilterValue),
@@ -633,8 +644,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var ratingDesc = RatingFilterMode switch
         {
-            RatingFilterMode.NoStars  => "No stars",
-            RatingFilterMode.Exact    => $"={RatingFilterValue}★",
+            RatingFilterMode.Exact    => RatingFilterValue == 0 ? "No stars" : $"={RatingFilterValue}★",
             RatingFilterMode.AtLeast  => $"≥{RatingFilterValue}★",
             RatingFilterMode.LessThan => $"<{RatingFilterValue}★",
             _                         => null

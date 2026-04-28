@@ -117,3 +117,12 @@ C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\refi
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\RAWR.pdb
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Rawr.App.genruntimeconfig.cache
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\ref\RAWR.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\bin\Debug\net9.0-windows\native\jasper.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\bin\Debug\net9.0-windows\native\jpeg62.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\bin\Debug\net9.0-windows\native\lcms2-2.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\bin\Debug\net9.0-windows\native\raw.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\bin\Debug\net9.0-windows\native\raw_r.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\bin\Debug\net9.0-windows\native\turbojpeg.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\bin\Debug\net9.0-windows\native\z.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\RAWR_Content.g.cs
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Rawr.App.sourcelink.json

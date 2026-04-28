@@ -23,3 +23,4 @@ C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.d
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\refint\Rawr.Core.dll
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.pdb
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\ref\Rawr.Core.dll
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.sourcelink.json
