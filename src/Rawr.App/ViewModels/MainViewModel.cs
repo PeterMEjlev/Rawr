@@ -32,6 +32,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _filterDescription = "All";
     [ObservableProperty] private int _totalCount;
     [ObservableProperty] private int _visibleCount;
+    [ObservableProperty] private double _gridThumbnailSize = 90.0; // derived in code-behind from GridColumnCount
+    [ObservableProperty] private int _gridColumnCount = 2;
 
     // Filter state
     [ObservableProperty] private int _minRatingFilter; // 0 = no filter

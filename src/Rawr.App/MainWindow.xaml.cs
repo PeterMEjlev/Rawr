@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Rawr.App.ViewModels;
@@ -18,19 +19,20 @@ public partial class MainWindow : Window
     private Point _panStart;
     private double _panStartTx;
     private double _panStartTy;
+    private UniformGrid? _gridItemsPanel;
 
     public MainWindow()
     {
         InitializeComponent();
 
-        // Reset zoom whenever the user moves to a new photo so each shot
-        // opens fitted to the preview area.
         if (DataContext is INotifyPropertyChanged inpc)
         {
             inpc.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(MainViewModel.SelectedPhoto))
                     ResetPreviewZoom();
+                if (e.PropertyName == nameof(MainViewModel.GridColumnCount))
+                    RecalcGridThumbnailSize();
             };
         }
 
@@ -39,7 +41,47 @@ public partial class MainWindow : Window
         {
             if (DataContext is MainViewModel vm)
                 await vm.RestoreLastFolderAsync();
+            RecalcGridThumbnailSize();
         };
+    }
+
+    // ── Grid panel ──
+
+    private void GridView_SizeChanged(object sender, SizeChangedEventArgs e) => RecalcGridThumbnailSize();
+
+    // GridThumbnailSize drives the square height of each cell.
+    // UniformGrid owns the column count and divides available width automatically,
+    // so we only need to set Columns and provide a matching height.
+    // Subtract 12 to reserve space for the slim scrollbar (10 px) plus rounding buffer,
+    // and subtract 4 more for the 2 px item margin on each side (FilmstripItemStyle).
+    private void RecalcGridThumbnailSize()
+    {
+        if (DataContext is not MainViewModel vm) return;
+
+        _gridItemsPanel ??= FindDescendant<UniformGrid>(GridView);
+        if (_gridItemsPanel != null)
+            _gridItemsPanel.Columns = vm.GridColumnCount;
+
+        var available = GridView.ActualWidth - 12;
+        if (available <= 0) return;
+        vm.GridThumbnailSize = Math.Max(20, Math.Floor(available / vm.GridColumnCount) - 4);
+    }
+
+    private void GridView_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+        if (DataContext is not MainViewModel vm) return;
+
+        // Scroll up = zoom in = fewer columns; scroll down = zoom out = more columns.
+        vm.GridColumnCount = Math.Clamp(vm.GridColumnCount + (e.Delta > 0 ? -1 : 1), 1, 8);
+        e.Handled = true;
+        // RecalcGridThumbnailSize is called via the PropertyChanged → GridColumnCount handler.
+    }
+
+    private void GridView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ListBox lb || lb.SelectedItem is null) return;
+        lb.ScrollIntoView(lb.SelectedItem);
     }
 
     // ── Filmstrip: wheel scrolls horizontally ──
@@ -188,6 +230,19 @@ public partial class MainWindow : Window
         for (int i = 0; i < count; i++)
         {
             var found = FindScrollViewer(VisualTreeHelper.GetChild(root, i));
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T t) return t;
+            var found = FindDescendant<T>(child);
             if (found != null) return found;
         }
         return null;

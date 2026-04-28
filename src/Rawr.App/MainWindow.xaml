@@ -120,15 +120,121 @@
             </DockPanel>
         </Border>
 
-        <!-- ================ MAIN SPLIT (preview + metadata) ================ -->
+        <!-- ================ MAIN SPLIT (grid panel + preview + metadata) ================ -->
         <Grid Grid.Row="1" Background="{StaticResource BgBrush}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="200" MinWidth="100" MaxWidth="500" />  <!-- Grid panel -->
+                <ColumnDefinition Width="4" />                                   <!-- Splitter -->
+                <ColumnDefinition Width="*" />                                   <!-- Preview -->
+                <ColumnDefinition Width="Auto" />                                <!-- Metadata -->
             </Grid.ColumnDefinitions>
 
+            <!-- ── Grid panel ── -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource BgFilmstripBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,0">
+                <DockPanel>
+                    <!-- Header: label + zoom slider -->
+                    <Border DockPanel.Dock="Top"
+                            Background="{StaticResource BgToolbarBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="8,4">
+                        <DockPanel>
+                            <TextBlock Text="GRID"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       DockPanel.Dock="Left"
+                                       Margin="0,0,8,0" />
+                            <TextBlock Text="+"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"
+                                       DockPanel.Dock="Right"
+                                       Margin="4,0,0,0" />
+                            <TextBlock Text="−"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"
+                                       DockPanel.Dock="Left"
+                                       Margin="0,0,4,0" />
+                            <Slider Minimum="1" Maximum="8"
+                                    Value="{Binding GridColumnCount}"
+                                    IsDirectionReversed="True"
+                                    VerticalAlignment="Center"
+                                    SmallChange="1"
+                                    LargeChange="1" />
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Thumbnail grid -->
+                    <ListBox x:Name="GridView"
+                             SizeChanged="GridView_SizeChanged"
+                             ItemsSource="{Binding FilteredPhotos}"
+                             SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                             ItemContainerStyle="{StaticResource FilmstripItemStyle}"
+                             SelectionChanged="GridView_SelectionChanged"
+                             PreviewMouseWheel="GridView_PreviewMouseWheel"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             VirtualizingPanel.IsVirtualizing="False">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid x:Name="GridItemsPanel" Columns="2" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:PhotoItem}">
+                                <StackPanel>
+                                    <Border Height="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            Background="#FF0E0E0E">
+                                        <Grid>
+                                            <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"
+                                                   Stretch="Uniform"
+                                                   SnapsToDevicePixels="True"
+                                                   RenderOptions.BitmapScalingMode="LowQuality" />
+                                            <Rectangle Width="3"
+                                                       HorizontalAlignment="Left"
+                                                       Fill="{Binding Flag, Converter={StaticResource FlagToBrush}}" />
+                                            <Ellipse Width="8" Height="8"
+                                                     HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                     Margin="0,4,4,0"
+                                                     Fill="{Binding ColorLabel, Converter={StaticResource LabelToBrush}}" />
+                                            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                                    Background="#A0000000"
+                                                    Padding="4,1" Margin="2"
+                                                    CornerRadius="2"
+                                                    Visibility="{Binding Rating, Converter={StaticResource NullToVisibility}}">
+                                                <TextBlock Text="{Binding Rating, Converter={StaticResource RatingToStars}}"
+                                                           Foreground="{StaticResource StarBrush}"
+                                                           FontSize="10" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                    <TextBlock Text="{Binding FileName}"
+                                               Foreground="{StaticResource TextDimBrush}"
+                                               FontSize="10"
+                                               TextTrimming="CharacterEllipsis"
+                                               Padding="2,2,2,0" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1"
+                          Width="4"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"
+                          Cursor="SizeWE" />
+
             <!-- Preview area -->
-            <Grid Grid.Column="0" Background="#FF0E0E0E">
+            <Grid Grid.Column="2" Background="#FF0E0E0E">
                 <Border x:Name="PreviewHost"
                         Background="Transparent"
                         ClipToBounds="True"
@@ -205,7 +311,7 @@
             </Grid>
 
             <!-- Metadata panel -->
-            <Border Grid.Column="1"
+            <Border Grid.Column="3"
                     Width="280"
                     Background="{StaticResource BgPanelBrush}"
                     BorderBrush="{StaticResource BorderBrush}"

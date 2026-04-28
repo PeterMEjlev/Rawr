@@ -10,3 +10,16 @@ C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.dll
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\refint\Rawr.Core.dll
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.pdb
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Debug\net9.0\ref\Rawr.Core.dll
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\bin\Debug\net9.0\Rawr.Core.deps.json
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\bin\Debug\net9.0\Rawr.Core.dll
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\bin\Debug\net9.0\Rawr.Core.pdb
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.csproj.AssemblyReference.cache
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.AssemblyInfoInputs.cache
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.AssemblyInfo.cs
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.csproj.CoreCompileInputs.cache
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.sourcelink.json
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.dll
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\refint\Rawr.Core.dll
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\Rawr.Core.pdb
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\obj\Debug\net9.0\ref\Rawr.Core.dll
