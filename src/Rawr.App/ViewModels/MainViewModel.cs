@@ -14,6 +14,7 @@ using Rawr.Raw;
 namespace Rawr.App.ViewModels;
 
 public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag }
+public enum RatingFilterMode { Any, NoStars, Exact, AtLeast, LessThan }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -39,8 +40,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _filmstripItemWidth = 140.0; // derived in code-behind from filmstrip height
 
     // Filter state
-    [ObservableProperty] private int _minRatingFilter; // 0 = no filter
-    [ObservableProperty] private CullFlag? _flagFilter; // null = no filter
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private RatingFilterMode _ratingFilterMode;
+
+    [ObservableProperty] private int _ratingFilterValue;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private CullFlag? _flagFilter;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private ColorLabel? _colorLabelFilter;
+
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue;
 
     // Sort state
     [ObservableProperty]
@@ -463,31 +477,80 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // ── Filtering ──
 
     [RelayCommand]
-    private void CycleRatingFilter()
+    private void ClearRatingFilter()
     {
-        MinRatingFilter = (MinRatingFilter + 1) % 7; // 0 through 6 (6 wraps to 0 = no filter)
-        if (MinRatingFilter == 6) MinRatingFilter = 0;
+        RatingFilterMode = RatingFilterMode.Any;
         ApplyFilter();
     }
 
     [RelayCommand]
-    private void CycleFlagFilter()
+    private void SetRatingNoStars()
     {
-        FlagFilter = FlagFilter switch
-        {
-            null => CullFlag.Pick,
-            CullFlag.Pick => CullFlag.Reject,
-            CullFlag.Reject => CullFlag.Unflagged,
-            _ => null,
-        };
+        RatingFilterMode = RatingFilterMode == RatingFilterMode.NoStars ? RatingFilterMode.Any : RatingFilterMode.NoStars;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void SetRatingExact(int value)
+    {
+        if (RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == value)
+            RatingFilterMode = RatingFilterMode.Any;
+        else { RatingFilterMode = RatingFilterMode.Exact; RatingFilterValue = value; }
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void SetRatingAtLeast(int value)
+    {
+        if (RatingFilterMode == RatingFilterMode.AtLeast && RatingFilterValue == value)
+            RatingFilterMode = RatingFilterMode.Any;
+        else { RatingFilterMode = RatingFilterMode.AtLeast; RatingFilterValue = value; }
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void SetRatingLessThan(int value)
+    {
+        if (RatingFilterMode == RatingFilterMode.LessThan && RatingFilterValue == value)
+            RatingFilterMode = RatingFilterMode.Any;
+        else { RatingFilterMode = RatingFilterMode.LessThan; RatingFilterValue = value; }
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void SetFlagFilter(CullFlag flag)
+    {
+        FlagFilter = FlagFilter == flag ? null : flag;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearFlagFilter()
+    {
+        FlagFilter = null;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void SetColorLabelFilter(ColorLabel label)
+    {
+        ColorLabelFilter = ColorLabelFilter == label ? null : label;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearColorLabelFilter()
+    {
+        ColorLabelFilter = null;
         ApplyFilter();
     }
 
     [RelayCommand]
     private void ClearFilters()
     {
-        MinRatingFilter = 0;
+        RatingFilterMode = RatingFilterMode.Any;
         FlagFilter = null;
+        ColorLabelFilter = null;
         ApplyFilter();
     }
 
@@ -521,10 +584,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         FilteredPhotos.Clear();
 
         IEnumerable<PhotoItem> visible = AllPhotos;
-        if (MinRatingFilter > 0)
-            visible = visible.Where(p => p.Rating >= MinRatingFilter);
+        visible = RatingFilterMode switch
+        {
+            RatingFilterMode.NoStars  => visible.Where(p => p.Rating == 0),
+            RatingFilterMode.Exact    => visible.Where(p => p.Rating == RatingFilterValue),
+            RatingFilterMode.AtLeast  => visible.Where(p => p.Rating >= RatingFilterValue),
+            RatingFilterMode.LessThan => visible.Where(p => p.Rating < RatingFilterValue),
+            _                         => visible
+        };
         if (FlagFilter.HasValue)
             visible = visible.Where(p => p.Flag == FlagFilter.Value);
+        if (ColorLabelFilter.HasValue)
+            visible = visible.Where(p => p.ColorLabel == ColorLabelFilter.Value);
 
         foreach (var photo in ApplySorting(visible))
             FilteredPhotos.Add(photo);
@@ -560,10 +631,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var parts = new List<string>();
 
-        if (MinRatingFilter > 0)
-            parts.Add($"{MinRatingFilter}+ stars");
+        var ratingDesc = RatingFilterMode switch
+        {
+            RatingFilterMode.NoStars  => "No stars",
+            RatingFilterMode.Exact    => $"={RatingFilterValue}★",
+            RatingFilterMode.AtLeast  => $"≥{RatingFilterValue}★",
+            RatingFilterMode.LessThan => $"<{RatingFilterValue}★",
+            _                         => null
+        };
+        if (ratingDesc != null) parts.Add(ratingDesc);
         if (FlagFilter.HasValue)
             parts.Add(FlagFilter.Value.ToString());
+        if (ColorLabelFilter.HasValue)
+            parts.Add(ColorLabelFilter.Value.ToString());
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }

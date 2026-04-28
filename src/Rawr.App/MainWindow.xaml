@@ -65,8 +65,6 @@
                     CommandParameter="{x:Static models:ColorLabel.Blue}" />
 
         <!-- Filters -->
-        <KeyBinding Modifiers="Control+Shift" Key="R" Command="{Binding CycleRatingFilterCommand}" />
-        <KeyBinding Modifiers="Control+Shift" Key="F" Command="{Binding CycleFlagFilterCommand}" />
         <KeyBinding Modifiers="Control+Shift" Key="X" Command="{Binding ClearFiltersCommand}" />
     </Window.InputBindings>
 
@@ -89,9 +87,321 @@
                 <Button DockPanel.Dock="Left" Content="📂 Open Folder…" Command="{Binding OpenFolderCommand}" Margin="0,0,8,0" ToolTip="Ctrl+O" />
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
-                <Button DockPanel.Dock="Left" Content="Rating Filter" Command="{Binding CycleRatingFilterCommand}" Margin="0,0,4,0" ToolTip="Ctrl+Shift+R" />
-                <Button DockPanel.Dock="Left" Content="Flag Filter"   Command="{Binding CycleFlagFilterCommand}"   Margin="0,0,4,0" ToolTip="Ctrl+Shift+F" />
-                <Button DockPanel.Dock="Left" Content="Clear Filters" Command="{Binding ClearFiltersCommand}"      Margin="0,0,8,0" ToolTip="Ctrl+Shift+X" />
+                <!-- Filter dropdown -->
+                <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
+                    <ToggleButton x:Name="FilterToggleButton"
+                                  IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}"
+                                  ToolTip="Ctrl+Shift+X to clear all filters">
+                        <ToggleButton.Style>
+                            <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasActiveFilters}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ToggleButton.Style>
+                        Filter
+                    </ToggleButton>
+
+                    <Popup x:Name="FilterPopup"
+                           StaysOpen="False"
+                           Placement="Bottom"
+                           PlacementTarget="{Binding ElementName=FilterToggleButton}"
+                           AllowsTransparency="True">
+                        <Border Background="{StaticResource BgControlBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                Padding="10,8">
+                            <StackPanel>
+
+                                <!-- Rating -->
+                                <TextBlock Text="RATING" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Margin="0,0,0,10">
+
+                                    <!-- Any / No Stars -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                        <Button Content="Any" Command="{Binding ClearRatingFilterCommand}" Margin="0,0,3,0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RatingFilterMode}" Value="Any">
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Content="No Stars" Command="{Binding SetRatingNoStarsCommand}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RatingFilterMode}" Value="NoStars">
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </StackPanel>
+
+                                    <!-- Exactly N stars -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                        <Button Command="{Binding SetRatingExactCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="1" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            = 1★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingExactCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="2" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            = 2★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingExactCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="3" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            = 3★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingExactCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="4" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            = 4★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingExactCommand}">
+                                            <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="Exact" /><Condition Binding="{Binding RatingFilterValue}" Value="5" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            = 5★
+                                        </Button>
+                                    </StackPanel>
+
+                                    <!-- At least N stars -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                        <Button Command="{Binding SetRatingAtLeastCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="1" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            ≥ 1★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingAtLeastCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="2" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            ≥ 2★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingAtLeastCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="3" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            ≥ 3★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingAtLeastCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="4" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            ≥ 4★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingAtLeastCommand}">
+                                            <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="AtLeast" /><Condition Binding="{Binding RatingFilterValue}" Value="5" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            ≥ 5★
+                                        </Button>
+                                    </StackPanel>
+
+                                    <!-- Less than N stars -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Command="{Binding SetRatingLessThanCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="LessThan" /><Condition Binding="{Binding RatingFilterValue}" Value="2" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            &lt; 2★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingLessThanCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="LessThan" /><Condition Binding="{Binding RatingFilterValue}" Value="3" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            &lt; 3★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingLessThanCommand}" Margin="0,0,3,0">
+                                            <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="LessThan" /><Condition Binding="{Binding RatingFilterValue}" Value="4" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            &lt; 4★
+                                        </Button>
+                                        <Button Command="{Binding SetRatingLessThanCommand}">
+                                            <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding RatingFilterMode}" Value="LessThan" /><Condition Binding="{Binding RatingFilterValue}" Value="5" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{StaticResource AccentBrush}" /></MultiDataTrigger></Style.Triggers></Style></Button.Style>
+                                            &lt; 5★
+                                        </Button>
+                                    </StackPanel>
+
+                                </StackPanel>
+
+                                <!-- Flag -->
+                                <TextBlock Text="FLAG" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Any" Command="{Binding ClearFlagFilterCommand}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FlagFilter}" Value="{x:Null}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Pick" Command="{Binding SetFlagFilterCommand}"
+                                            CommandParameter="{x:Static models:CullFlag.Pick}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FlagFilter}" Value="{x:Static models:CullFlag.Pick}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Reject" Command="{Binding SetFlagFilterCommand}"
+                                            CommandParameter="{x:Static models:CullFlag.Reject}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FlagFilter}" Value="{x:Static models:CullFlag.Reject}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Unflagged" Command="{Binding SetFlagFilterCommand}"
+                                            CommandParameter="{x:Static models:CullFlag.Unflagged}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FlagFilter}" Value="{x:Static models:CullFlag.Unflagged}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+
+                                <!-- Color -->
+                                <TextBlock Text="COLOR" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Any" Command="{Binding ClearColorLabelFilterCommand}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Null}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="No Color" Command="{Binding SetColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.None}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.None}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Command="{Binding SetColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Red}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Red}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,5,0"
+                                                     Fill="{Binding Source={x:Static models:ColorLabel.Red}, Converter={StaticResource LabelToBrush}}" />
+                                            <TextBlock Text="Red" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SetColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Yellow}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Yellow}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,5,0"
+                                                     Fill="{Binding Source={x:Static models:ColorLabel.Yellow}, Converter={StaticResource LabelToBrush}}" />
+                                            <TextBlock Text="Yellow" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SetColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Green}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Green}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,5,0"
+                                                     Fill="{Binding Source={x:Static models:ColorLabel.Green}, Converter={StaticResource LabelToBrush}}" />
+                                            <TextBlock Text="Green" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SetColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Blue}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Blue}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,5,0"
+                                                     Fill="{Binding Source={x:Static models:ColorLabel.Blue}, Converter={StaticResource LabelToBrush}}" />
+                                            <TextBlock Text="Blue" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SetColorLabelFilterCommand}"
+                                            CommandParameter="{x:Static models:ColorLabel.Purple}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Purple}">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,5,0"
+                                                     Fill="{Binding Source={x:Static models:ColorLabel.Purple}, Converter={StaticResource LabelToBrush}}" />
+                                            <TextBlock Text="Purple" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+
+                                <Separator Margin="0,2,0,8" />
+                                <Button Content="Clear All Filters" Command="{Binding ClearFiltersCommand}"
+                                        HorizontalAlignment="Stretch" ToolTip="Ctrl+Shift+X" />
+
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
