@@ -11,7 +11,7 @@ namespace Rawr.App;
 public partial class MainWindow : Window
 {
     private const double MinZoom = 1.0;
-    private const double MaxZoom = 8.0;
+    private const double MaxZoom = 64.0;
     private const double ZoomStep = 1.2;
     private const double DoubleClickZoom = 3.0;
 
