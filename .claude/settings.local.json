@@ -8,7 +8,8 @@
       "Bash(dotnet sln:*)",
       "Bash(dotnet --list-sdks)",
       "Bash(dotnet build *)",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(grep -E \"\\\\.\\(xaml|cs\\)$\")"
     ]
   }
 }

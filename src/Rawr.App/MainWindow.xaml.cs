@@ -23,13 +23,15 @@ public partial class MainWindow : Window
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR");
     private static readonly string LayoutSettingsFile = Path.Combine(SettingsDir, "layout.json");
 
-    private record LayoutSettings(int GridColumnCount = 2, double FilmstripRowHeight = 148.0);
+    private record LayoutSettings(int GridColumnCount = 2, double FilmstripRowHeight = 148.0, bool ShowGrid = true, bool ShowFilmstrip = true);
 
     private bool _isPanning;
     private Point _panStart;
     private double _panStartTx;
     private double _panStartTy;
     private UniformGrid? _gridItemsPanel;
+    private GridLength _savedFilmstripHeight = new GridLength(148);
+    private GridLength _savedGridWidth = new GridLength(200);
 
     public MainWindow()
     {
@@ -44,6 +46,10 @@ public partial class MainWindow : Window
                     ResetPreviewZoom();
                 if (e.PropertyName == nameof(MainViewModel.GridColumnCount))
                     RecalcGridThumbnailSize();
+                if (e.PropertyName == nameof(MainViewModel.ShowGrid) && DataContext is MainViewModel vmG)
+                    ApplyGridVisibility(vmG.ShowGrid);
+                if (e.PropertyName == nameof(MainViewModel.ShowFilmstrip) && DataContext is MainViewModel vmF)
+                    ApplyFilmstripVisibility(vmF.ShowFilmstrip);
             };
         }
 
@@ -55,8 +61,12 @@ public partial class MainWindow : Window
             {
                 var layout = await LoadLayoutSettingsAsync();
                 vm.GridColumnCount = Math.Clamp(layout.GridColumnCount, 1, 8);
-                RootGrid.RowDefinitions[3].Height = new GridLength(
-                    Math.Clamp(layout.FilmstripRowHeight, 80, 400));
+                _savedFilmstripHeight = new GridLength(Math.Clamp(layout.FilmstripRowHeight, 80, 400));
+                RootGrid.RowDefinitions[3].Height = _savedFilmstripHeight;
+                vm.ShowGrid = layout.ShowGrid;
+                vm.ShowFilmstrip = layout.ShowFilmstrip;
+                ApplyGridVisibility(vm.ShowGrid);
+                ApplyFilmstripVisibility(vm.ShowFilmstrip);
                 await vm.RestoreLastFolderAsync();
             }
             RecalcGridThumbnailSize();
@@ -83,11 +93,54 @@ public partial class MainWindow : Window
         {
             if (DataContext is not MainViewModel vm) return;
             Directory.CreateDirectory(SettingsDir);
-            var height = RootGrid.RowDefinitions[3].ActualHeight;
-            var settings = new LayoutSettings(vm.GridColumnCount, height > 0 ? height : 148.0);
+            var height = vm.ShowFilmstrip
+                ? RootGrid.RowDefinitions[3].ActualHeight
+                : _savedFilmstripHeight.Value;
+            var settings = new LayoutSettings(vm.GridColumnCount, height > 0 ? height : 148.0, vm.ShowGrid, vm.ShowFilmstrip);
             File.WriteAllText(LayoutSettingsFile, JsonSerializer.Serialize(settings));
         }
         catch { /* non-critical */ }
+    }
+
+    // ── Panel visibility ──
+
+    private void ApplyGridVisibility(bool show)
+    {
+        var cols = MainSplitGrid.ColumnDefinitions;
+        if (show)
+        {
+            cols[0].MinWidth = 100;
+            cols[0].Width = _savedGridWidth;
+            cols[1].Width = new GridLength(4);
+        }
+        else
+        {
+            if (cols[0].ActualWidth > 0)
+                _savedGridWidth = new GridLength(cols[0].ActualWidth);
+            cols[0].MinWidth = 0;
+            cols[0].Width = new GridLength(0);
+            cols[1].Width = new GridLength(0);
+        }
+    }
+
+    private void ApplyFilmstripVisibility(bool show)
+    {
+        var rows = RootGrid.RowDefinitions;
+        if (show)
+        {
+            rows[2].Height = new GridLength(4);
+            rows[3].MinHeight = 80;
+            rows[3].Height = _savedFilmstripHeight;
+        }
+        else
+        {
+            var current = rows[3].ActualHeight;
+            if (current > 0)
+                _savedFilmstripHeight = new GridLength(current);
+            rows[2].Height = new GridLength(0);
+            rows[3].MinHeight = 0;
+            rows[3].Height = new GridLength(0);
+        }
     }
 
     // ── Grid panel ──

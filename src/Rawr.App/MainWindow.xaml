@@ -768,6 +768,33 @@
                 <Button DockPanel.Dock="Left" Content="📝 Export List…"     Command="{Binding ExportFileListCommand}" Margin="0,0,4,0" ToolTip="Ctrl+E — export list of picked file paths" />
                 <Button DockPanel.Dock="Left" Content="🗑 Delete Rejected…" Command="{Binding DeleteAllRejectedCommand}" Margin="0,0,4,0" ToolTip="Move all rejected photos to the Recycle Bin" />
 
+                <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
+
+                <!-- View dropdown -->
+                <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
+                    <ToggleButton x:Name="ViewToggleButton"
+                                  IsChecked="{Binding IsOpen, ElementName=ViewPopup, Mode=TwoWay}"
+                                  ToolTip="Toggle panels">
+                        View
+                    </ToggleButton>
+                    <Popup x:Name="ViewPopup"
+                           StaysOpen="False"
+                           Placement="Bottom"
+                           PlacementTarget="{Binding ElementName=ViewToggleButton}"
+                           AllowsTransparency="True">
+                        <Border Background="{StaticResource BgControlBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                Padding="10,8">
+                            <StackPanel>
+                                <TextBlock Text="PANELS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6" />
+                                <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}" Margin="0,0,0,4" />
+                                <CheckBox Content="Filmstrip" IsChecked="{Binding ShowFilmstrip}" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
+
                 <!-- Extractor indicator -->
                 <Border DockPanel.Dock="Right"
                         Background="#33FFFFFF"
@@ -792,7 +819,7 @@
         </Border>
 
         <!-- ================ MAIN SPLIT (grid panel + preview + metadata) ================ -->
-        <Grid Grid.Row="1" Background="{StaticResource BgBrush}">
+        <Grid x:Name="MainSplitGrid" Grid.Row="1" Background="{StaticResource BgBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="200" MinWidth="100" MaxWidth="500" />  <!-- Grid panel -->
                 <ColumnDefinition Width="4" />                                   <!-- Splitter -->
@@ -884,18 +911,18 @@
                                     </StackPanel.ContextMenu>
                                     <Grid Height="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}">
                                         <!-- Stack-of-cards backers (only visible on collapsed bursts) -->
-                                        <Border Background="#FF1A1A1A"
+                                        <Border Background="#FF1E1E1E"
                                                 BorderBrush="{StaticResource BorderBrush}"
                                                 BorderThickness="1"
-                                                Margin="8,8,0,0"
                                                 Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
-                                        <Border Background="#FF202020"
+                                        <Border Background="#FF252525"
                                                 BorderBrush="{StaticResource BorderBrush}"
                                                 BorderThickness="1"
-                                                Margin="4,4,4,4"
+                                                Margin="4,4,0,0"
                                                 Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
 
                                         <Border Background="#FF0E0E0E"
+                                                Margin="8,8,0,0"
                                                 MouseLeftButtonUp="GridItem_MouseLeftButtonUp">
                                         <Grid>
                                             <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"
@@ -1239,17 +1266,17 @@
                             <!-- Thumbnail area -->
                             <Grid Grid.Row="0">
                                 <!-- Stack-of-cards backers (only visible on collapsed bursts) -->
-                                <Border Background="#FF1A1A1A"
+                                <Border Background="#FF1E1E1E"
                                         BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="1"
-                                        Margin="8,8,0,0"
                                         Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
-                                <Border Background="#FF202020"
+                                <Border Background="#FF252525"
                                         BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="1"
-                                        Margin="4,4,4,4"
+                                        Margin="4,4,0,0"
                                         Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
                             <Border Background="#FF0E0E0E"
+                                    Margin="8,8,0,0"
                                     MouseLeftButtonUp="FilmstripItem_MouseLeftButtonUp">
                                 <Grid>
                                     <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"

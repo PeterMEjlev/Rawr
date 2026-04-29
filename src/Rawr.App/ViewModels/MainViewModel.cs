@@ -47,6 +47,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _gridThumbnailSize = 90.0; // derived in code-behind from GridColumnCount
     [ObservableProperty] private int _gridColumnCount = 2;
     [ObservableProperty] private double _filmstripItemWidth = 140.0; // derived in code-behind from filmstrip height
+    [ObservableProperty] private bool _showGrid = true;
+    [ObservableProperty] private bool _showFilmstrip = true;
 
     // Filter state
     [ObservableProperty]
