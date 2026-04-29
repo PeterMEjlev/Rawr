@@ -15,8 +15,13 @@ public sealed partial class PhotoItem : ObservableObject
     [ObservableProperty] private int _rating; // 0-5
     [ObservableProperty] private CullFlag _flag;
     [ObservableProperty] private ColorLabel _colorLabel;
-    [ObservableProperty] private int _groupId; // 0 = ungrouped
+    [ObservableProperty] private int _groupId; // 0 = ungrouped, > 0 = burst id assigned by BurstDetector
     [ObservableProperty] private bool _isBestInGroup;
+    [ObservableProperty] private string _burstBadge = ""; // e.g. "2/5" for the 2nd shot in a 5-shot burst; "" if not in a burst
+
+    // > 0 only when this PhotoItem is acting as the visible representative of a collapsed burst.
+    // The number is the count of (filtered) burst members the representative stands in for.
+    [ObservableProperty] private int _collapsedBurstCount;
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private string _tagDisplay = "";
 

@@ -26,6 +26,8 @@
         <KeyBinding Key="Left" Command="{Binding PreviousPhotoCommand}" />
         <KeyBinding Key="Down" Command="{Binding NextPhotoCommand}" />
         <KeyBinding Key="Up" Command="{Binding PreviousPhotoCommand}" />
+        <KeyBinding Modifiers="Control" Key="Right" Command="{Binding NextBurstCommand}" />
+        <KeyBinding Modifiers="Control" Key="Left" Command="{Binding PreviousBurstCommand}" />
 
         <!-- Flags -->
         <KeyBinding Key="P" Command="{Binding TogglePickCommand}" />
@@ -69,6 +71,9 @@
 
         <!-- Filters -->
         <KeyBinding Modifiers="Control+Shift" Key="X" Command="{Binding ClearFiltersCommand}" />
+
+        <!-- Burst collapse toggle -->
+        <KeyBinding Key="G" Command="{Binding ToggleBurstCollapseCommand}" />
 
         <!-- Custom group assignment (Shift+1 through Shift+0 = group index 0–9) -->
         <KeyBinding Modifiers="Shift" Key="D1" Command="{Binding AssignTagByIndexCommand}">
@@ -371,6 +376,51 @@
                                     </Button>
                                 </StackPanel>
 
+                                <!-- Bursts -->
+                                <TextBlock Text="BURSTS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Any" Command="{Binding ClearBurstFilterCommand}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding BurstFilter}" Value="Any">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Bursts only"
+                                            Command="{Binding SetBurstFilterCommand}"
+                                            CommandParameter="{x:Static vm:BurstFilterMode.OnlyInBursts}"
+                                            Margin="0,0,3,0"
+                                            ToolTip="Show only photos that are part of a burst">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding BurstFilter}" Value="OnlyInBursts">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Singles only"
+                                            Command="{Binding SetBurstFilterCommand}"
+                                            CommandParameter="{x:Static vm:BurstFilterMode.OnlySingles}"
+                                            ToolTip="Hide photos that are part of a burst">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding BurstFilter}" Value="OnlySingles">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+
                                 <!-- Groups -->
                                 <TextBlock Text="TAGS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
                                 <WrapPanel Margin="0,0,0,6">
@@ -443,6 +493,27 @@
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
+                <!-- Burst collapse toggle -->
+                <ToggleButton DockPanel.Dock="Left"
+                              IsChecked="{Binding BurstCollapsed}"
+                              Margin="0,0,8,0"
+                              ToolTip="G — collapse bursts to a single tile (double-click a stack to focus)">
+                    <ToggleButton.Style>
+                        <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                            <!-- Default (unchecked = expanded): pressing collapses -->
+                            <Setter Property="Content" Value="🗂 Collapse Bursts" />
+                            <Style.Triggers>
+                                <!-- Checked (collapsed): pressing expands -->
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter Property="Content" Value="🗂 Expand Bursts" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ToggleButton.Style>
+                </ToggleButton>
+
+                <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
+
                 <!-- Tags management button -->
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="TagsToggleButton"
@@ -507,6 +578,7 @@
                     <ComboBoxItem Content="Date"   Tag="{x:Static vm:SortField.CaptureDate}" />
                     <ComboBoxItem Content="Color"  Tag="{x:Static vm:SortField.ColorLabel}" />
                     <ComboBoxItem Content="Flag"   Tag="{x:Static vm:SortField.Flag}" />
+                    <ComboBoxItem Content="Burst"  Tag="{x:Static vm:SortField.Burst}" />
                 </ComboBox>
                 <Button DockPanel.Dock="Left" Content="{Binding SortDirectionLabel}" Command="{Binding ToggleSortDirectionCommand}" Margin="0,0,8,0" ToolTip="Reverse sort order" />
 
@@ -810,8 +882,21 @@
                                                       Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         </ContextMenu>
                                     </StackPanel.ContextMenu>
-                                    <Border Height="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            Background="#FF0E0E0E">
+                                    <Grid Height="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <!-- Stack-of-cards backers (only visible on collapsed bursts) -->
+                                        <Border Background="#FF1A1A1A"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                Margin="8,8,0,0"
+                                                Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
+                                        <Border Background="#FF202020"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                Margin="4,4,4,4"
+                                                Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
+
+                                        <Border Background="#FF0E0E0E"
+                                                MouseLeftButtonUp="GridItem_MouseLeftButtonUp">
                                         <Grid>
                                             <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"
                                                    Stretch="Uniform"
@@ -843,8 +928,43 @@
                                                            Foreground="White"
                                                            FontSize="9" />
                                             </Border>
+                                            <!-- Burst position badge: only shown when expanded -->
+                                            <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Background="#CC9C27B0"
+                                                    Padding="4,1" Margin="6,4,0,0"
+                                                    CornerRadius="2"
+                                                    ToolTip="Burst position">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding CollapsedBurstCount}" Value="0" />
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="{Binding BurstBadge, Converter={StaticResource NullToVisibility}}" />
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Text="{Binding BurstBadge}"
+                                                           Foreground="White"
+                                                           FontSize="9" />
+                                            </Border>
+                                            <!-- Collapsed-burst count badge: only when collapsed -->
+                                            <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Background="#E69C27B0"
+                                                    Padding="4,1" Margin="6,4,0,0"
+                                                    CornerRadius="2"
+                                                    ToolTip="Burst — double-click to focus"
+                                                    Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}">
+                                                <TextBlock Foreground="White" FontSize="10" FontWeight="SemiBold">
+                                                    <Run Text="×" /><Run Text="{Binding CollapsedBurstCount, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </Border>
                                         </Grid>
                                     </Border>
+                                    </Grid>
                                     <TextBlock Text="{Binding FileName}"
                                                Foreground="{StaticResource TextDimBrush}"
                                                FontSize="10"
@@ -1027,6 +1147,11 @@
                             <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.FocalLengthFormatted, FallbackValue='—'}" />
                         </Grid>
 
+                        <TextBlock Text="BURST" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6"
+                                   Visibility="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
+                        <TextBlock Text="{Binding SelectedPhoto.BurstBadge, FallbackValue=''}" Margin="0,0,0,12"
+                                   Visibility="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
+
                         <TextBlock Text="DATE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
                         <TextBlock Text="{Binding SelectedPhoto.Metadata.CaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
 
@@ -1040,6 +1165,7 @@
 
                         <TextBlock Text="SHORTCUTS" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
                         <TextBlock Text="←/→  Navigate" Margin="0,1" />
+                        <TextBlock Text="Ctrl+←/→  Jump burst" Margin="0,1" />
                         <TextBlock Text="0–5  Rating" Margin="0,1" />
                         <TextBlock Text="6–9  Color label" Margin="0,1" />
                         <TextBlock Text="P / X  Pick / Reject" Margin="0,1" />
@@ -1111,7 +1237,20 @@
                             </Grid.RowDefinitions>
 
                             <!-- Thumbnail area -->
-                            <Border Grid.Row="0" Background="#FF0E0E0E">
+                            <Grid Grid.Row="0">
+                                <!-- Stack-of-cards backers (only visible on collapsed bursts) -->
+                                <Border Background="#FF1A1A1A"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        Margin="8,8,0,0"
+                                        Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
+                                <Border Background="#FF202020"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        Margin="4,4,4,4"
+                                        Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
+                            <Border Background="#FF0E0E0E"
+                                    MouseLeftButtonUp="FilmstripItem_MouseLeftButtonUp">
                                 <Grid>
                                     <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"
                                            Stretch="Uniform"
@@ -1149,8 +1288,43 @@
                                                    Foreground="White"
                                                    FontSize="9" />
                                     </Border>
+                                    <!-- Burst position badge: only shown when expanded -->
+                                    <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Background="#CC9C27B0"
+                                            Padding="4,1" Margin="6,4,0,0"
+                                            CornerRadius="2"
+                                            ToolTip="Burst position">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding CollapsedBurstCount}" Value="0" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Visibility" Value="{Binding BurstBadge, Converter={StaticResource NullToVisibility}}" />
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding BurstBadge}"
+                                                   Foreground="White"
+                                                   FontSize="9" />
+                                    </Border>
+                                    <!-- Collapsed-burst count badge: only when collapsed -->
+                                    <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Background="#E69C27B0"
+                                            Padding="4,1" Margin="6,4,0,0"
+                                            CornerRadius="2"
+                                            ToolTip="Burst — double-click to focus"
+                                            Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}">
+                                        <TextBlock Foreground="White" FontSize="10" FontWeight="SemiBold">
+                                            <Run Text="×" /><Run Text="{Binding CollapsedBurstCount, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </Border>
                                 </Grid>
                             </Border>
+                            </Grid>
 
                             <!-- Filename -->
                             <TextBlock Grid.Row="1"

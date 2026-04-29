@@ -15,8 +15,9 @@ using Rawr.Raw;
 
 namespace Rawr.App.ViewModels;
 
-public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag }
+public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag, Burst }
 public enum RatingFilterMode { Any, Exact, AtLeast, LessThan }
+public enum BurstFilterMode { Any, OnlyInBursts, OnlySingles }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -79,7 +80,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     private ColorLabel? _colorLabelFilter;
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private BurstFilterMode _burstFilter = BurstFilterMode.Any;
+
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any;
+
+    [ObservableProperty] private int _burstCount;
+
+    // When true, FilteredPhotos shows one representative tile per burst (the
+    // chronologically first matching frame); when false, every burst member is shown.
+    [ObservableProperty] private bool _burstCollapsed = true;
+    partial void OnBurstCollapsedChanged(bool value) => ApplyFilter();
 
     // ── Tags ──
 
@@ -268,7 +280,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (!ct.IsCancellationRequested)
         {
-            StatusText = $"{files.Count} photos ready. [{_extractor.GetType().Name}]";
+            var burstSuffix = BurstCount > 0 ? $"  ({BurstCount} burst{(BurstCount == 1 ? "" : "s")})" : "";
+            StatusText = $"{files.Count} photos ready{burstSuffix}. [{_extractor.GetType().Name}]";
             IsLoading = false;
             try
             {
@@ -334,6 +347,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (OperationCanceledException) { /* folder switched mid-scan */ }
         }, ct);
+
+        if (ct.IsCancellationRequested) return;
+
+        // Once metadata is in for every photo, group consecutive shots into bursts.
+        // BurstDetector mutates GroupId/BurstBadge on the UI thread (the properties are observable),
+        // so run it on the dispatcher.
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            BurstCount = BurstDetector.Detect(AllPhotos);
+        });
+
+        if (BurstCount > 0 && _db != null)
+        {
+            try { await Task.Run(() => _db.SaveBatch(AllPhotos), ct); }
+            catch (OperationCanceledException) { }
+        }
+
+        if (BurstFilter != BurstFilterMode.Any || SortField == SortField.Burst)
+            ApplyFilter();
     }
 
     // ── Navigation ──
@@ -895,7 +927,79 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         FlagFilter = null;
         ColorLabelFilter = null;
         TagFilter = null;
+        BurstFilter = BurstFilterMode.Any;
         ApplyFilter();
+    }
+
+    // ── Burst filter ──
+
+    [RelayCommand]
+    private void SetBurstFilter(BurstFilterMode mode)
+    {
+        BurstFilter = BurstFilter == mode ? BurstFilterMode.Any : mode;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearBurstFilter()
+    {
+        BurstFilter = BurstFilterMode.Any;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ToggleBurstCollapse() => BurstCollapsed = !BurstCollapsed;
+
+    /// <summary>Returns every PhotoItem in the burst, ordered by capture time.</summary>
+    public List<PhotoItem> GetBurstMembers(int groupId) =>
+        AllPhotos
+            .Where(p => p.GroupId == groupId)
+            .OrderBy(p => p.Metadata?.CaptureTime ?? DateTime.MinValue)
+            .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    public IPreviewExtractor Extractor => _extractor;
+
+    public void PersistPhoto(PhotoItem photo) => _db?.Save(photo);
+
+    [RelayCommand]
+    private void NextBurst()
+    {
+        if (FilteredPhotos.Count == 0) return;
+        var start = SelectedIndex < 0 ? 0 : SelectedIndex;
+        var startGroup = FilteredPhotos[start].GroupId;
+        for (int step = 1; step <= FilteredPhotos.Count; step++)
+        {
+            int i = (start + step) % FilteredPhotos.Count;
+            var g = FilteredPhotos[i].GroupId;
+            if (g > 0 && g != startGroup) { SelectedIndex = i; return; }
+        }
+    }
+
+    [RelayCommand]
+    private void PreviousBurst()
+    {
+        if (FilteredPhotos.Count == 0) return;
+        var start = SelectedIndex < 0 ? 0 : SelectedIndex;
+        var startGroup = FilteredPhotos[start].GroupId;
+        // Walk backward to find the first photo of the previous burst.
+        int prev = -1;
+        for (int step = 1; step <= FilteredPhotos.Count; step++)
+        {
+            int i = (start - step + FilteredPhotos.Count) % FilteredPhotos.Count;
+            var g = FilteredPhotos[i].GroupId;
+            if (g > 0 && g != startGroup) { prev = i; break; }
+        }
+        if (prev < 0) return;
+        // Walk back further while still inside that same burst, to land on its first frame.
+        var targetGroup = FilteredPhotos[prev].GroupId;
+        while (true)
+        {
+            int j = (prev - 1 + FilteredPhotos.Count) % FilteredPhotos.Count;
+            if (j == start || FilteredPhotos[j].GroupId != targetGroup) break;
+            prev = j;
+        }
+        SelectedIndex = prev;
     }
 
     // ── Sorting ──
@@ -917,6 +1021,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         SortField.Flag => SortDescending
             ? items.OrderByDescending(p => (int)p.Flag)
             : items.OrderBy(p => (int)p.Flag),
+        SortField.Burst => SortDescending
+            // Bursts first (descending by group id, then by capture time inside each).
+            ? items.OrderByDescending(p => p.GroupId)
+                   .ThenBy(p => p.Metadata?.CaptureTime ?? DateTime.MinValue)
+                   .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
+            // Singles first (group id 0), then bursts grouped by id, capture time inside.
+            : items.OrderBy(p => p.GroupId == 0 ? 0 : 1)
+                   .ThenBy(p => p.GroupId)
+                   .ThenBy(p => p.Metadata?.CaptureTime ?? DateTime.MinValue)
+                   .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase),
         _ => SortDescending
             ? items.OrderByDescending(p => p.FileName, StringComparer.OrdinalIgnoreCase)
             : items.OrderBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
@@ -941,9 +1055,53 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             visible = visible.Where(p => p.ColorLabel == ColorLabelFilter.Value);
         if (TagFilter != null)
             visible = visible.Where(p => p.TagIds.Contains(TagFilter.Id));
+        visible = BurstFilter switch
+        {
+            BurstFilterMode.OnlyInBursts => visible.Where(p => p.GroupId > 0),
+            BurstFilterMode.OnlySingles  => visible.Where(p => p.GroupId == 0),
+            _                            => visible
+        };
 
-        foreach (var photo in ApplySorting(visible))
-            FilteredPhotos.Add(photo);
+        var sorted = ApplySorting(visible).ToList();
+
+        // Reset any prior collapse markers — collapse is purely a presentation
+        // pass derived from the current filter, never persisted.
+        foreach (var p in AllPhotos)
+            if (p.CollapsedBurstCount != 0) p.CollapsedBurstCount = 0;
+
+        if (BurstCollapsed)
+        {
+            // Per burst: keep the chronologically first matching photo as the
+            // representative (its CollapsedBurstCount = matching count for that
+            // burst). Hide the other matching members.
+            var membersByGroup = sorted
+                .Where(p => p.GroupId > 0)
+                .GroupBy(p => p.GroupId)
+                .ToDictionary(g => g.Key, g => g
+                    .OrderBy(p => p.Metadata?.CaptureTime ?? DateTime.MinValue)
+                    .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
+
+            var seenGroups = new HashSet<int>();
+            foreach (var photo in sorted)
+            {
+                if (photo.GroupId == 0)
+                {
+                    FilteredPhotos.Add(photo);
+                    continue;
+                }
+                if (!seenGroups.Add(photo.GroupId)) continue; // already represented
+                var members = membersByGroup[photo.GroupId];
+                var rep = members[0];
+                rep.CollapsedBurstCount = members.Count;
+                FilteredPhotos.Add(rep);
+            }
+        }
+        else
+        {
+            foreach (var photo in sorted)
+                FilteredPhotos.Add(photo);
+        }
 
         VisibleCount = FilteredPhotos.Count;
         UpdateFilterDescription();
@@ -956,6 +1114,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 SelectedIndex = idx;
                 return;
+            }
+            // Hidden because we just collapsed a burst the user was inside —
+            // map them to that burst's representative so focus stays put.
+            if (previousSelection.GroupId > 0)
+            {
+                for (int i = 0; i < FilteredPhotos.Count; i++)
+                {
+                    if (FilteredPhotos[i].GroupId == previousSelection.GroupId)
+                    {
+                        SelectedIndex = i;
+                        return;
+                    }
+                }
             }
         }
 
@@ -990,6 +1161,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             parts.Add(ColorLabelFilter.Value.ToString());
         if (TagFilter != null)
             parts.Add(TagFilter.Name);
+        if (BurstFilter == BurstFilterMode.OnlyInBursts) parts.Add("Bursts");
+        else if (BurstFilter == BurstFilterMode.OnlySingles) parts.Add("Singles");
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }

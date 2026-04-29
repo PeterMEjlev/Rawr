@@ -6,7 +6,9 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using Rawr.App.Dialogs;
 using Rawr.App.ViewModels;
+using Rawr.Core.Models;
 
 namespace Rawr.App;
 
@@ -273,6 +275,45 @@ public partial class MainWindow : Window
             ZoomIndicatorText.Text = $"{scale:0.##}×";
             ZoomIndicator.Visibility = Visibility.Visible;
         }
+    }
+
+    // ── Burst focus: double-click a collapsed-burst tile to open the focused viewer ──
+
+    private DateTime _lastClickTime;
+    private PhotoItem? _lastClickedPhoto;
+    private static readonly TimeSpan DoubleClickThreshold = TimeSpan.FromMilliseconds(400);
+
+    private void GridItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        => HandleTileClick(sender, e);
+
+    private void FilmstripItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        => HandleTileClick(sender, e);
+
+    private void HandleTileClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.DataContext is not PhotoItem photo) return;
+        if (photo.CollapsedBurstCount <= 0) return; // not a collapsed burst rep
+
+        var now = DateTime.UtcNow;
+        if (_lastClickedPhoto == photo && (now - _lastClickTime) <= DoubleClickThreshold)
+        {
+            _lastClickedPhoto = null;
+            OpenBurstFocus(photo);
+            e.Handled = true;
+            return;
+        }
+        _lastClickedPhoto = photo;
+        _lastClickTime = now;
+    }
+
+    private void OpenBurstFocus(PhotoItem representative)
+    {
+        if (DataContext is not MainViewModel vm) return;
+        var members = vm.GetBurstMembers(representative.GroupId);
+        if (members.Count == 0) return;
+        var startIdx = Math.Max(0, members.IndexOf(representative));
+        var win = new BurstFocusWindow(vm, members, startIdx) { Owner = this };
+        win.ShowDialog();
     }
 
     // ── Context menu: select item on right-click so ToggleGroupForSelected works on the right photo ──
