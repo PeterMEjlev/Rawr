@@ -30,3 +30,8 @@ C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\re
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.pdb
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\ref\Rawr.Raw.dll
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.Raw\obj\Release\net9.0-windows\Rawr.Raw.sourcelink.json
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\bin-tmp\Release\Rawr.Raw.deps.json
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\bin-tmp\Release\Rawr.Raw.dll
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\bin-tmp\Release\Rawr.Raw.pdb
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\bin-tmp\Release\Rawr.Core.dll
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Raw\bin-tmp\Release\Rawr.Core.pdb

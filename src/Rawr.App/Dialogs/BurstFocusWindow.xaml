@@ -62,11 +62,27 @@
 
         <!-- Main preview -->
         <Grid Grid.Row="1" Background="#FF0E0E0E">
-            <Image x:Name="PreviewImageElement"
-                   Stretch="Uniform"
-                   SnapsToDevicePixels="True"
-                   RenderOptions.BitmapScalingMode="Linear"
-                   Margin="8" />
+            <Border x:Name="PreviewHost"
+                    Background="Transparent"
+                    ClipToBounds="True"
+                    MouseWheel="PreviewHost_MouseWheel"
+                    MouseLeftButtonDown="PreviewHost_MouseLeftButtonDown"
+                    MouseLeftButtonUp="PreviewHost_MouseLeftButtonUp"
+                    MouseMove="PreviewHost_MouseMove">
+                <Image x:Name="PreviewImageElement"
+                       Stretch="Uniform"
+                       SnapsToDevicePixels="True"
+                       RenderOptions.BitmapScalingMode="Linear"
+                       Margin="8"
+                       RenderTransformOrigin="0,0">
+                    <Image.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform x:Name="PreviewScale" ScaleX="1" ScaleY="1" />
+                            <TranslateTransform x:Name="PreviewTranslate" X="0" Y="0" />
+                        </TransformGroup>
+                    </Image.RenderTransform>
+                </Image>
+            </Border>
 
             <!-- Star rating + flag overlay -->
             <StackPanel HorizontalAlignment="Right"
@@ -90,6 +106,21 @@
                     <TextBlock x:Name="FlagText" Foreground="White" FontSize="12" />
                 </Border>
             </StackPanel>
+
+            <!-- Zoom indicator (bottom-right) -->
+            <Border Background="#80000000"
+                    Padding="6,2"
+                    CornerRadius="3"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,16,16"
+                    IsHitTestVisible="False"
+                    x:Name="ZoomIndicator"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="ZoomIndicatorText"
+                           Foreground="{StaticResource TextBrush}"
+                           FontSize="11" />
+            </Border>
         </Grid>
 
         <!-- Filmstrip -->
