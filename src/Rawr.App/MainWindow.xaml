@@ -919,20 +919,34 @@
                                         </ContextMenu>
                                     </StackPanel.ContextMenu>
                                     <Grid Height="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}">
-                                        <!-- Stack-of-cards backers (only visible on collapsed bursts) -->
-                                        <Border Background="#FF1E1E1E"
-                                                BorderBrush="{StaticResource BorderBrush}"
+                                        <!-- Stack-of-cards backers: same-sized cards offset diagonally behind main -->
+                                        <Border Background="#FF141414"
+                                                BorderBrush="#FF2A2A2A"
                                                 BorderThickness="1"
+                                                Margin="0,0,8,8"
                                                 Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
-                                        <Border Background="#FF252525"
-                                                BorderBrush="{StaticResource BorderBrush}"
+                                        <Border Background="#FF1A1A1A"
+                                                BorderBrush="#FF333333"
                                                 BorderThickness="1"
-                                                Margin="4,4,0,0"
+                                                Margin="4,4,4,4"
                                                 Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
 
                                         <Border Background="#FF0E0E0E"
                                                 Margin="8,8,0,0"
                                                 MouseLeftButtonUp="GridItem_MouseLeftButtonUp">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" Value="Visible">
+                                                        <Setter Property="Effect">
+                                                            <Setter.Value>
+                                                                <DropShadowEffect BlurRadius="6" ShadowDepth="2" Direction="315" Opacity="0.55" Color="Black" />
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
                                         <Grid>
                                             <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"
                                                    Stretch="Uniform"
@@ -1274,19 +1288,33 @@
 
                             <!-- Thumbnail area -->
                             <Grid Grid.Row="0">
-                                <!-- Stack-of-cards backers (only visible on collapsed bursts) -->
-                                <Border Background="#FF1E1E1E"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                <!-- Stack-of-cards backers: same-sized cards offset diagonally behind main -->
+                                <Border Background="#FF141414"
+                                        BorderBrush="#FF2A2A2A"
                                         BorderThickness="1"
+                                        Margin="0,0,8,8"
                                         Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
-                                <Border Background="#FF252525"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                <Border Background="#FF1A1A1A"
+                                        BorderBrush="#FF333333"
                                         BorderThickness="1"
-                                        Margin="4,4,0,0"
+                                        Margin="4,4,4,4"
                                         Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
                             <Border Background="#FF0E0E0E"
                                     Margin="8,8,0,0"
                                     MouseLeftButtonUp="FilmstripItem_MouseLeftButtonUp">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" Value="Visible">
+                                                <Setter Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect BlurRadius="6" ShadowDepth="2" Direction="315" Opacity="0.55" Color="Black" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
                                 <Grid>
                                     <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"
                                            Stretch="Uniform"

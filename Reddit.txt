@@ -20,3 +20,4 @@ Currently it has all the standard features such as:
 - Copy picked images to new folder
 - Delete rejected images
 - View metadata
+- Grouping burst shots

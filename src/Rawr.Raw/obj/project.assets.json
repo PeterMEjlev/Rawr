@@ -412,11 +412,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj",
+      "projectUniqueName": "c:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj",
       "projectName": "Rawr.Raw",
-      "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj",
+      "projectPath": "c:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj",
       "packagesPath": "C:\\Users\\Torsten\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\obj\\",
+      "outputPath": "c:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Torsten\\AppData\\Roaming\\NuGet\\NuGet.Config"

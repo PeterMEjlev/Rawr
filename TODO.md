@@ -1,5 +1,5 @@
 SONNET:
-- Add tooltips for all buttons on the top panel. Include the shortcut for these buttons (if they exist). most buttons already have the tooltip, but i want all buttons to have it.
+
 
 - add a jpg/non-raw option to Filter / Sort
 
