@@ -918,20 +918,30 @@
                     <TextBlock Text="Loading…" Foreground="{StaticResource TextBrush}" />
                 </Border>
 
-                <!-- Star rating overlay (top-right of preview) -->
-                <Border Background="#80000000"
-                        Padding="8,4"
-                        CornerRadius="3"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Top"
-                        Margin="0,16,16,0"
-                        IsHitTestVisible="False"
-                        Visibility="{Binding SelectedPhoto, Converter={StaticResource NullToVisibility}}">
-                    <TextBlock Text="{Binding SelectedPhoto.Rating, Converter={StaticResource RatingToStars}}"
-                               Foreground="{StaticResource StarBrush}"
-                               FontSize="18"
-                               FontWeight="Bold" />
-                </Border>
+                <!-- Star rating + tag overlays (top-right of preview) -->
+                <StackPanel HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="0,16,16,0"
+                            IsHitTestVisible="False"
+                            Visibility="{Binding SelectedPhoto, Converter={StaticResource NullToVisibility}}">
+                    <Border Background="#80000000"
+                            Padding="8,4"
+                            CornerRadius="3"
+                            Margin="0,0,0,4">
+                        <TextBlock Text="{Binding SelectedPhoto.Rating, Converter={StaticResource RatingToStars}}"
+                                   Foreground="{StaticResource StarBrush}"
+                                   FontSize="18"
+                                   FontWeight="Bold" />
+                    </Border>
+                    <Border Background="#CC007ACC"
+                            Padding="8,4"
+                            CornerRadius="3"
+                            Visibility="{Binding SelectedPhoto.TagDisplay, Converter={StaticResource NullToVisibility}}">
+                        <TextBlock Text="{Binding SelectedPhoto.TagDisplay}"
+                                   Foreground="White"
+                                   FontSize="12" />
+                    </Border>
+                </StackPanel>
 
                 <!-- Zoom indicator (bottom-right) -->
                 <Border Background="#80000000"

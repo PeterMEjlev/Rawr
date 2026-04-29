@@ -6,6 +6,10 @@
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         MinWidth="280"
+        Background="#FF1E1E1E"
+        Foreground="#FFE6E6E6"
+        FontFamily="Segoe UI"
+        FontSize="12"
 >
     <StackPanel Margin="16">
         <TextBlock Text="{Binding Prompt, RelativeSource={RelativeSource AncestorType=Window}}"

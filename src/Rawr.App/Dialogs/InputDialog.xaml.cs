@@ -25,6 +25,7 @@ public partial class InputDialog : Window
     public InputDialog(string title, string prompt, string initial = "")
     {
         InitializeComponent();
+        WindowHelper.ApplyDarkTitleBar(this);
         Title = title;
         Prompt = prompt;
         InputText = initial;

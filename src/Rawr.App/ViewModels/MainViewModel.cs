@@ -762,7 +762,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         photo.TagDisplay = photo.TagIds.Count == 0
             ? ""
-            : string.Join("  ", photo.TagIds
+            : string.Join("\n", photo.TagIds
                 .Select(id => Tags.FirstOrDefault(t => t.Id == id)?.Name)
                 .Where(n => n != null));
     }

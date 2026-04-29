@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        WindowHelper.ApplyDarkTitleBar(this);
 
         if (DataContext is INotifyPropertyChanged inpc)
         {
