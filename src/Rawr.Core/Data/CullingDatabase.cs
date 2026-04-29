@@ -145,8 +145,7 @@ public sealed class CullingDatabase : IDisposable
     public void DeleteGroup(int id)
     {
         using var cmd = _db.CreateCommand();
-        // Enable FK cascades for this connection
-        cmd.CommandText = "PRAGMA foreign_keys = ON; DELETE FROM custom_groups WHERE id = $id";
+        cmd.CommandText = "DELETE FROM custom_groups WHERE id = $id";
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
     }
