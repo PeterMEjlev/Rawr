@@ -131,6 +131,26 @@ public partial class BurstFocusWindow : Window
     {
         try
         {
+            double rotation = 0.0;
+            try
+            {
+                using var msMeta = new MemoryStream(jpeg);
+                var metaDecoder = BitmapDecoder.Create(msMeta, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                var meta = metaDecoder.Frames[0].Metadata as BitmapMetadata;
+                var raw = meta?.GetQuery("/app1/ifd/{ushort=274}");
+                if (raw != null)
+                {
+                    rotation = Convert.ToInt32(raw) switch
+                    {
+                        3 => 180.0,
+                        6 => 90.0,
+                        8 => 270.0,
+                        _ => 0.0
+                    };
+                }
+            }
+            catch { /* no EXIF — leave at 0 */ }
+
             var bi = new BitmapImage();
             bi.BeginInit();
             bi.StreamSource = new MemoryStream(jpeg);
@@ -139,7 +159,12 @@ public partial class BurstFocusWindow : Window
                 bi.DecodePixelWidth = decodePixelWidth;
             bi.EndInit();
             bi.Freeze();
-            return bi;
+
+            if (rotation == 0.0) return bi;
+
+            var rotated = new TransformedBitmap(bi, new System.Windows.Media.RotateTransform(rotation));
+            rotated.Freeze();
+            return rotated;
         }
         catch { return null; }
     }
