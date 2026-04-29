@@ -1,0 +1,22 @@
+Hey Everyone,
+
+What features would you like to have in a fast RAW image viewer?
+
+Basically i got tired of sorting / culling / filtering massive amount of images in Lightroom, 
+due to features i wanted which weren't implemented, as well as it being slow. So now im just building my own program for it.
+
+On that note, i would love to hear some feedback from you all, about what features you would like to see in a program like this?
+
+All ideas would be massively appreciated!
+
+Currently it has all the standard features such as:
+- Rating (0-5 stars)
+- Pick / Reject
+- Colour tags
+- Custom text tags
+- Gridview and Filmstrip view
+- Sorting based on Rating, Pick / Reject, Tags, 
+- Filtering
+- Copy picked images to new folder
+- Delete rejected images
+- View metadata

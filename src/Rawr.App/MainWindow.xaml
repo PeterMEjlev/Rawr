@@ -400,7 +400,13 @@
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding DataContext.TagFilter, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="{Binding}">
+                                                                <DataTrigger Value="True">
+                                                                    <DataTrigger.Binding>
+                                                                        <MultiBinding Converter="{StaticResource Equality}">
+                                                                            <Binding Path="DataContext.TagFilter" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                                            <Binding />
+                                                                        </MultiBinding>
+                                                                    </DataTrigger.Binding>
                                                                     <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>

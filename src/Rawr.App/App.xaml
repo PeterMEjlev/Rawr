@@ -16,6 +16,7 @@
             <conv:RatingToStarsConverter x:Key="RatingToStars" />
             <conv:NullToVisibilityConverter x:Key="NullToVisibility" />
             <conv:NullToVisibilityConverter x:Key="NotNullToCollapsed" Invert="True" />
+            <conv:EqualityConverter x:Key="Equality" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
