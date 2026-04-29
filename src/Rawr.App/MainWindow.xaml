@@ -103,7 +103,7 @@
         </KeyBinding>
     </Window.InputBindings>
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />                              <!-- Toolbar -->
             <RowDefinition Height="*" />                                 <!-- Main split: preview + metadata -->

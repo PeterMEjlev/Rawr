@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -14,6 +16,12 @@ public partial class MainWindow : Window
     private const double MaxZoom = 64.0;
     private const double ZoomStep = 1.2;
     private const double DoubleClickZoom = 3.0;
+
+    private static readonly string SettingsDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR");
+    private static readonly string LayoutSettingsFile = Path.Combine(SettingsDir, "layout.json");
+
+    private record LayoutSettings(int GridColumnCount = 2, double FilmstripRowHeight = 148.0);
 
     private bool _isPanning;
     private Point _panStart;
@@ -37,14 +45,47 @@ public partial class MainWindow : Window
             };
         }
 
+        Closing += (_, _) => SaveLayoutSettings();
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
         Loaded += async (_, _) =>
         {
             if (DataContext is MainViewModel vm)
+            {
+                var layout = await LoadLayoutSettingsAsync();
+                vm.GridColumnCount = Math.Clamp(layout.GridColumnCount, 1, 8);
+                RootGrid.RowDefinitions[3].Height = new GridLength(
+                    Math.Clamp(layout.FilmstripRowHeight, 80, 400));
                 await vm.RestoreLastFolderAsync();
+            }
             RecalcGridThumbnailSize();
             RecalcFilmstripItemWidth();
         };
+    }
+
+    // ── Layout persistence ──
+
+    private async Task<LayoutSettings> LoadLayoutSettingsAsync()
+    {
+        try
+        {
+            if (!File.Exists(LayoutSettingsFile)) return new LayoutSettings();
+            var json = await File.ReadAllTextAsync(LayoutSettingsFile);
+            return JsonSerializer.Deserialize<LayoutSettings>(json) ?? new LayoutSettings();
+        }
+        catch { return new LayoutSettings(); }
+    }
+
+    private void SaveLayoutSettings()
+    {
+        try
+        {
+            if (DataContext is not MainViewModel vm) return;
+            Directory.CreateDirectory(SettingsDir);
+            var height = RootGrid.RowDefinitions[3].ActualHeight;
+            var settings = new LayoutSettings(vm.GridColumnCount, height > 0 ? height : 148.0);
+            File.WriteAllText(LayoutSettingsFile, JsonSerializer.Serialize(settings));
+        }
+        catch { /* non-critical */ }
     }
 
     // ── Grid panel ──

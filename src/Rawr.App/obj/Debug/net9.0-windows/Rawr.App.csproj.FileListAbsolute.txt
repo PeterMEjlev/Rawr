@@ -128,3 +128,5 @@ C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\RAWR_Content
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Rawr.App.sourcelink.json
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\InputDialog.baml
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\InputDialog.g.cs
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\InputDialog.baml
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\InputDialog.g.cs
