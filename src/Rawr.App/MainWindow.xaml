@@ -131,7 +131,7 @@
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="FilterToggleButton"
                                   IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}"
-                                  ToolTip="Ctrl+Shift+X to clear all filters">
+                                  ToolTip="Filter photos by rating, flag, color, burst, or tag  —  Ctrl+Shift+X to clear all filters">
                         <ToggleButton.Style>
                             <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                                 <Style.Triggers>
@@ -518,7 +518,8 @@
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="TagsToggleButton"
                                   IsChecked="{Binding IsOpen, ElementName=TagsPopup, Mode=TwoWay}"
-                                  Content="🏷 Tags" />
+                                  Content="🏷 Tags"
+                                  ToolTip="Create and filter by tags  —  Shift+1 through Shift+0 to assign tags to selected photo" />
                     <Popup x:Name="TagsPopup"
                            StaysOpen="False"
                            Placement="Bottom"
@@ -572,7 +573,8 @@
                           SelectedValue="{Binding SortField, Mode=TwoWay}"
                           SelectedValuePath="Tag"
                           MinWidth="70"
-                          Margin="0,0,4,0">
+                          Margin="0,0,4,0"
+                          ToolTip="Sort photos by this field">
                     <ComboBoxItem Content="Name"   Tag="{x:Static vm:SortField.FileName}" />
                     <ComboBoxItem Content="Rating" Tag="{x:Static vm:SortField.Rating}" />
                     <ComboBoxItem Content="Date"   Tag="{x:Static vm:SortField.CaptureDate}" />
@@ -774,7 +776,7 @@
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="ViewToggleButton"
                                   IsChecked="{Binding IsOpen, ElementName=ViewPopup, Mode=TwoWay}"
-                                  ToolTip="Toggle panels">
+                                  ToolTip="Show or hide the thumbnail grid and filmstrip panels">
                         View
                     </ToggleButton>
                     <Popup x:Name="ViewPopup"
