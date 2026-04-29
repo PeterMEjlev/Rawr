@@ -27,6 +27,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _indexCts;
     private CancellationTokenSource? _previewCts;
     private bool _highResPreviewLoaded;
+    private PhotoItem? _metadataSubscription;
 
     // Photos within this radius of the current selection keep their PreviewJpeg /
     // FullJpeg bytes in memory for instant browsing. Photos outside the window are
@@ -38,7 +39,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _currentFolder = "";
     [ObservableProperty] private string _statusText = "Open a folder to begin (Ctrl+O)";
     [ObservableProperty] private BitmapSource? _previewImage;
-    [ObservableProperty] private PhotoItem? _selectedPhoto;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedPhotoCaptureDateFormatted))]
+    private PhotoItem? _selectedPhoto;
     [ObservableProperty] private int _selectedIndex = -1;
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private string _filterDescription = "All";
@@ -216,6 +219,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         SelectedPhoto = null;
         SelectedIndex = -1;
 
+        BurstCollapsed = AppSettings.Current.CollapseBurstsOnOpen;
+        SortField = AppSettings.Current.DefaultSortField;
+
         // Scan for RAW files
         var files = await Task.Run(() => FolderScanner.Scan(folderPath), ct);
         TotalCount = files.Count;
@@ -357,7 +363,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // so run it on the dispatcher.
         await Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            BurstCount = BurstDetector.Detect(AllPhotos);
+            BurstCount = BurstDetector.Detect(AllPhotos,
+                TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds));
         });
 
         if (BurstCount > 0 && _db != null)
@@ -394,7 +401,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSelectedPhotoChanged(PhotoItem? value)
     {
         OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
+
+        if (_metadataSubscription != null)
+            _metadataSubscription.PropertyChanged -= OnSelectedPhotoPropertyChanged;
+        _metadataSubscription = value;
+        if (value != null)
+            value.PropertyChanged += OnSelectedPhotoPropertyChanged;
     }
+
+    private void OnSelectedPhotoPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PhotoItem.Metadata))
+            OnPropertyChanged(nameof(SelectedPhotoCaptureDateFormatted));
+    }
+
+    public string SelectedPhotoCaptureDateFormatted =>
+        SelectedPhoto?.Metadata?.CaptureTime.HasValue == true
+            ? SelectedPhoto.Metadata.CaptureTime.Value.ToString(AppSettings.Current.DateFormat)
+            : "—";
+
+    public void NotifyDateFormatChanged() =>
+        OnPropertyChanged(nameof(SelectedPhotoCaptureDateFormatted));
 
     [RelayCommand]
     private void NextPhoto()
@@ -966,6 +993,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private static PhotoItem SelectBurstRepresentative(List<PhotoItem> members)
     {
+        if (AppSettings.Current.BurstThumbnailMode == BurstThumbnailMode.FirstChronological)
+            return members[0];
+
+        // HighestRated: rated+picked > highest rated > any pick > first chronologically
         var ratedPick = members
             .Where(p => p.Rating > 0 && p.Flag == CullFlag.Pick)
             .OrderByDescending(p => p.Rating)
@@ -987,6 +1018,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public IPreviewExtractor Extractor => _extractor;
 
     public void PersistPhoto(PhotoItem photo) => _db?.Save(photo);
+
+    /// <summary>
+    /// Re-runs burst detection with the current AppSettings and refreshes the view.
+    /// Call after AppSettings.Current has been updated.
+    /// </summary>
+    public void ApplyBurstSettings()
+    {
+        if (AllPhotos.Count == 0) return;
+        BurstCount = BurstDetector.Detect(AllPhotos,
+            TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds));
+        ApplyFilter();
+    }
 
     [RelayCommand]
     private void NextBurst()

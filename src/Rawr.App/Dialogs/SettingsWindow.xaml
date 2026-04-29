@@ -1,0 +1,111 @@
+<Window x:Class="Rawr.App.Dialogs.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        SizeToContent="Height"
+        Width="420"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF1E1E1E"
+        Foreground="#FFE6E6E6"
+        FontFamily="Segoe UI"
+        FontSize="12">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#FF1E1E1E">
+        <StackPanel Margin="20,16">
+
+            <!-- ── BURSTS ── -->
+            <TextBlock Text="BURSTS"
+                       FontSize="10"
+                       Foreground="{StaticResource TextDimBrush}"
+                       Margin="0,0,0,10" />
+
+            <!-- Max gap -->
+            <TextBlock Text="Max gap between shots" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <Slider x:Name="GapSlider"
+                        Minimum="1" Maximum="30"
+                        SmallChange="1" LargeChange="5"
+                        TickFrequency="1" IsSnapToTickEnabled="True"
+                        Width="280"
+                        VerticalAlignment="Center" />
+                <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                    <Run Text="{Binding ElementName=GapSlider, Path=Value, StringFormat={}{0:F0}}" />
+                    <Run Text=" s" Foreground="{StaticResource TextDimBrush}" />
+                </TextBlock>
+            </StackPanel>
+            <TextBlock Text="Photos taken within this interval on the same camera are grouped into a burst."
+                       Foreground="{StaticResource TextDimBrush}"
+                       FontSize="10"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,14" />
+
+            <!-- Burst thumbnail -->
+            <TextBlock Text="Group thumbnail" Margin="0,0,0,6" />
+            <RadioButton x:Name="ThumbHighestRated"
+                         Content="Highest rated  (falls back to first chronological)"
+                         GroupName="BurstThumb"
+                         Margin="0,0,0,4" />
+            <RadioButton x:Name="ThumbFirstChronological"
+                         Content="First chronological"
+                         GroupName="BurstThumb"
+                         Margin="0,0,0,14" />
+
+            <!-- Collapse on open -->
+            <CheckBox x:Name="CollapseOnOpen"
+                      Content="Collapse bursts when opening a folder"
+                      Margin="0,0,0,4" />
+            <TextBlock Text="When enabled, each burst shows as a single stacked tile on folder load."
+                       Foreground="{StaticResource TextDimBrush}"
+                       FontSize="10"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,20" />
+
+            <!-- ── DISPLAY ── -->
+            <Separator Margin="0,0,0,16" />
+            <TextBlock Text="DISPLAY"
+                       FontSize="10"
+                       Foreground="{StaticResource TextDimBrush}"
+                       Margin="0,0,0,10" />
+
+            <!-- Date format -->
+            <TextBlock Text="Date format" Margin="0,0,0,4" />
+            <TextBox x:Name="DateFormatBox"
+                     TextChanged="DateFormatBox_TextChanged"
+                     Margin="0,0,0,6" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <TextBlock Text="Preview: " Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                <TextBlock x:Name="DatePreview" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                <TextBlock Text="Presets:" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <Button Content="dd-MM-yyyy" Tag="dd-MM-yyyy  HH:mm:ss" Click="Preset_Click" Margin="0,0,4,0" Padding="6,3" />
+                <Button Content="MM/dd/yyyy" Tag="MM/dd/yyyy  HH:mm:ss" Click="Preset_Click" Margin="0,0,4,0" Padding="6,3" />
+                <Button Content="yyyy-MM-dd" Tag="yyyy-MM-dd  HH:mm:ss" Click="Preset_Click" Padding="6,3" />
+            </StackPanel>
+            <TextBlock Text="Uses .NET date format strings (e.g. dd-MM-yyyy HH:mm:ss)."
+                       Foreground="{StaticResource TextDimBrush}"
+                       FontSize="10"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,20" />
+
+            <!-- ── SORTING ── -->
+            <Separator Margin="0,0,0,16" />
+            <TextBlock Text="SORTING"
+                       FontSize="10"
+                       Foreground="{StaticResource TextDimBrush}"
+                       Margin="0,0,0,10" />
+
+            <TextBlock Text="Default sort when opening a folder" Margin="0,0,0,6" />
+            <ComboBox x:Name="SortFieldBox" HorizontalAlignment="Left" MinWidth="160" Margin="0,0,0,20" />
+
+            <!-- ── Buttons ── -->
+            <Separator Margin="0,0,0,16" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Save" IsDefault="True" Click="Save_Click" MinWidth="72" Margin="0,0,8,0" />
+                <Button Content="Cancel" IsCancel="True" Click="Cancel_Click" MinWidth="72" />
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</Window>

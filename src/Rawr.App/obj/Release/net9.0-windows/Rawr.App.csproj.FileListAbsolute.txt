@@ -174,3 +174,7 @@ C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin-tmp\Release\Rawr.Core.dll
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin-tmp\Release\Rawr.Raw.dll
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin-tmp\Release\Rawr.Core.pdb
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin-tmp\Release\Rawr.Raw.pdb
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\BurstFocusWindow.baml
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\BurstFocusWindow.g.cs
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SettingsWindow.baml
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SettingsWindow.g.cs

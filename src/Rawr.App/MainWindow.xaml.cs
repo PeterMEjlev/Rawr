@@ -57,6 +57,8 @@ public partial class MainWindow : Window
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
         Loaded += async (_, _) =>
         {
+            AppSettings.Current = AppSettings.Load();
+
             if (DataContext is MainViewModel vm)
             {
                 var layout = await LoadLayoutSettingsAsync();
@@ -367,6 +369,29 @@ public partial class MainWindow : Window
         var startIdx = Math.Max(0, members.IndexOf(representative));
         var win = new BurstFocusWindow(vm, members, startIdx) { Owner = this };
         win.ShowDialog();
+    }
+
+    // ── Settings ──
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Dialogs.SettingsWindow(AppSettings.Current) { Owner = this };
+        if (dlg.ShowDialog() != true || dlg.Result == null) return;
+
+        var prev = AppSettings.Current;
+        AppSettings.Current = dlg.Result;
+        AppSettings.Current.Save();
+
+        if (DataContext is not MainViewModel vm) return;
+
+        vm.NotifyDateFormatChanged();
+
+        bool burstSettingsChanged =
+            prev.BurstMaxGapSeconds != AppSettings.Current.BurstMaxGapSeconds ||
+            prev.BurstThumbnailMode != AppSettings.Current.BurstThumbnailMode;
+
+        if (burstSettingsChanged)
+            vm.ApplyBurstSettings();
     }
 
     // ── Context menu: select item on right-click so ToggleGroupForSelected works on the right photo ──

@@ -795,6 +795,13 @@
                     </Popup>
                 </Grid>
 
+                <!-- Settings button -->
+                <Button DockPanel.Dock="Right"
+                        Content="⚙"
+                        Click="Settings_Click"
+                        Margin="0,0,4,0"
+                        ToolTip="Settings" />
+
                 <!-- Extractor indicator -->
                 <Border DockPanel.Dock="Right"
                         Background="#33FFFFFF"
@@ -1180,7 +1187,7 @@
                                    Visibility="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
 
                         <TextBlock Text="DATE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding SelectedPhoto.Metadata.CaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
+                        <TextBlock Text="{Binding SelectedPhotoCaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
 
                         <TextBlock Text="FILE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
                         <TextBlock Text="{Binding SelectedPhoto.Extension, FallbackValue=''}" />
