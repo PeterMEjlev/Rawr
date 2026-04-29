@@ -24,7 +24,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private PreviewCache? _cache;
     private CullingDatabase? _db;
     private CancellationTokenSource? _indexCts;
+    private CancellationTokenSource? _previewCts;
     private bool _highResPreviewLoaded;
+
+    // Photos within this radius of the current selection keep their PreviewJpeg /
+    // FullJpeg bytes in memory for instant browsing. Photos outside the window are
+    // evicted on selection change to keep memory bounded.
+    private const int KeepRadius = 2;
 
     // ── Observable state ──
 
@@ -334,13 +340,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedIndexChanged(int value)
     {
-        if (value >= 0 && value < FilteredPhotos.Count)
-        {
-            SelectedPhoto = FilteredPhotos[value];
-            _highResPreviewLoaded = false;
-            _ = LoadPreviewForSelectedAsync();
-            UpdateStatus();
-        }
+        if (value < 0 || value >= FilteredPhotos.Count) return;
+
+        SelectedPhoto = FilteredPhotos[value];
+        _highResPreviewLoaded = false;
+
+        // Cancel any in-flight preview/prefetch work for the previous selection so
+        // its decoded BitmapSource doesn't race ahead and overwrite the new one.
+        _previewCts?.Cancel();
+        _previewCts = new CancellationTokenSource();
+        var ct = _previewCts.Token;
+
+        EvictFarPhotos(value);
+        _ = LoadPreviewForSelectedAsync(ct);
+        _ = PrefetchNeighborsAsync(value, ct);
+        UpdateStatus();
     }
 
     partial void OnSelectedPhotoChanged(PhotoItem? value)
@@ -362,32 +376,54 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         SelectedIndex = (SelectedIndex - 1 + FilteredPhotos.Count) % FilteredPhotos.Count;
     }
 
-    private async Task LoadPreviewForSelectedAsync()
+    private async Task LoadPreviewForSelectedAsync(CancellationToken ct)
     {
         var photo = SelectedPhoto;
         if (photo == null) return;
 
-        // Try cache first
-        var cached = _cache?.LoadPreview(photo.FileName);
-        if (cached != null)
+        try
         {
-            PreviewImage = LoadBitmapFromJpeg(cached);
-            return;
-        }
+            // Already-resident bytes (set by an earlier prefetch) — skip the disk read.
+            var cached = photo.PreviewJpeg ?? _cache?.LoadPreview(photo.FileName);
+            if (cached != null)
+            {
+                var bs = await Task.Run(() => LoadBitmapFromJpeg(cached), ct);
+                if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+                photo.PreviewJpeg = cached;
+                PreviewImage = bs;
+                _ = PreloadFullJpegAsync(photo, ct);
+                return;
+            }
 
-        // Extract in background
-        PreviewImage = photo.ThumbnailJpeg != null ? LoadBitmapFromJpeg(photo.ThumbnailJpeg) : null;
+            // Show the small thumbnail as a placeholder while the medium preview is being extracted.
+            if (photo.ThumbnailJpeg != null)
+            {
+                var thumbBs = await Task.Run(() => LoadBitmapFromJpeg(photo.ThumbnailJpeg), ct);
+                if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+                    PreviewImage = thumbBs;
+            }
+            else
+            {
+                PreviewImage = null;
+            }
 
-        var jpeg = await Task.Run(() => _extractor.ExtractPreview(photo.FilePath));
-        if (jpeg != null && SelectedPhoto == photo) // still the same selection
-        {
+            var jpeg = await Task.Run(() => _extractor.ExtractPreview(photo.FilePath), ct);
+            if (ct.IsCancellationRequested || jpeg == null || SelectedPhoto != photo) return;
+
             // Shrink to screen-sized JPEG with orientation baked in for fast subsequent loads.
-            var processed = await Task.Run(() => ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg);
-            if (SelectedPhoto != photo) return;
+            var processed = await Task.Run(() => ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg, ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+
             _cache?.SavePreview(photo.FileName, processed);
             photo.PreviewJpeg = processed;
-            PreviewImage = LoadBitmapFromJpeg(processed);
+
+            var fullBs = await Task.Run(() => LoadBitmapFromJpeg(processed), ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+
+            PreviewImage = fullBs;
+            _ = PreloadFullJpegAsync(photo, ct);
         }
+        catch (OperationCanceledException) { /* selection moved on */ }
     }
 
     public async Task LoadHighResPreviewAsync()
@@ -397,9 +433,93 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (photo == null) return;
 
         _highResPreviewLoaded = true; // guard against duplicate concurrent calls
-        var jpeg = await Task.Run(() => _extractor.ExtractFullJpeg(photo.FilePath));
-        if (jpeg != null && SelectedPhoto == photo)
-            PreviewImage = LoadBitmapFromJpeg(jpeg, decodePixelWidth: 0); // full resolution for zoom
+        var ct = _previewCts?.Token ?? CancellationToken.None;
+
+        try
+        {
+            // Reuse pre-extracted bytes if PreloadFullJpegAsync already finished.
+            var jpeg = photo.FullJpeg ?? await Task.Run(() => _extractor.ExtractFullJpeg(photo.FilePath), ct);
+            if (ct.IsCancellationRequested || jpeg == null || SelectedPhoto != photo) return;
+
+            photo.FullJpeg ??= jpeg;
+
+            var bs = await Task.Run(() => LoadBitmapFromJpeg(jpeg, decodePixelWidth: 0), ct);
+            if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+                PreviewImage = bs;
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+    }
+
+    /// <summary>
+    /// Background-extract the full sensor-resolution JPEG bytes for the current photo
+    /// so that a subsequent zoom can decode them immediately without disk I/O.
+    /// </summary>
+    private async Task PreloadFullJpegAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (photo.FullJpeg != null) return;
+        try
+        {
+            var jpeg = await Task.Run(() => _extractor.ExtractFullJpeg(photo.FilePath), ct);
+            if (!ct.IsCancellationRequested && jpeg != null)
+                photo.FullJpeg = jpeg;
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+        catch { /* extraction failed — fall back to on-demand on zoom */ }
+    }
+
+    /// <summary>
+    /// Warm the disk/memory preview cache for photos adjacent to the current selection
+    /// so Next/Previous feels instant.
+    /// </summary>
+    private async Task PrefetchNeighborsAsync(int currentIndex, CancellationToken ct)
+    {
+        // Process in alternating order so the immediate neighbours land first.
+        var offsets = new[] { 1, -1, 2, -2 };
+        foreach (var offset in offsets)
+        {
+            if (ct.IsCancellationRequested) return;
+            var i = currentIndex + offset;
+            if (i < 0 || i >= FilteredPhotos.Count) continue;
+
+            var photo = FilteredPhotos[i];
+            if (photo.PreviewJpeg != null) continue;
+
+            try
+            {
+                var cached = _cache?.LoadPreview(photo.FileName);
+                if (cached != null)
+                {
+                    photo.PreviewJpeg = cached;
+                    continue;
+                }
+
+                var jpeg = await Task.Run(() => _extractor.ExtractPreview(photo.FilePath), ct);
+                if (ct.IsCancellationRequested || jpeg == null) continue;
+
+                var processed = await Task.Run(() => ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg, ct);
+                if (ct.IsCancellationRequested) continue;
+
+                _cache?.SavePreview(photo.FileName, processed);
+                photo.PreviewJpeg = processed;
+            }
+            catch (OperationCanceledException) { return; }
+            catch { /* one neighbour failing should not block the others */ }
+        }
+    }
+
+    /// <summary>
+    /// Drop PreviewJpeg/FullJpeg bytes for photos far from the current selection so
+    /// memory stays bounded as the user browses. ThumbnailJpeg is kept (small, drives the grid).
+    /// </summary>
+    private void EvictFarPhotos(int currentIndex)
+    {
+        for (int i = 0; i < FilteredPhotos.Count; i++)
+        {
+            if (Math.Abs(i - currentIndex) <= KeepRadius) continue;
+            var photo = FilteredPhotos[i];
+            if (photo.PreviewJpeg != null) photo.PreviewJpeg = null;
+            if (photo.FullJpeg != null) photo.FullJpeg = null;
+        }
     }
 
     // Default screen-size decode for the main preview. LibRaw always extracts the
@@ -1060,6 +1180,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _indexCts?.Cancel();
         _indexCts?.Dispose();
+        _previewCts?.Cancel();
+        _previewCts?.Dispose();
         _db?.Dispose();
     }
 }

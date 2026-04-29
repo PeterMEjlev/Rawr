@@ -27,6 +27,11 @@ public sealed partial class PhotoItem : ObservableObject
     [ObservableProperty] private byte[]? _previewJpeg;    // medium JPEG bytes (~1620px)
     [ObservableProperty] private PhotoMetadata? _metadata;
 
+    // Full sensor-resolution JPEG bytes (~3-5 MB). Pre-extracted in the background
+    // for the active selection so zoom-in is instant. Cleared by eviction when the
+    // user navigates far enough away. Not observable — never bound to UI.
+    public byte[]? FullJpeg { get; set; }
+
     /// <summary>
     /// Clamp rating to 0-5 range.
     /// </summary>
