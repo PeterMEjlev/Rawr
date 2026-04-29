@@ -901,7 +901,7 @@
                            Source="{Binding PreviewImage}"
                            Stretch="Uniform"
                            SnapsToDevicePixels="True"
-                           RenderOptions.BitmapScalingMode="HighQuality"
+                           RenderOptions.BitmapScalingMode="Linear"
                            Margin="8"
                            RenderTransformOrigin="0,0">
                         <Image.RenderTransform>
