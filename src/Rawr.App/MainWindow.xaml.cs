@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private UniformGrid? _gridItemsPanel;
     private GridLength _savedFilmstripHeight = new GridLength(148);
     private GridLength _savedGridWidth = new GridLength(200);
+    private PhotoItem? _prevSelectedPhoto;
 
     public MainWindow()
     {
@@ -43,7 +44,15 @@ public partial class MainWindow : Window
             inpc.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(MainViewModel.SelectedPhoto))
-                    ResetPreviewZoom();
+                {
+                    var newPhoto = (DataContext as MainViewModel)?.SelectedPhoto;
+                    var sameGroup = newPhoto != null
+                        && newPhoto.GroupId > 0
+                        && _prevSelectedPhoto?.GroupId == newPhoto.GroupId;
+                    _prevSelectedPhoto = newPhoto;
+                    if (!sameGroup)
+                        ResetPreviewZoom();
+                }
                 if (e.PropertyName == nameof(MainViewModel.GridColumnCount))
                     RecalcGridThumbnailSize();
                 if (e.PropertyName == nameof(MainViewModel.ShowGrid) && DataContext is MainViewModel vmG)

@@ -58,8 +58,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         _photos = photos;
 
         CloseCommand        = new RelayCommand(Close);
-        NextCommand         = new RelayCommand(() => MoveTo(_currentIndex + 1));
-        PrevCommand         = new RelayCommand(() => MoveTo(_currentIndex - 1));
+        NextCommand         = new RelayCommand(() => MoveTo(_currentIndex + 1, keepZoom: true));
+        PrevCommand         = new RelayCommand(() => MoveTo(_currentIndex - 1, keepZoom: true));
         TogglePickCommand   = new RelayCommand(() => MutateCurrent(p => p.Flag = p.Flag == CullFlag.Pick   ? CullFlag.Unflagged : CullFlag.Pick));
         ToggleRejectCommand = new RelayCommand(() => MutateCurrent(p => p.Flag = p.Flag == CullFlag.Reject ? CullFlag.Unflagged : CullFlag.Reject));
         UnflagCommand       = new RelayCommand(() => MutateCurrent(p => p.Flag = CullFlag.Unflagged));
@@ -77,14 +77,17 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         Closed += (_, _) => _previewCts?.Cancel();
     }
 
-    private void MoveTo(int index)
+    private void MoveTo(int index, bool keepZoom = false)
     {
         if (index < 0 || index >= _photos.Count) return;
         _currentIndex = index;
         CurrentPhoto = _photos[index];
         Strip.SelectedIndex = index;
         Strip.ScrollIntoView(_photos[index]);
-        ResetZoom();
+        if (!keepZoom)
+            ResetZoom();
+        else
+            _highResLoaded = false;
         UpdateOverlays();
         _ = LoadPreviewAsync(_photos[index]);
     }
@@ -322,7 +325,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     {
         if (sender is not ListBox lb) return;
         if (lb.SelectedIndex < 0 || lb.SelectedIndex == _currentIndex) return;
-        MoveTo(lb.SelectedIndex);
+        MoveTo(lb.SelectedIndex, keepZoom: true);
     }
 
     private void Strip_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
