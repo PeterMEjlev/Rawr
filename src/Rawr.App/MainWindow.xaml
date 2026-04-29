@@ -64,6 +64,9 @@
         <KeyBinding Key="D9" Command="{Binding SetColorLabelCommand}"
                     CommandParameter="{x:Static models:ColorLabel.Blue}" />
 
+        <!-- Delete -->
+        <KeyBinding Key="Delete" Command="{Binding DeletePhotoCommand}" />
+
         <!-- Filters -->
         <KeyBinding Modifiers="Control+Shift" Key="X" Command="{Binding ClearFiltersCommand}" />
 
@@ -133,7 +136,7 @@
                                 </Style.Triggers>
                             </Style>
                         </ToggleButton.Style>
-                        Filter
+                        🔍 Filter
                     </ToggleButton>
 
                     <Popup x:Name="FilterPopup"
@@ -438,7 +441,7 @@
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="TagsToggleButton"
                                   IsChecked="{Binding IsOpen, ElementName=TagsPopup, Mode=TwoWay}"
-                                  Content="Tags" />
+                                  Content="🏷 Tags" />
                     <Popup x:Name="TagsPopup"
                            StaysOpen="False"
                            Placement="Bottom"
@@ -685,6 +688,7 @@
                     </Popup>
                 </Grid>
                 <Button DockPanel.Dock="Left" Content="📝 Export List…"     Command="{Binding ExportFileListCommand}" Margin="0,0,4,0" ToolTip="Ctrl+E — export list of picked file paths" />
+                <Button DockPanel.Dock="Left" Content="🗑 Delete Rejected…" Command="{Binding DeleteAllRejectedCommand}" Margin="0,0,4,0" ToolTip="Move all rejected photos to the Recycle Bin" />
 
                 <!-- Extractor indicator -->
                 <Border DockPanel.Dock="Right"
@@ -795,6 +799,9 @@
                                             <Separator />
                                             <MenuItem Header="New Tag…"
                                                       Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <Separator />
+                                            <MenuItem Header="Delete…"
+                                                      Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         </ContextMenu>
                                     </StackPanel.ContextMenu>
                                     <Border Height="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -879,6 +886,9 @@
                             <Separator />
                             <MenuItem Header="New Tag…"
                                       Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <Separator />
+                            <MenuItem Header="Delete…"
+                                      Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                         </ContextMenu>
                     </Border.ContextMenu>
                     <Image x:Name="PreviewImageElement"
@@ -1084,6 +1094,9 @@
                                     <Separator />
                                     <MenuItem Header="New Tag…"
                                               Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <Separator />
+                                    <MenuItem Header="Delete…"
+                                              Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 </ContextMenu>
                             </Grid.ContextMenu>
                             <Grid.RowDefinitions>

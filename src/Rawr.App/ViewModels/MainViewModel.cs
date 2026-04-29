@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.VisualBasic.FileIO;
 using Microsoft.Win32;
 using Rawr.App.Dialogs;
 using Rawr.Core.Data;
@@ -946,6 +947,74 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         await FileOperations.ExportFileListAsync(picked, dialog.FileName);
         StatusText = $"Exported {picked.Count} file paths to {dialog.FileName}";
+    }
+
+    // ── Delete ──
+
+    [RelayCommand]
+    private void DeletePhoto()
+    {
+        if (SelectedPhoto == null) return;
+        var photo = SelectedPhoto;
+        var result = MessageBox.Show(
+            $"Move \"{photo.FileName}\" to the Recycle Bin?",
+            "Delete Photo",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes) return;
+
+        try
+        {
+            FileSystem.DeleteFile(photo.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not delete \"{photo.FileName}\": {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        _db?.DeletePhoto(photo.FileName);
+        AllPhotos.Remove(photo);
+        TotalCount = AllPhotos.Count;
+        ApplyFilter();
+        StatusText = $"Moved \"{photo.FileName}\" to the Recycle Bin.";
+    }
+
+    [RelayCommand]
+    private void DeleteAllRejected()
+    {
+        var rejected = AllPhotos.Where(p => p.Flag == CullFlag.Reject).ToList();
+        if (rejected.Count == 0)
+        {
+            MessageBox.Show("No rejected photos found.", "Delete Rejected",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"Move {rejected.Count} rejected photo(s) to the Recycle Bin?",
+            "Delete All Rejected",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes) return;
+
+        int deleted = 0;
+        foreach (var photo in rejected)
+        {
+            try
+            {
+                FileSystem.DeleteFile(photo.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+                _db?.DeletePhoto(photo.FileName);
+                AllPhotos.Remove(photo);
+                deleted++;
+            }
+            catch { /* skip files that can't be deleted */ }
+        }
+
+        TotalCount = AllPhotos.Count;
+        ApplyFilter();
+        StatusText = $"Moved {deleted} rejected photo(s) to the Recycle Bin.";
     }
 
     // ── Quick advance: rate/flag then move to next ──

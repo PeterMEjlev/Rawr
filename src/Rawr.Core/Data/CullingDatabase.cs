@@ -194,6 +194,25 @@ public sealed class CullingDatabase : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    public void DeletePhoto(string fileName)
+    {
+        using var tx = _db.BeginTransaction();
+
+        using var cmd1 = _db.CreateCommand();
+        cmd1.Transaction = tx;
+        cmd1.CommandText = "DELETE FROM photo_groups WHERE file_name = $name";
+        cmd1.Parameters.AddWithValue("$name", fileName);
+        cmd1.ExecuteNonQuery();
+
+        using var cmd2 = _db.CreateCommand();
+        cmd2.Transaction = tx;
+        cmd2.CommandText = "DELETE FROM photos WHERE file_name = $name";
+        cmd2.Parameters.AddWithValue("$name", fileName);
+        cmd2.ExecuteNonQuery();
+
+        tx.Commit();
+    }
+
     public void Dispose()
     {
         _db.Dispose();
