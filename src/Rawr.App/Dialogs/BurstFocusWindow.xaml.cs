@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,8 +17,17 @@ namespace Rawr.App.Dialogs;
 /// the shared PhotoItem instances and persist via the parent MainViewModel,
 /// so changes are reflected immediately in the main grid on close.
 /// </summary>
-public partial class BurstFocusWindow : Window
+public partial class BurstFocusWindow : Window, INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private PhotoItem? _currentPhoto;
+    public PhotoItem? CurrentPhoto
+    {
+        get => _currentPhoto;
+        private set { _currentPhoto = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CurrentPhoto))); }
+    }
+
     private const double MinZoom = 1.0;
     private const double MaxZoom = 64.0;
     private const double ZoomStep = 1.2;
@@ -57,6 +67,7 @@ public partial class BurstFocusWindow : Window
         SetColorLabelCommand = new RelayCommand<ColorLabel>(l => MutateCurrent(p => p.ColorLabel = p.ColorLabel == l ? ColorLabel.None : l));
 
         InitializeComponent();
+        DataContext = this;
         WindowHelper.ApplyDarkTitleBar(this);
 
         Strip.ItemsSource = _photos;
@@ -70,6 +81,7 @@ public partial class BurstFocusWindow : Window
     {
         if (index < 0 || index >= _photos.Count) return;
         _currentIndex = index;
+        CurrentPhoto = _photos[index];
         Strip.SelectedIndex = index;
         Strip.ScrollIntoView(_photos[index]);
         ResetZoom();

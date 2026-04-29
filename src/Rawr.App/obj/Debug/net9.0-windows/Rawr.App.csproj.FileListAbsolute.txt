@@ -130,3 +130,5 @@ C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\Inpu
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\InputDialog.g.cs
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\InputDialog.baml
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\InputDialog.g.cs
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\BurstFocusWindow.baml
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\Dialogs\BurstFocusWindow.g.cs

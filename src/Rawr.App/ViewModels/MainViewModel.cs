@@ -958,6 +958,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+    /// <summary>
+    /// Picks the burst member most likely to be the user's favourite.
+    /// Priority: rated+picked > highest rated > any pick > first chronologically.
+    /// </summary>
+    private static PhotoItem SelectBurstRepresentative(List<PhotoItem> members)
+    {
+        var ratedPick = members
+            .Where(p => p.Rating > 0 && p.Flag == CullFlag.Pick)
+            .OrderByDescending(p => p.Rating)
+            .FirstOrDefault();
+        if (ratedPick != null) return ratedPick;
+
+        var topRated = members
+            .Where(p => p.Rating > 0)
+            .OrderByDescending(p => p.Rating)
+            .FirstOrDefault();
+        if (topRated != null) return topRated;
+
+        var picked = members.FirstOrDefault(p => p.Flag == CullFlag.Pick);
+        if (picked != null) return picked;
+
+        return members[0];
+    }
+
     public IPreviewExtractor Extractor => _extractor;
 
     public void PersistPhoto(PhotoItem photo) => _db?.Save(photo);
@@ -1092,7 +1116,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 }
                 if (!seenGroups.Add(photo.GroupId)) continue; // already represented
                 var members = membersByGroup[photo.GroupId];
-                var rep = members[0];
+                var rep = SelectBurstRepresentative(members);
                 rep.CollapsedBurstCount = members.Count;
                 FilteredPhotos.Add(rep);
             }
