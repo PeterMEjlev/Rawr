@@ -1,10 +1,27 @@
 ## SONNET:
-- ## Histogram
-Add a histogram of the photo information to the top of the panel that appears to the right of the preview (the panel with the metadata). The histogram should appear at the top of the panel, with a edge under it that allows it to be resized (vertically)
+- ## File renaming (w. templates)
+
+- ## Exposure Compensation
+
+- ## True RAW histogram
+
+- ## Focus peaking
+edge-detection overlay that highlights the sharpest areas in the frame
+
+- ## Folder tree panel
+tree-based browser for navigating the filesystem without a separate open dialog
+
+- ## Fully rebindable keyboard shortcuts
+
+- ## TIFF and PNG support 
+(RAWR is CR3/JPEG/video only)
+
 
 ## OPUS:
 - ## Burst group thumbnail
 Make burst group thumbnail stack effect more refined. It doesnt look very good currently.
+
+- ## Zoom as fast as FastRawViewer
 
 - ## TODO: Add visual similarity check to burst grouping
 Improve burst/group detection so images are not grouped purely based on timestamp.

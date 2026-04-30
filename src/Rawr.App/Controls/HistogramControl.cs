@@ -4,15 +4,17 @@ using Rawr.Core.Models;
 
 namespace Rawr.App.Controls;
 
+public enum HistogramMode { Rgb, Combined, R, G, B }
+
 public sealed class HistogramControl : FrameworkElement
 {
     public static readonly DependencyProperty DataProperty = DependencyProperty.Register(
         nameof(Data), typeof(HistogramData), typeof(HistogramControl),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ShowRgbProperty = DependencyProperty.Register(
-        nameof(ShowRgb), typeof(bool), typeof(HistogramControl),
-        new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
+        nameof(Mode), typeof(HistogramMode), typeof(HistogramControl),
+        new FrameworkPropertyMetadata(HistogramMode.Rgb, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public HistogramData? Data
     {
@@ -20,10 +22,10 @@ public sealed class HistogramControl : FrameworkElement
         set => SetValue(DataProperty, value);
     }
 
-    public bool ShowRgb
+    public HistogramMode Mode
     {
-        get => (bool)GetValue(ShowRgbProperty);
-        set => SetValue(ShowRgbProperty, value);
+        get => (HistogramMode)GetValue(ModeProperty);
+        set => SetValue(ModeProperty, value);
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -36,15 +38,25 @@ public sealed class HistogramControl : FrameworkElement
         var data = Data;
         if (data == null || w <= 0 || h <= 0) return;
 
-        if (ShowRgb)
+        switch (Mode)
         {
-            DrawChannel(dc, data.B, Color.FromArgb(200, 80, 130, 255), w, h);
-            DrawChannel(dc, data.R, Color.FromArgb(200, 255, 80, 80), w, h);
-            DrawChannel(dc, data.G, Color.FromArgb(200, 80, 220, 80), w, h);
-        }
-        else
-        {
-            DrawChannel(dc, data.Combined, Color.FromArgb(220, 220, 220, 220), w, h);
+            case HistogramMode.R:
+                DrawChannel(dc, data.R, Color.FromArgb(230, 255, 80, 80), w, h);
+                break;
+            case HistogramMode.G:
+                DrawChannel(dc, data.G, Color.FromArgb(230, 80, 220, 80), w, h);
+                break;
+            case HistogramMode.B:
+                DrawChannel(dc, data.B, Color.FromArgb(230, 80, 130, 255), w, h);
+                break;
+            case HistogramMode.Combined:
+                DrawChannel(dc, data.Combined, Color.FromArgb(220, 220, 220, 220), w, h);
+                break;
+            default: // Rgb
+                DrawChannel(dc, data.B, Color.FromArgb(200, 80, 130, 255), w, h);
+                DrawChannel(dc, data.R, Color.FromArgb(200, 255, 80, 80), w, h);
+                DrawChannel(dc, data.G, Color.FromArgb(200, 80, 220, 80), w, h);
+                break;
         }
     }
 

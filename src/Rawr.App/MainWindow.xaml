@@ -1298,29 +1298,73 @@
                         </Grid.RowDefinitions>
                         <controls:HistogramControl Grid.Row="0"
                                                    Data="{Binding HistogramData}"
-                                                   ShowRgb="{Binding ShowRgbHistogram}" />
+                                                   Mode="{Binding HistogramMode}" />
                         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,4"
                                     Visibility="{Binding HistogramData, Converter={StaticResource NullToVisibility}}">
-                            <ToggleButton Content="RGB" Command="{Binding ShowRgbHistogramModeCommand}"
+                            <ToggleButton Content="RGB" Command="{Binding SetHistogramModeCommand}"
+                                          CommandParameter="{x:Static controls:HistogramMode.Rgb}"
                                           FontSize="10" Padding="8,2" Margin="0,0,2,0">
                                 <ToggleButton.Style>
                                     <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                                         <Setter Property="IsChecked" Value="False" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ShowRgbHistogram}" Value="True">
+                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.Rgb}">
                                                 <Setter Property="IsChecked" Value="True" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </ToggleButton.Style>
                             </ToggleButton>
-                            <ToggleButton Content="All" Command="{Binding ShowCombinedHistogramModeCommand}"
-                                          FontSize="10" Padding="8,2">
+                            <ToggleButton Content="All" Command="{Binding SetHistogramModeCommand}"
+                                          CommandParameter="{x:Static controls:HistogramMode.Combined}"
+                                          FontSize="10" Padding="8,2" Margin="0,0,2,0">
                                 <ToggleButton.Style>
                                     <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                                         <Setter Property="IsChecked" Value="False" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ShowRgbHistogram}" Value="False">
+                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.Combined}">
+                                                <Setter Property="IsChecked" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
+                            <ToggleButton Content="R" Command="{Binding SetHistogramModeCommand}"
+                                          CommandParameter="{x:Static controls:HistogramMode.R}"
+                                          FontSize="10" Padding="8,2" Margin="0,0,2,0" Foreground="#FF5050">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                        <Setter Property="IsChecked" Value="False" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.R}">
+                                                <Setter Property="IsChecked" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
+                            <ToggleButton Content="G" Command="{Binding SetHistogramModeCommand}"
+                                          CommandParameter="{x:Static controls:HistogramMode.G}"
+                                          FontSize="10" Padding="8,2" Margin="0,0,2,0" Foreground="#50DC50">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                        <Setter Property="IsChecked" Value="False" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.G}">
+                                                <Setter Property="IsChecked" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
+                            <ToggleButton Content="B" Command="{Binding SetHistogramModeCommand}"
+                                          CommandParameter="{x:Static controls:HistogramMode.B}"
+                                          FontSize="10" Padding="8,2" Foreground="#5082FF">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                        <Setter Property="IsChecked" Value="False" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.B}">
                                                 <Setter Property="IsChecked" Value="True" />
                                             </DataTrigger>
                                         </Style.Triggers>

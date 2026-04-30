@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.VisualBasic.FileIO;
 using Microsoft.Win32;
+using Rawr.App.Controls;
 using Rawr.App.Dialogs;
 using Rawr.App.Services;
 using Rawr.Core.Data;
@@ -61,7 +62,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _showGrid = true;
     [ObservableProperty] private bool _showFilmstrip = true;
     [ObservableProperty] private HistogramData? _histogramData;
-    [ObservableProperty] private bool _showRgbHistogram = true;
+    [ObservableProperty] private HistogramMode _histogramMode = HistogramMode.Rgb;
 
     // Filter state
     [ObservableProperty]
@@ -440,10 +441,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedPhotoCaptureDateFormatted));
 
     [RelayCommand]
-    private void ShowRgbHistogramMode() => ShowRgbHistogram = true;
-
-    [RelayCommand]
-    private void ShowCombinedHistogramMode() => ShowRgbHistogram = false;
+    private void SetHistogramMode(HistogramMode mode) => HistogramMode = mode;
 
     private async Task ComputeHistogramAsync(PhotoItem photo, CancellationToken ct)
     {
