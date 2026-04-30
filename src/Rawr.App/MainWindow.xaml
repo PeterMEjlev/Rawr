@@ -1303,8 +1303,8 @@
                                 TickFrequency="0.2"
                                 IsSnapToTickEnabled="True"
                                 IsSelectionRangeEnabled="True"
-                                SelectionStart="{Binding ExposureSelectionStart}"
-                                SelectionEnd="{Binding ExposureSelectionEnd}"
+                                SelectionStart="{Binding ExposureSelectionStart, Mode=OneWay}"
+                                SelectionEnd="{Binding ExposureSelectionEnd, Mode=OneWay}"
                                 IsMoveToPointEnabled="True"
                                 VerticalAlignment="Center"
                                 MouseDoubleClick="ExposureSlider_MouseDoubleClick" />
