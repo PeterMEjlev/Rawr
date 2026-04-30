@@ -1,4 +1,7 @@
 ## SONNET:
+
+- ## Fix the histogram when the exposure slider is increased
+
 - ## File renaming (w. templates)
 
 - ## Exposure Compensation

@@ -67,6 +67,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private BitmapSource? _focusPeakingOverlay;
     [ObservableProperty] private double _exposureCompensation = 0.0;
 
+    public double ExposureSelectionStart => Math.Min(0.0, ExposureCompensation);
+    public double ExposureSelectionEnd   => Math.Max(0.0, ExposureCompensation);
+
     private BitmapSource? _basePreviewImage;
     private CancellationTokenSource? _exposureCts;
 
@@ -418,6 +421,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _basePreviewImage = null;
         _exposureCompensation = 0.0;
         OnPropertyChanged(nameof(ExposureCompensation));
+        OnPropertyChanged(nameof(ExposureSelectionStart));
+        OnPropertyChanged(nameof(ExposureSelectionEnd));
 
         HistogramData = null;
         FocusPeakingOverlay = null;
@@ -478,6 +483,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnExposureCompensationChanged(double value)
     {
+        OnPropertyChanged(nameof(ExposureSelectionStart));
+        OnPropertyChanged(nameof(ExposureSelectionEnd));
         var photo = SelectedPhoto;
         var baseImage = _basePreviewImage;
         if (photo == null || baseImage == null) return;

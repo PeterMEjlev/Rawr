@@ -580,6 +580,18 @@ public partial class MainWindow : Window
         UpdateVideoTimeText(VideoPlayer.Position);
     }
 
+    private void ExposureSlider_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var dep = e.OriginalSource as DependencyObject;
+        while (dep != null && dep is not Thumb)
+            dep = VisualTreeHelper.GetParent(dep);
+        if (dep is Thumb && DataContext is MainViewModel vm)
+        {
+            vm.ExposureCompensation = 0.0;
+            e.Handled = true;
+        }
+    }
+
     private void VideoTick_OnTick(object? sender, EventArgs e)
     {
         if (_videoSliderIsDragging) return;
