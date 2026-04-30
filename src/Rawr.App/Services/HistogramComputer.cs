@@ -42,4 +42,29 @@ public static class HistogramComputer
         }
         return data;
     }
+
+    public static HistogramData Compute(BitmapSource source)
+    {
+        var converted = new FormatConvertedBitmap(source, PixelFormats.Bgr24, null, 0);
+        converted.Freeze();
+
+        int w = converted.PixelWidth;
+        int h = converted.PixelHeight;
+        int stride = w * 3;
+        byte[] pixels = new byte[h * stride];
+        converted.CopyPixels(pixels, stride, 0);
+
+        var data = new HistogramData();
+        for (int i = 0; i < pixels.Length; i += 3)
+        {
+            byte b = pixels[i];
+            byte g = pixels[i + 1];
+            byte r = pixels[i + 2];
+            data.R[r]++;
+            data.G[g]++;
+            data.B[b]++;
+            data.Combined[(r * 2126 + g * 7152 + b * 722) / 10000]++;
+        }
+        return data;
+    }
 }

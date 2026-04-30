@@ -5,8 +5,7 @@
 
 - ## True RAW histogram
 
-- ## Focus peaking
-edge-detection overlay that highlights the sharpest areas in the frame
+- ## Focus peaking setting (Strictness)
 
 - ## Folder tree panel
 tree-based browser for navigating the filesystem without a separate open dialog
@@ -18,6 +17,8 @@ tree-based browser for navigating the filesystem without a separate open dialog
 
 
 ## OPUS:
+- ## Make focus peaking more robust against high contrast area which arent sharp
+
 - ## Burst group thumbnail
 Make burst group thumbnail stack effect more refined. It doesnt look very good currently.
 

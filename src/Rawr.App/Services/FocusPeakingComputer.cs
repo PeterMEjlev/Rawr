@@ -8,7 +8,7 @@ public static class FocusPeakingComputer
 {
     private const int DecodeWidth = 1024;
 
-    public static BitmapSource Compute(byte[] jpegBytes, byte threshold = 30)
+    public static BitmapSource Compute(byte[] jpegBytes, byte threshold = 60)
     {
         double rotation = 0.0;
         try

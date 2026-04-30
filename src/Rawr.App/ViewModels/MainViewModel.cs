@@ -65,6 +65,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private HistogramMode _histogramMode = HistogramMode.Rgb;
     [ObservableProperty] private bool _focusPeakingEnabled;
     [ObservableProperty] private BitmapSource? _focusPeakingOverlay;
+    [ObservableProperty] private double _exposureCompensation = 0.0;
+
+    private BitmapSource? _basePreviewImage;
+    private CancellationTokenSource? _exposureCts;
 
     // Filter state
     [ObservableProperty]
@@ -410,6 +414,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _previewCts = new CancellationTokenSource();
         var ct = _previewCts.Token;
 
+        _exposureCts?.Cancel();
+        _basePreviewImage = null;
+        _exposureCompensation = 0.0;
+        OnPropertyChanged(nameof(ExposureCompensation));
+
         HistogramData = null;
         FocusPeakingOverlay = null;
         EvictFarPhotos(value);
@@ -459,6 +468,47 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (photo == null) return;
         var ct = _previewCts?.Token ?? CancellationToken.None;
         _ = ComputeFocusPeakingAsync(photo, ct);
+    }
+
+    private void SetBasePreview(BitmapSource bitmap)
+    {
+        _basePreviewImage = bitmap;
+        PreviewImage = ExposureCompensation == 0.0 ? bitmap : ExposureProcessor.Apply(bitmap, ExposureCompensation);
+    }
+
+    partial void OnExposureCompensationChanged(double value)
+    {
+        var photo = SelectedPhoto;
+        var baseImage = _basePreviewImage;
+        if (photo == null || baseImage == null) return;
+        _exposureCts?.Cancel();
+        _exposureCts = new CancellationTokenSource();
+        _ = ApplyExposureAsync(photo, baseImage, value, _exposureCts.Token);
+    }
+
+    private async Task ApplyExposureAsync(PhotoItem photo, BitmapSource baseImage, double ev, CancellationToken ct)
+    {
+        BitmapSource adjusted = ev == 0.0
+            ? baseImage
+            : await Task.Run(() => ExposureProcessor.Apply(baseImage, ev), ct);
+
+        if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+        PreviewImage = adjusted;
+
+        HistogramData histData;
+        if (ev == 0.0)
+        {
+            var jpeg = photo.FullJpeg ?? photo.PreviewJpeg;
+            if (jpeg == null) return;
+            histData = await Task.Run(() => HistogramComputer.Compute(jpeg), ct);
+        }
+        else
+        {
+            histData = await Task.Run(() => HistogramComputer.Compute(adjusted), ct);
+        }
+
+        if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+            HistogramData = histData;
     }
 
     private async Task ComputeFocusPeakingAsync(PhotoItem photo, CancellationToken ct)
@@ -519,7 +569,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 var bs = await Task.Run(() => LoadBitmapFromJpeg(cached), ct);
                 if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
                 photo.PreviewJpeg = cached;
-                PreviewImage = bs;
+                if (bs != null) SetBasePreview(bs);
                 _ = ComputeHistogramAsync(photo, ct);
                 if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
                 _ = PreloadFullJpegAsync(photo, ct);
@@ -551,7 +601,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var fullBs = await Task.Run(() => LoadBitmapFromJpeg(processed), ct);
             if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
 
-            PreviewImage = fullBs;
+            if (fullBs != null) SetBasePreview(fullBs);
             _ = ComputeHistogramAsync(photo, ct);
             if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
             _ = PreloadFullJpegAsync(photo, ct);
@@ -578,7 +628,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
             var bs = await Task.Run(() => LoadBitmapFromJpeg(jpeg, decodePixelWidth: 0), ct);
             if (!ct.IsCancellationRequested && SelectedPhoto == photo)
-                PreviewImage = bs;
+            {
+                if (bs != null) SetBasePreview(bs);
+                else PreviewImage = null;
+            }
         }
         catch (OperationCanceledException) { /* selection moved on */ }
     }
