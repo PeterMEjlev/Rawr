@@ -118,6 +118,15 @@ public static class ExposureProcessor
         // [0..255]. Fractional output is what makes dither effective: rounding +
         // dither at output time produces sub-byte transitions that the eye averages
         // back into smooth gradients.
+        //
+        // We blend a smoothstep S-curve into the post-sRGB output to approximate the
+        // contrast that camera Picture Styles bake into the embedded JPEG — without
+        // it, the linear pipeline looks correct but flat compared to what the user
+        // sees during the JPEG-preview phase. Blend factor is a taste call; 0.4 is
+        // a moderate Adobe-Standard-ish look without crushing shadows or clipping
+        // highlights beyond what the sensor already lost.
+        const double contrastBlend = 0.6;
+
         var lut = new float[65536];
         for (int i = 0; i < 65536; i++)
         {
@@ -125,7 +134,11 @@ public static class ExposureProcessor
             double srgb = linear <= 0.0031308
                 ? 12.92 * linear
                 : 1.055 * Math.Pow(linear, 1.0 / 2.4) - 0.055;
-            lut[i] = (float)(srgb * 255.0);
+
+            double smooth = srgb * srgb * (3.0 - 2.0 * srgb);
+            double curved = srgb * (1.0 - contrastBlend) + smooth * contrastBlend;
+
+            lut[i] = (float)(curved * 255.0);
         }
         return lut;
     }
