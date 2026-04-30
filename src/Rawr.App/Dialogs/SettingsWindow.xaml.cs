@@ -10,12 +10,13 @@ public partial class SettingsWindow : Window
 
     private static readonly (string Label, SortField Value)[] SortOptions =
     [
-        ("File name", SortField.FileName),
-        ("Rating",    SortField.Rating),
-        ("Date",      SortField.CaptureDate),
-        ("Color",     SortField.ColorLabel),
-        ("Flag",      SortField.Flag),
-        ("Burst",     SortField.Burst),
+        ("File name",   SortField.FileName),
+        ("Rating",      SortField.Rating),
+        ("Date",        SortField.CaptureDate),
+        ("Color",       SortField.ColorLabel),
+        ("Flag",        SortField.Flag),
+        ("Burst",       SortField.Burst),
+        ("Image type",  SortField.ImageType),
     ];
 
     public AppSettings? Result { get; private set; }

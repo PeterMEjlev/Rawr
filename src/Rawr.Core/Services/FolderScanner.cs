@@ -1,14 +1,13 @@
 namespace Rawr.Core.Services;
 
 /// <summary>
-/// Scans a folder for supported RAW image files.
+/// Scans a folder for supported image files (RAW and JPEG).
 /// Designed to return results fast — just a file listing, no I/O on the images themselves.
 /// </summary>
 public static class FolderScanner
 {
-    // Supported RAW extensions. CR3 is the primary target.
-    // Additional formats can be added here as support is validated.
-    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    // RAW file extensions. CR3 is the primary target.
+    public static readonly HashSet<string> RawExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".cr3",   // Canon RAW v3 (main target, including cRAW)
         ".cr2",   // Canon RAW v2
@@ -24,8 +23,14 @@ public static class FolderScanner
         ".srw",   // Samsung
     };
 
+    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".cr3", ".cr2", ".crw", ".nef", ".nrw", ".arw", ".orf", ".rw2", ".raf", ".dng", ".pef", ".srw",
+        ".jpg", ".jpeg",
+    };
+
     /// <summary>
-    /// Returns all supported RAW files in the given folder (non-recursive).
+    /// Returns all supported image files in the given folder (non-recursive).
     /// Files are returned sorted by name for a predictable initial order.
     /// </summary>
     public static List<string> Scan(string folderPath)
@@ -40,7 +45,7 @@ public static class FolderScanner
     }
 
     /// <summary>
-    /// Quick check: does this folder contain any supported RAW files?
+    /// Quick check: does this folder contain any supported image files?
     /// </summary>
     public static bool HasRawFiles(string folderPath)
     {

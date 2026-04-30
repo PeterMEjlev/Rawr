@@ -15,13 +15,15 @@ using Rawr.Raw;
 
 namespace Rawr.App.ViewModels;
 
-public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag, Burst }
+public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag, Burst, ImageType }
 public enum RatingFilterMode { Any, Exact, AtLeast, LessThan }
 public enum BurstFilterMode { Any, OnlyInBursts, OnlySingles }
+public enum ImageTypeFilterMode { Any, RawOnly, NonRawOnly }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IPreviewExtractor _extractor;
+    private readonly WicExtractor _wicExtractor = new();
     private PreviewCache? _cache;
     private CullingDatabase? _db;
     private CancellationTokenSource? _indexCts;
@@ -89,7 +91,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     private BurstFilterMode _burstFilter = BurstFilterMode.Any;
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private ImageTypeFilterMode _imageTypeFilter = ImageTypeFilterMode.Any;
+
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any;
 
     [ObservableProperty] private int _burstCount;
 
@@ -228,12 +234,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (files.Count == 0)
         {
-            StatusText = "No supported RAW files found in this folder.";
+            StatusText = "No supported image files found in this folder.";
             IsLoading = false;
             return;
         }
 
-        StatusText = $"Found {files.Count} RAW files. Loading...";
+        StatusText = $"Found {files.Count} image files. Loading...";
 
         // Open database and preview cache
         _db = CullingDatabase.Open(folderPath);
@@ -331,7 +337,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 {
                     if (needsThumb.Contains(photo))
                     {
-                        var jpeg = _extractor.ExtractThumbnail(photo.FilePath);
+                        var jpeg = ExtractorFor(photo).ExtractThumbnail(photo.FilePath);
                         if (jpeg != null)
                         {
                             var thumb = ProcessJpegForCache(jpeg, ThumbnailDecodeWidth) ?? jpeg;
@@ -340,7 +346,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                         }
                     }
 
-                    var metadata = _extractor.ExtractMetadata(photo.FilePath);
+                    var metadata = ExtractorFor(photo).ExtractMetadata(photo.FilePath);
                     if (metadata != null)
                         Application.Current.Dispatcher.Invoke(() => photo.Metadata = metadata);
 
@@ -468,7 +474,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 PreviewImage = null;
             }
 
-            var jpeg = await Task.Run(() => _extractor.ExtractPreview(photo.FilePath), ct);
+            var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractPreview(photo.FilePath), ct);
             if (ct.IsCancellationRequested || jpeg == null || SelectedPhoto != photo) return;
 
             // Shrink to screen-sized JPEG with orientation baked in for fast subsequent loads.
@@ -499,7 +505,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             // Reuse pre-extracted bytes if PreloadFullJpegAsync already finished.
-            var jpeg = photo.FullJpeg ?? await Task.Run(() => _extractor.ExtractFullJpeg(photo.FilePath), ct);
+            var jpeg = photo.FullJpeg ?? await Task.Run(() => ExtractorFor(photo).ExtractFullJpeg(photo.FilePath), ct);
             if (ct.IsCancellationRequested || jpeg == null || SelectedPhoto != photo) return;
 
             photo.FullJpeg ??= jpeg;
@@ -520,7 +526,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (photo.FullJpeg != null) return;
         try
         {
-            var jpeg = await Task.Run(() => _extractor.ExtractFullJpeg(photo.FilePath), ct);
+            var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractFullJpeg(photo.FilePath), ct);
             if (!ct.IsCancellationRequested && jpeg != null)
                 photo.FullJpeg = jpeg;
         }
@@ -554,7 +560,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     continue;
                 }
 
-                var jpeg = await Task.Run(() => _extractor.ExtractPreview(photo.FilePath), ct);
+                var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractPreview(photo.FilePath), ct);
                 if (ct.IsCancellationRequested || jpeg == null) continue;
 
                 var processed = await Task.Run(() => ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg, ct);
@@ -957,6 +963,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ColorLabelFilter = null;
         TagFilter = null;
         BurstFilter = BurstFilterMode.Any;
+        ImageTypeFilter = ImageTypeFilterMode.Any;
         ApplyFilter();
     }
 
@@ -973,6 +980,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ClearBurstFilter()
     {
         BurstFilter = BurstFilterMode.Any;
+        ApplyFilter();
+    }
+
+    // ── Image type filter ──
+
+    [RelayCommand]
+    private void SetImageTypeFilter(ImageTypeFilterMode mode)
+    {
+        ImageTypeFilter = ImageTypeFilter == mode ? ImageTypeFilterMode.Any : mode;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearImageTypeFilter()
+    {
+        ImageTypeFilter = ImageTypeFilterMode.Any;
         ApplyFilter();
     }
 
@@ -1076,6 +1099,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ToggleSortDirection() => SortDescending = !SortDescending;
 
+    private IPreviewExtractor ExtractorFor(PhotoItem photo) =>
+        photo.IsRaw ? _extractor : _wicExtractor;
+
     private IEnumerable<PhotoItem> ApplySorting(IEnumerable<PhotoItem> items) => SortField switch
     {
         SortField.Rating => SortDescending
@@ -1099,6 +1125,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             : items.OrderBy(p => p.GroupId == 0 ? 0 : 1)
                    .ThenBy(p => p.GroupId)
                    .ThenBy(p => p.Metadata?.CaptureTime ?? DateTime.MinValue)
+                   .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase),
+        SortField.ImageType => SortDescending
+            // JPG first (IsRaw=false → 1, IsRaw=true → 0, descending puts 1 first)
+            ? items.OrderByDescending(p => p.IsRaw ? 0 : 1)
+                   .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
+            // RAW first
+            : items.OrderBy(p => p.IsRaw ? 0 : 1)
                    .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase),
         _ => SortDescending
             ? items.OrderByDescending(p => p.FileName, StringComparer.OrdinalIgnoreCase)
@@ -1124,6 +1157,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             visible = visible.Where(p => p.ColorLabel == ColorLabelFilter.Value);
         if (TagFilter != null)
             visible = visible.Where(p => p.TagIds.Contains(TagFilter.Id));
+        visible = ImageTypeFilter switch
+        {
+            ImageTypeFilterMode.RawOnly    => visible.Where(p => p.IsRaw),
+            ImageTypeFilterMode.NonRawOnly => visible.Where(p => !p.IsRaw),
+            _                              => visible
+        };
         visible = BurstFilter switch
         {
             BurstFilterMode.OnlyInBursts => visible.Where(p => p.GroupId > 0),
@@ -1232,6 +1271,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             parts.Add(TagFilter.Name);
         if (BurstFilter == BurstFilterMode.OnlyInBursts) parts.Add("Bursts");
         else if (BurstFilter == BurstFilterMode.OnlySingles) parts.Add("Singles");
+        if (ImageTypeFilter == ImageTypeFilterMode.RawOnly) parts.Add("RAW");
+        else if (ImageTypeFilter == ImageTypeFilterMode.NonRawOnly) parts.Add("JPG");
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }

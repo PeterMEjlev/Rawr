@@ -178,3 +178,5 @@ C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\Bu
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\BurstFocusWindow.g.cs
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SettingsWindow.baml
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SettingsWindow.g.cs
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SettingsWindow.baml
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SettingsWindow.g.cs

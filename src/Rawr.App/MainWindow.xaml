@@ -421,6 +421,51 @@
                                     </Button>
                                 </StackPanel>
 
+                                <!-- Type -->
+                                <TextBlock Text="TYPE" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Any" Command="{Binding ClearImageTypeFilterCommand}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="Any">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="RAW only"
+                                            Command="{Binding SetImageTypeFilterCommand}"
+                                            CommandParameter="{x:Static vm:ImageTypeFilterMode.RawOnly}"
+                                            Margin="0,0,3,0"
+                                            ToolTip="Show only RAW files">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="RawOnly">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="JPG only"
+                                            Command="{Binding SetImageTypeFilterCommand}"
+                                            CommandParameter="{x:Static vm:ImageTypeFilterMode.NonRawOnly}"
+                                            ToolTip="Show only JPEG files">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="NonRawOnly">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+
                                 <!-- Groups -->
                                 <TextBlock Text="TAGS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
                                 <WrapPanel Margin="0,0,0,6">

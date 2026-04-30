@@ -1,17 +1,21 @@
 {
   "version": 2,
-  "dgSpecHash": "U4oFWd/vwbQ=",
+  "dgSpecHash": "ixp/B0v20So=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
+  "projectFilePath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\Torsten\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.2\\communitytoolkit.mvvm.8.4.2.nupkg.sha512",
-    "C:\\Users\\Torsten\\.nuget\\packages\\microsoft.data.sqlite\\9.0.15\\microsoft.data.sqlite.9.0.15.nupkg.sha512",
-    "C:\\Users\\Torsten\\.nuget\\packages\\microsoft.data.sqlite.core\\9.0.15\\microsoft.data.sqlite.core.9.0.15.nupkg.sha512",
-    "C:\\Users\\Torsten\\.nuget\\packages\\sqlitepclraw.bundle_e_sqlite3\\2.1.10\\sqlitepclraw.bundle_e_sqlite3.2.1.10.nupkg.sha512",
-    "C:\\Users\\Torsten\\.nuget\\packages\\sqlitepclraw.core\\2.1.10\\sqlitepclraw.core.2.1.10.nupkg.sha512",
-    "C:\\Users\\Torsten\\.nuget\\packages\\sqlitepclraw.lib.e_sqlite3\\2.1.10\\sqlitepclraw.lib.e_sqlite3.2.1.10.nupkg.sha512",
-    "C:\\Users\\Torsten\\.nuget\\packages\\sqlitepclraw.provider.e_sqlite3\\2.1.10\\sqlitepclraw.provider.e_sqlite3.2.1.10.nupkg.sha512",
-    "C:\\Users\\Torsten\\.nuget\\packages\\system.memory\\4.5.3\\system.memory.4.5.3.nupkg.sha512"
+    "C:\\Users\\pejlev\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.2\\communitytoolkit.mvvm.8.4.2.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.data.sqlite\\9.0.15\\microsoft.data.sqlite.9.0.15.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.data.sqlite.core\\9.0.15\\microsoft.data.sqlite.core.9.0.15.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\sqlitepclraw.bundle_e_sqlite3\\2.1.10\\sqlitepclraw.bundle_e_sqlite3.2.1.10.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\sqlitepclraw.core\\2.1.10\\sqlitepclraw.core.2.1.10.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\sqlitepclraw.lib.e_sqlite3\\2.1.10\\sqlitepclraw.lib.e_sqlite3.2.1.10.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\sqlitepclraw.provider.e_sqlite3\\2.1.10\\sqlitepclraw.provider.e_sqlite3.2.1.10.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\system.memory\\4.5.3\\system.memory.4.5.3.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.netcore.app.ref\\9.0.15\\microsoft.netcore.app.ref.9.0.15.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\9.0.15\\microsoft.windowsdesktop.app.ref.9.0.15.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\9.0.15\\microsoft.aspnetcore.app.ref.9.0.15.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\9.0.15\\microsoft.netcore.app.host.win-x64.9.0.15.nupkg.sha512"
   ],
   "logs": []
 }
