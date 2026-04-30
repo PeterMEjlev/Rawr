@@ -1073,6 +1073,15 @@
                                                     <Run Text="×" /><Run Text="{Binding CollapsedBurstCount, Mode=OneWay}" />
                                                 </TextBlock>
                                             </Border>
+                                            <!-- Video indicator -->
+                                            <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                                    Background="#CC000000"
+                                                    Padding="4,1" Margin="0,0,0,2"
+                                                    CornerRadius="2"
+                                                    ToolTip="Video"
+                                                    Visibility="{Binding IsVideo, Converter={StaticResource NullToVisibility}}">
+                                                <TextBlock Text="▶" Foreground="White" FontSize="9" />
+                                            </Border>
                                         </Grid>
                                     </Border>
                                     </Grid>
@@ -1507,6 +1516,15 @@
                                         <TextBlock Foreground="White" FontSize="10" FontWeight="SemiBold">
                                             <Run Text="×" /><Run Text="{Binding CollapsedBurstCount, Mode=OneWay}" />
                                         </TextBlock>
+                                    </Border>
+                                    <!-- Video indicator -->
+                                    <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                            Background="#CC000000"
+                                            Padding="4,1" Margin="0,0,0,2"
+                                            CornerRadius="2"
+                                            ToolTip="Video"
+                                            Visibility="{Binding IsVideo, Converter={StaticResource NullToVisibility}}">
+                                        <TextBlock Text="▶" Foreground="White" FontSize="9" />
                                     </Border>
                                 </Grid>
                             </Border>
