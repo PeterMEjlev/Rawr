@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Rawr.App.Dialogs;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
@@ -34,6 +35,16 @@ public partial class MainWindow : Window
     private GridLength _savedGridWidth = new GridLength(200);
     private PhotoItem? _prevSelectedPhoto;
 
+    // Video playback state. The DispatcherTimer pulls VideoPlayer.Position into the
+    // slider while playing; the suppress flag prevents the timer-driven slider update
+    // from being interpreted as a user scrub.
+    private readonly DispatcherTimer _videoTick = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private bool _videoIsPlaying;
+    private bool _videoSliderIsDragging;
+    private bool _videoSuppressSliderEvent;
+    private TimeSpan _videoDuration;
+    private bool _videoIsMuted;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -59,8 +70,12 @@ public partial class MainWindow : Window
                     ApplyGridVisibility(vmG.ShowGrid);
                 if (e.PropertyName == nameof(MainViewModel.ShowFilmstrip) && DataContext is MainViewModel vmF)
                     ApplyFilmstripVisibility(vmF.ShowFilmstrip);
+                if (e.PropertyName == nameof(MainViewModel.VideoSourceUri))
+                    OnVideoSourceChanged();
             };
         }
+
+        _videoTick.Tick += VideoTick_OnTick;
 
         Closing += (_, _) => SaveLayoutSettings();
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
@@ -227,6 +242,7 @@ public partial class MainWindow : Window
     private void PreviewHost_MouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (sender is not FrameworkElement host) return;
+        if ((DataContext as MainViewModel)?.VideoSourceUri != null) return; // no zoom for videos
 
         var oldScale = PreviewScale.ScaleX;
         var step = e.Delta > 0 ? ZoomStep : 1.0 / ZoomStep;
@@ -270,6 +286,7 @@ public partial class MainWindow : Window
     private void PreviewHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement host) return;
+        if ((DataContext as MainViewModel)?.VideoSourceUri != null) return; // no zoom/pan for videos
 
         if (e.ClickCount == 2)
         {
@@ -441,4 +458,144 @@ public partial class MainWindow : Window
         }
         return null;
     }
+
+    // ── Video playback ──
+
+    private void OnVideoSourceChanged()
+    {
+        // The Source binding has just been updated (or cleared). MediaOpened will
+        // populate the slider when the new file is ready; in the meantime, stop the
+        // tick timer and reset the player UI so we don't carry leftover state from
+        // the prior video.
+        _videoTick.Stop();
+        _videoIsPlaying = false;
+        _videoSliderIsDragging = false;
+        SetPlayPauseGlyph(playing: false);
+
+        var vm = DataContext as MainViewModel;
+        if (vm?.VideoSourceUri == null)
+        {
+            // Selection moved off video: explicitly stop so the file handle is freed
+            // even when the binding alone wouldn't have triggered teardown.
+            VideoPlayer.Stop();
+            VideoPlayer.Close();
+            _videoDuration = TimeSpan.Zero;
+            _videoSuppressSliderEvent = true;
+            VideoSlider.Maximum = 1;
+            VideoSlider.Value = 0;
+            _videoSuppressSliderEvent = false;
+            VideoTimeText.Text = "0:00 / 0:00";
+        }
+    }
+
+    private void VideoPlayer_MediaOpened(object sender, RoutedEventArgs e)
+    {
+        _videoDuration = VideoPlayer.NaturalDuration.HasTimeSpan
+            ? VideoPlayer.NaturalDuration.TimeSpan
+            : TimeSpan.Zero;
+
+        _videoSuppressSliderEvent = true;
+        VideoSlider.Maximum = Math.Max(0.1, _videoDuration.TotalSeconds);
+        VideoSlider.Value = 0;
+        _videoSuppressSliderEvent = false;
+        UpdateVideoTimeText(TimeSpan.Zero);
+
+        VideoPlayer.IsMuted = _videoIsMuted;
+
+        // Render the first frame without auto-playing audio. Play() then Pause() forces
+        // the decoder to produce a frame; ScrubbingEnabled keeps it visible while paused.
+        VideoPlayer.Play();
+        VideoPlayer.Pause();
+        _videoIsPlaying = false;
+        SetPlayPauseGlyph(playing: false);
+    }
+
+    private void VideoPlayer_MediaEnded(object sender, RoutedEventArgs e)
+    {
+        VideoPlayer.Pause();
+        VideoPlayer.Position = TimeSpan.Zero;
+        _videoIsPlaying = false;
+        _videoTick.Stop();
+        SetPlayPauseGlyph(playing: false);
+        _videoSuppressSliderEvent = true;
+        VideoSlider.Value = 0;
+        _videoSuppressSliderEvent = false;
+        UpdateVideoTimeText(TimeSpan.Zero);
+    }
+
+    private void VideoPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        _videoTick.Stop();
+        _videoIsPlaying = false;
+        SetPlayPauseGlyph(playing: false);
+        VideoTimeText.Text = "Failed to open video";
+    }
+
+    private void VideoPlayPause_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+
+        if (_videoIsPlaying)
+        {
+            VideoPlayer.Pause();
+            _videoIsPlaying = false;
+            _videoTick.Stop();
+        }
+        else
+        {
+            VideoPlayer.Play();
+            _videoIsPlaying = true;
+            _videoTick.Start();
+        }
+        SetPlayPauseGlyph(_videoIsPlaying);
+    }
+
+    private void VideoMute_Click(object sender, RoutedEventArgs e)
+    {
+        _videoIsMuted = !_videoIsMuted;
+        VideoPlayer.IsMuted = _videoIsMuted;
+        VideoMuteButton.Content = _videoIsMuted ? "🔇" : "🔊";
+    }
+
+    private void VideoSlider_DragStarted(object sender, DragStartedEventArgs e) => _videoSliderIsDragging = true;
+
+    private void VideoSlider_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        _videoSliderIsDragging = false;
+        SeekToSlider();
+    }
+
+    private void VideoSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_videoSuppressSliderEvent) return;
+        // While the user is mid-drag we still seek so the frame updates live (ScrubbingEnabled);
+        // value-changes from clicks on the track also fall through here.
+        SeekToSlider();
+    }
+
+    private void SeekToSlider()
+    {
+        if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+        VideoPlayer.Position = TimeSpan.FromSeconds(VideoSlider.Value);
+        UpdateVideoTimeText(VideoPlayer.Position);
+    }
+
+    private void VideoTick_OnTick(object? sender, EventArgs e)
+    {
+        if (_videoSliderIsDragging) return;
+        var pos = VideoPlayer.Position;
+        _videoSuppressSliderEvent = true;
+        VideoSlider.Value = pos.TotalSeconds;
+        _videoSuppressSliderEvent = false;
+        UpdateVideoTimeText(pos);
+    }
+
+    private void UpdateVideoTimeText(TimeSpan position) =>
+        VideoTimeText.Text = $"{Format(position)} / {Format(_videoDuration)}";
+
+    private static string Format(TimeSpan t) =>
+        t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}" : $"{t.Minutes}:{t.Seconds:D2}";
+
+    private void SetPlayPauseGlyph(bool playing) =>
+        VideoPlayPauseButton.Content = playing ? "⏸" : "▶";
 }

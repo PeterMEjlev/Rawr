@@ -30,8 +30,9 @@ public static class BurstDetector
 
         // Sort by camera (so two cameras shooting simultaneously don't collide),
         // then by capture time. Photos with no capture time are skipped entirely.
+        // Videos are excluded — burst grouping is a stills concept.
         var ordered = photos
-            .Where(p => p.Metadata?.CaptureTime.HasValue == true)
+            .Where(p => !p.IsVideo && p.Metadata?.CaptureTime.HasValue == true)
             .OrderBy(p => p.Metadata!.CameraModel, StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.Metadata!.CaptureTime!.Value)
             .ToList();

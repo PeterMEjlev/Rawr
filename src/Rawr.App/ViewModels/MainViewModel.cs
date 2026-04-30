@@ -18,12 +18,13 @@ namespace Rawr.App.ViewModels;
 public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag, Burst, ImageType }
 public enum RatingFilterMode { Any, Exact, AtLeast, LessThan }
 public enum BurstFilterMode { Any, OnlyInBursts, OnlySingles }
-public enum ImageTypeFilterMode { Any, RawOnly, NonRawOnly }
+public enum ImageTypeFilterMode { Any, RawOnly, JpegOnly, VideoOnly }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IPreviewExtractor _extractor;
     private readonly WicExtractor _wicExtractor = new();
+    private readonly ShellThumbnailExtractor _videoExtractor = new();
     private PreviewCache? _cache;
     private CullingDatabase? _db;
     private CancellationTokenSource? _indexCts;
@@ -41,6 +42,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _currentFolder = "";
     [ObservableProperty] private string _statusText = "Open a folder to begin (Ctrl+O)";
     [ObservableProperty] private BitmapSource? _previewImage;
+
+    // Set when the selected item is a video. The MediaElement in the preview pane
+    // binds to this; null hides the player and shows the still-image preview path.
+    [ObservableProperty] private Uri? _videoSourceUri;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedPhotoCaptureDateFormatted))]
     private PhotoItem? _selectedPhoto;
@@ -222,6 +227,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Tags.Clear();
         TagFilter = null;
         PreviewImage = null;
+        VideoSourceUri = null;
         SelectedPhoto = null;
         SelectedIndex = -1;
 
@@ -448,6 +454,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var photo = SelectedPhoto;
         if (photo == null) return;
 
+        if (photo.IsVideo)
+        {
+            // Hand the file to the MediaElement; clear any still-image preview so the
+            // image control doesn't peek through behind the player.
+            PreviewImage = null;
+            VideoSourceUri = new Uri(photo.FilePath);
+            return;
+        }
+
+        // Switching from a video back to a photo: release the player's file handle.
+        if (VideoSourceUri != null) VideoSourceUri = null;
+
         try
         {
             // Already-resident bytes (set by an earlier prefetch) — skip the disk read.
@@ -497,7 +515,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (_highResPreviewLoaded) return;
         var photo = SelectedPhoto;
-        if (photo == null) return;
+        if (photo == null || photo.IsVideo) return;
 
         _highResPreviewLoaded = true; // guard against duplicate concurrent calls
         var ct = _previewCts?.Token ?? CancellationToken.None;
@@ -523,7 +541,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task PreloadFullJpegAsync(PhotoItem photo, CancellationToken ct)
     {
-        if (photo.FullJpeg != null) return;
+        if (photo.IsVideo || photo.FullJpeg != null) return;
         try
         {
             var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractFullJpeg(photo.FilePath), ct);
@@ -549,7 +567,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (i < 0 || i >= FilteredPhotos.Count) continue;
 
             var photo = FilteredPhotos[i];
-            if (photo.PreviewJpeg != null) continue;
+            if (photo.IsVideo || photo.PreviewJpeg != null) continue;
 
             try
             {
@@ -1099,8 +1117,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ToggleSortDirection() => SortDescending = !SortDescending;
 
-    private IPreviewExtractor ExtractorFor(PhotoItem photo) =>
-        photo.IsRaw ? _extractor : _wicExtractor;
+    private IPreviewExtractor ExtractorFor(PhotoItem photo)
+    {
+        if (photo.IsVideo) return _videoExtractor;
+        return photo.IsRaw ? _extractor : _wicExtractor;
+    }
 
     private IEnumerable<PhotoItem> ApplySorting(IEnumerable<PhotoItem> items) => SortField switch
     {
@@ -1127,11 +1148,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                    .ThenBy(p => p.Metadata?.CaptureTime ?? DateTime.MinValue)
                    .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase),
         SortField.ImageType => SortDescending
-            // JPG first (IsRaw=false → 1, IsRaw=true → 0, descending puts 1 first)
-            ? items.OrderByDescending(p => p.IsRaw ? 0 : 1)
+            // Video → JPG → RAW
+            ? items.OrderByDescending(p => p.IsVideo ? 2 : (p.IsRaw ? 0 : 1))
                    .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
-            // RAW first
-            : items.OrderBy(p => p.IsRaw ? 0 : 1)
+            // RAW → JPG → Video
+            : items.OrderBy(p => p.IsVideo ? 2 : (p.IsRaw ? 0 : 1))
                    .ThenBy(p => p.FileName, StringComparer.OrdinalIgnoreCase),
         _ => SortDescending
             ? items.OrderByDescending(p => p.FileName, StringComparer.OrdinalIgnoreCase)
@@ -1159,9 +1180,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             visible = visible.Where(p => p.TagIds.Contains(TagFilter.Id));
         visible = ImageTypeFilter switch
         {
-            ImageTypeFilterMode.RawOnly    => visible.Where(p => p.IsRaw),
-            ImageTypeFilterMode.NonRawOnly => visible.Where(p => !p.IsRaw),
-            _                              => visible
+            ImageTypeFilterMode.RawOnly   => visible.Where(p => p.IsRaw),
+            ImageTypeFilterMode.JpegOnly  => visible.Where(p => !p.IsRaw && !p.IsVideo),
+            ImageTypeFilterMode.VideoOnly => visible.Where(p => p.IsVideo),
+            _                             => visible
         };
         visible = BurstFilter switch
         {
@@ -1248,6 +1270,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             SelectedIndex = -1;
             SelectedPhoto = null;
             PreviewImage = null;
+            VideoSourceUri = null;
         }
     }
 
@@ -1272,7 +1295,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (BurstFilter == BurstFilterMode.OnlyInBursts) parts.Add("Bursts");
         else if (BurstFilter == BurstFilterMode.OnlySingles) parts.Add("Singles");
         if (ImageTypeFilter == ImageTypeFilterMode.RawOnly) parts.Add("RAW");
-        else if (ImageTypeFilter == ImageTypeFilterMode.NonRawOnly) parts.Add("JPG");
+        else if (ImageTypeFilter == ImageTypeFilterMode.JpegOnly) parts.Add("JPG");
+        else if (ImageTypeFilter == ImageTypeFilterMode.VideoOnly) parts.Add("Video");
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }

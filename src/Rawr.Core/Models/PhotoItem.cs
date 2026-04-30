@@ -11,7 +11,8 @@ public sealed partial class PhotoItem : ObservableObject
     public required string FilePath { get; init; }
     public string FileName => Path.GetFileName(FilePath);
     public string Extension => Path.GetExtension(FilePath).ToUpperInvariant();
-    public bool IsRaw => Extension is not ".JPG" and not ".JPEG";
+    public bool IsVideo => Extension is ".MP4" or ".MOV";
+    public bool IsRaw => !IsVideo && Extension is not ".JPG" and not ".JPEG";
 
     [ObservableProperty] private int _rating; // 0-5
     [ObservableProperty] private CullFlag _flag;

@@ -23,10 +23,17 @@ public static class FolderScanner
         ".srw",   // Samsung
     };
 
+    public static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4",
+        ".mov",
+    };
+
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".cr3", ".cr2", ".crw", ".nef", ".nrw", ".arw", ".orf", ".rw2", ".raf", ".dng", ".pef", ".srw",
         ".jpg", ".jpeg",
+        ".mp4", ".mov",
     };
 
     /// <summary>
@@ -58,4 +65,7 @@ public static class FolderScanner
 
     public static bool IsSupported(string filePath) =>
         SupportedExtensions.Contains(Path.GetExtension(filePath));
+
+    public static bool IsVideo(string filePath) =>
+        VideoExtensions.Contains(Path.GetExtension(filePath));
 }

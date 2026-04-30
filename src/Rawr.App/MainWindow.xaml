@@ -452,12 +452,27 @@
                                     </Button>
                                     <Button Content="JPG only"
                                             Command="{Binding SetImageTypeFilterCommand}"
-                                            CommandParameter="{x:Static vm:ImageTypeFilterMode.NonRawOnly}"
+                                            CommandParameter="{x:Static vm:ImageTypeFilterMode.JpegOnly}"
+                                            Margin="0,0,3,0"
                                             ToolTip="Show only JPEG files">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="NonRawOnly">
+                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="JpegOnly">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Video only"
+                                            Command="{Binding SetImageTypeFilterCommand}"
+                                            CommandParameter="{x:Static vm:ImageTypeFilterMode.VideoOnly}"
+                                            ToolTip="Show only videos">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="VideoOnly">
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -1083,7 +1098,12 @@
 
             <!-- Preview area -->
             <Grid Grid.Column="2" Background="#FF0E0E0E">
-                <Border x:Name="PreviewHost"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0"
+                        x:Name="PreviewHost"
                         Background="Transparent"
                         ClipToBounds="True"
                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -1113,20 +1133,34 @@
                                       Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                         </ContextMenu>
                     </Border.ContextMenu>
-                    <Image x:Name="PreviewImageElement"
-                           Source="{Binding PreviewImage}"
-                           Stretch="Uniform"
-                           SnapsToDevicePixels="True"
-                           RenderOptions.BitmapScalingMode="Linear"
-                           Margin="8"
-                           RenderTransformOrigin="0,0">
-                        <Image.RenderTransform>
-                            <TransformGroup>
-                                <ScaleTransform x:Name="PreviewScale" ScaleX="1" ScaleY="1" />
-                                <TranslateTransform x:Name="PreviewTranslate" X="0" Y="0" />
-                            </TransformGroup>
-                        </Image.RenderTransform>
-                    </Image>
+                    <Grid>
+                        <Image x:Name="PreviewImageElement"
+                               Source="{Binding PreviewImage}"
+                               Stretch="Uniform"
+                               SnapsToDevicePixels="True"
+                               RenderOptions.BitmapScalingMode="Linear"
+                               Margin="8"
+                               RenderTransformOrigin="0,0"
+                               Visibility="{Binding VideoSourceUri, Converter={StaticResource NotNullToCollapsed}}">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="PreviewScale" ScaleX="1" ScaleY="1" />
+                                    <TranslateTransform x:Name="PreviewTranslate" X="0" Y="0" />
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
+                        <MediaElement x:Name="VideoPlayer"
+                                      Source="{Binding VideoSourceUri}"
+                                      LoadedBehavior="Manual"
+                                      UnloadedBehavior="Manual"
+                                      ScrubbingEnabled="True"
+                                      Stretch="Uniform"
+                                      Margin="8"
+                                      MediaOpened="VideoPlayer_MediaOpened"
+                                      MediaEnded="VideoPlayer_MediaEnded"
+                                      MediaFailed="VideoPlayer_MediaFailed"
+                                      Visibility="{Binding VideoSourceUri, Converter={StaticResource NullToVisibility}}" />
+                    </Grid>
                 </Border>
 
                 <!-- Empty-state overlay -->
@@ -1136,7 +1170,7 @@
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
                            IsHitTestVisible="False"
-                           Visibility="{Binding PreviewImage, Converter={StaticResource NotNullToCollapsed}}" />
+                           Visibility="{Binding SelectedPhoto, Converter={StaticResource NotNullToCollapsed}}" />
 
                 <!-- Loading indicator -->
                 <Border Background="#A0000000"
@@ -1176,7 +1210,8 @@
                 </StackPanel>
 
                 <!-- Zoom indicator (bottom-right) -->
-                <Border Background="#80000000"
+                <Border Grid.Row="0"
+                        Background="#80000000"
                         Padding="6,2"
                         CornerRadius="3"
                         HorizontalAlignment="Right"
@@ -1188,6 +1223,47 @@
                     <TextBlock x:Name="ZoomIndicatorText"
                                Foreground="{StaticResource TextBrush}"
                                FontSize="11" />
+                </Border>
+
+                <!-- Video playback controls (visible only when a video is loaded) -->
+                <Border Grid.Row="1"
+                        Background="{StaticResource BgToolbarBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="8,6"
+                        Visibility="{Binding VideoSourceUri, Converter={StaticResource NullToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <Button x:Name="VideoPlayPauseButton"
+                                DockPanel.Dock="Left"
+                                Content="▶"
+                                Width="32"
+                                Margin="0,0,8,0"
+                                Click="VideoPlayPause_Click"
+                                ToolTip="Play / Pause (Space)" />
+                        <TextBlock x:Name="VideoTimeText"
+                                   DockPanel.Dock="Right"
+                                   Text="0:00 / 0:00"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0"
+                                   FontFamily="Consolas" />
+                        <Button x:Name="VideoMuteButton"
+                                DockPanel.Dock="Right"
+                                Content="🔊"
+                                Width="32"
+                                Margin="8,0,0,0"
+                                Click="VideoMute_Click"
+                                ToolTip="Mute / Unmute" />
+                        <Slider x:Name="VideoSlider"
+                                Minimum="0"
+                                Maximum="1"
+                                Value="0"
+                                VerticalAlignment="Center"
+                                IsMoveToPointEnabled="True"
+                                Thumb.DragStarted="VideoSlider_DragStarted"
+                                Thumb.DragCompleted="VideoSlider_DragCompleted"
+                                ValueChanged="VideoSlider_ValueChanged" />
+                    </DockPanel>
                 </Border>
             </Grid>
 
