@@ -70,6 +70,9 @@
         <!-- Delete -->
         <KeyBinding Key="Delete" Command="{Binding DeletePhotoCommand}" />
 
+        <!-- Focus peaking -->
+        <KeyBinding Key="F" Command="{Binding ToggleFocusPeakingCommand}" />
+
         <!-- Filters -->
         <KeyBinding Modifiers="Control+Shift" Key="X" Command="{Binding ClearFiltersCommand}" />
 
@@ -1170,6 +1173,25 @@
                                       MediaEnded="VideoPlayer_MediaEnded"
                                       MediaFailed="VideoPlayer_MediaFailed"
                                       Visibility="{Binding VideoSourceUri, Converter={StaticResource NullToVisibility}}" />
+
+                        <!-- Focus Peaking overlay — shares transforms with PreviewImageElement via binding -->
+                        <Image Source="{Binding FocusPeakingOverlay}"
+                               Stretch="Uniform"
+                               SnapsToDevicePixels="True"
+                               RenderOptions.BitmapScalingMode="Linear"
+                               Margin="8"
+                               RenderTransformOrigin="0,0"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding FocusPeakingEnabled, Converter={StaticResource NullToVisibility}}">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="{Binding ScaleX, ElementName=PreviewScale}"
+                                                    ScaleY="{Binding ScaleY, ElementName=PreviewScale}" />
+                                    <TranslateTransform X="{Binding X, ElementName=PreviewTranslate}"
+                                                        Y="{Binding Y, ElementName=PreviewTranslate}" />
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
                     </Grid>
                 </Border>
 
@@ -1218,6 +1240,22 @@
                                    FontSize="12" />
                     </Border>
                 </StackPanel>
+
+                <!-- Focus peaking indicator (bottom-left) -->
+                <Border Grid.Row="0"
+                        Background="#CC1A4A8A"
+                        Padding="6,2"
+                        CornerRadius="3"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Margin="16,0,0,16"
+                        IsHitTestVisible="False"
+                        Visibility="{Binding FocusPeakingEnabled, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Text="FOCUS PEAK"
+                               Foreground="White"
+                               FontSize="11"
+                               FontWeight="Bold" />
+                </Border>
 
                 <!-- Zoom indicator (bottom-right) -->
                 <Border Grid.Row="0"

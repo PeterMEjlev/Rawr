@@ -63,6 +63,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _showFilmstrip = true;
     [ObservableProperty] private HistogramData? _histogramData;
     [ObservableProperty] private HistogramMode _histogramMode = HistogramMode.Rgb;
+    [ObservableProperty] private bool _focusPeakingEnabled;
+    [ObservableProperty] private BitmapSource? _focusPeakingOverlay;
 
     // Filter state
     [ObservableProperty]
@@ -409,6 +411,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var ct = _previewCts.Token;
 
         HistogramData = null;
+        FocusPeakingOverlay = null;
         EvictFarPhotos(value);
         _ = LoadPreviewForSelectedAsync(ct);
         _ = PrefetchNeighborsAsync(value, ct);
@@ -442,6 +445,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void SetHistogramMode(HistogramMode mode) => HistogramMode = mode;
+
+    [RelayCommand]
+    private void ToggleFocusPeaking()
+    {
+        FocusPeakingEnabled = !FocusPeakingEnabled;
+        if (!FocusPeakingEnabled)
+        {
+            FocusPeakingOverlay = null;
+            return;
+        }
+        var photo = SelectedPhoto;
+        if (photo == null) return;
+        var ct = _previewCts?.Token ?? CancellationToken.None;
+        _ = ComputeFocusPeakingAsync(photo, ct);
+    }
+
+    private async Task ComputeFocusPeakingAsync(PhotoItem photo, CancellationToken ct)
+    {
+        var jpeg = photo.FullJpeg ?? photo.PreviewJpeg;
+        if (jpeg == null) return;
+        var overlay = await Task.Run(() => FocusPeakingComputer.Compute(jpeg), ct);
+        if (!ct.IsCancellationRequested && SelectedPhoto == photo && FocusPeakingEnabled)
+            FocusPeakingOverlay = overlay;
+    }
 
     private async Task ComputeHistogramAsync(PhotoItem photo, CancellationToken ct)
     {
@@ -494,6 +521,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 photo.PreviewJpeg = cached;
                 PreviewImage = bs;
                 _ = ComputeHistogramAsync(photo, ct);
+                if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
                 _ = PreloadFullJpegAsync(photo, ct);
                 return;
             }
@@ -525,6 +553,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
             PreviewImage = fullBs;
             _ = ComputeHistogramAsync(photo, ct);
+            if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
             _ = PreloadFullJpegAsync(photo, ct);
         }
         catch (OperationCanceledException) { /* selection moved on */ }
