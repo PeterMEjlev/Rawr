@@ -587,7 +587,7 @@
                             </Track.Thumb>
                         </Track>
                         <!-- AccentBrush fill from 0 to thumb, positioned by WPF via SelectionStart/End -->
-                        <Canvas Grid.Row="1" IsHitTestVisible="False">
+                        <Canvas Grid.Row="1" Height="4" VerticalAlignment="Center" IsHitTestVisible="False">
                             <Border x:Name="PART_SelectionRange"
                                     Height="4"
                                     Background="{StaticResource AccentBrush}"

@@ -4,8 +4,6 @@
 
 - ## File renaming (w. templates)
 
-- ## Exposure Compensation
-
 - ## True RAW histogram
 
 - ## Focus peaking setting (Strictness)
