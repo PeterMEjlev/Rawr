@@ -51,21 +51,35 @@ public static class FocusPeakingComputer
         byte[] src = new byte[h * w];
         gray.CopyPixels(src, w, 0);
 
-        // Sobel edge detection
+        // Gaussian blur (3×3, σ≈1) — suppresses noise before the second-derivative step.
+        byte[] blurred = new byte[w * h];
+        for (int y = 1; y < h - 1; y++)
+        {
+            int rp = (y - 1) * w, rc = y * w, rn = (y + 1) * w;
+            for (int x = 1; x < w - 1; x++)
+            {
+                blurred[rc + x] = (byte)((
+                      src[rp + x - 1] + 2 * src[rp + x] +     src[rp + x + 1] +
+                  2 * src[rc + x - 1] + 4 * src[rc + x] + 2 * src[rc + x + 1] +
+                      src[rn + x - 1] + 2 * src[rn + x] +     src[rn + x + 1]
+                ) >> 4);
+            }
+        }
+
+        // Laplacian of Gaussian (LoG) — the second derivative responds proportionally to
+        // 1/σ² of the edge width, vs 1/σ for the first derivative (Sobel). A soft
+        // contrast ramp (treeline/sky) has near-zero Laplacian in its smooth interior;
+        // only pixels with rapidly changing gradients — genuinely sharp focus — score high.
         byte[] mag = new byte[w * h];
         for (int y = 1; y < h - 1; y++)
         {
-            int rp = (y - 1) * w;
-            int rc = y * w;
-            int rn = (y + 1) * w;
+            int rp = (y - 1) * w, rc = y * w, rn = (y + 1) * w;
             for (int x = 1; x < w - 1; x++)
             {
-                int gx = -src[rp + x - 1] + src[rp + x + 1]
-                         - 2 * src[rc + x - 1] + 2 * src[rc + x + 1]
-                         - src[rn + x - 1] + src[rn + x + 1];
-                int gy = -src[rp + x - 1] - 2 * src[rp + x] - src[rp + x + 1]
-                         + src[rn + x - 1] + 2 * src[rn + x] + src[rn + x + 1];
-                mag[rc + x] = (byte)Math.Min(255, (int)Math.Sqrt(gx * gx + gy * gy));
+                int lap = 4 * blurred[rc + x]
+                          - blurred[rp + x] - blurred[rn + x]
+                          - blurred[rc + x - 1] - blurred[rc + x + 1];
+                mag[rc + x] = (byte)Math.Min(255, Math.Abs(lap) * 8);
             }
         }
 
