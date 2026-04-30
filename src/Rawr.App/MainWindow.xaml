@@ -1287,7 +1287,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0"
-                                   Text="EV"
+                                   Text="{Binding ExposureSourceLabel}"
                                    Foreground="{StaticResource TextDimBrush}"
                                    VerticalAlignment="Center"
                                    Margin="0,0,8,0"
@@ -1295,8 +1295,8 @@
                         <Slider x:Name="ExposureSlider"
                                 Grid.Column="1"
                                 Style="{StaticResource ExposureSliderStyle}"
-                                Minimum="-3"
-                                Maximum="3"
+                                Minimum="-5"
+                                Maximum="5"
                                 Value="{Binding ExposureCompensation}"
                                 SmallChange="0.2"
                                 LargeChange="1.0"

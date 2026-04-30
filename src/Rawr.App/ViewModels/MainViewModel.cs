@@ -25,6 +25,7 @@ public enum ImageTypeFilterMode { Any, RawOnly, JpegOnly, VideoOnly }
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IPreviewExtractor _extractor;
+    private readonly LibRawExtractor? _libRaw;
     private readonly WicExtractor _wicExtractor = new();
     private readonly ShellThumbnailExtractor _videoExtractor = new();
     private PreviewCache? _cache;
@@ -66,12 +67,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _focusPeakingEnabled;
     [ObservableProperty] private BitmapSource? _focusPeakingOverlay;
     [ObservableProperty] private double _exposureCompensation = 0.0;
+    [ObservableProperty] private bool _isLinearRawReady;
+    [ObservableProperty] private string _exposureSourceLabel = "EV";
 
     public double ExposureSelectionStart => Math.Min(0.0, ExposureCompensation);
     public double ExposureSelectionEnd   => Math.Max(0.0, ExposureCompensation);
 
     private BitmapSource? _basePreviewImage;
+    private LinearRawImage? _baseRawImage;
     private CancellationTokenSource? _exposureCts;
+    private CancellationTokenSource? _rawDecodeCts;
 
     // Filter state
     [ObservableProperty]
@@ -190,6 +195,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Try LibRaw first, fall back to WIC
         var libraw = new LibRawExtractor();
         _extractor = libraw.IsAvailable ? libraw : new WicExtractor();
+        _libRaw = libraw.IsAvailable ? libraw : null;
         ExtractorName = libraw.IsAvailable ? "LibRaw" : "WIC";
     }
 
@@ -418,7 +424,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var ct = _previewCts.Token;
 
         _exposureCts?.Cancel();
+        _rawDecodeCts?.Cancel();
         _basePreviewImage = null;
+        _baseRawImage = null;
+        IsLinearRawReady = false;
+        ExposureSourceLabel = "EV";
         _exposureCompensation = 0.0;
         OnPropertyChanged(nameof(ExposureCompensation));
         OnPropertyChanged(nameof(ExposureSelectionStart));
@@ -478,6 +488,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetBasePreview(BitmapSource bitmap)
     {
         _basePreviewImage = bitmap;
+        // Once the linear RAW preview is in hand, never let a JPEG bitmap overwrite
+        // it on the screen — the JPEG is 8-bit and banded at extreme EV; RAW isn't.
+        // We still cache _basePreviewImage above so a later RAW failure can fall
+        // back to it.
+        if (_baseRawImage != null) return;
         PreviewImage = ExposureCompensation == 0.0 ? bitmap : ExposureProcessor.Apply(bitmap, ExposureCompensation);
     }
 
@@ -486,36 +501,76 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ExposureSelectionStart));
         OnPropertyChanged(nameof(ExposureSelectionEnd));
         var photo = SelectedPhoto;
-        var baseImage = _basePreviewImage;
-        if (photo == null || baseImage == null) return;
+        if (photo == null) return;
         _exposureCts?.Cancel();
         _exposureCts = new CancellationTokenSource();
-        _ = ApplyExposureAsync(photo, baseImage, value, _exposureCts.Token);
+        _ = ApplyExposureAsync(photo, value, _exposureCts.Token);
     }
 
-    private async Task ApplyExposureAsync(PhotoItem photo, BitmapSource baseImage, double ev, CancellationToken ct)
+    private async Task ApplyExposureAsync(PhotoItem photo, double ev, CancellationToken ct)
     {
+        // Prefer the linear RAW path when it's been decoded — that's the only path
+        // that reflects true sensor highlights/shadows.
+        var raw = _baseRawImage;
+        if (raw != null)
+        {
+            var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ev), ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+            PreviewImage = rendered;
+            return;
+        }
+
+        var baseImage = _basePreviewImage;
+        if (baseImage == null) return;
         BitmapSource adjusted = ev == 0.0
             ? baseImage
             : await Task.Run(() => ExposureProcessor.Apply(baseImage, ev), ct);
-
         if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
         PreviewImage = adjusted;
+    }
 
-        HistogramData histData;
-        if (ev == 0.0)
+    /// <summary>
+    /// Decode the full RAW sensor data for the given photo in the background and
+    /// promote the slider to the linear RAW path once it's ready. Slow (~300ms-2s
+    /// per photo) but only runs for the selected photo, not on bulk navigation.
+    /// </summary>
+    private async Task LoadLinearRawAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (_libRaw == null || !photo.IsRaw || photo.IsVideo) return;
+        try
         {
-            var jpeg = photo.FullJpeg ?? photo.PreviewJpeg;
-            if (jpeg == null) return;
-            histData = await Task.Run(() => HistogramComputer.Compute(jpeg), ct);
-        }
-        else
-        {
-            histData = await Task.Run(() => HistogramComputer.Compute(adjusted), ct);
-        }
+            var raw = await Task.Run(() =>
+            {
+                var full = _libRaw.ExtractLinearRgb(photo.FilePath);
+                // Box-average down to ~preview resolution. Dither needs to live at
+                // roughly display pixel density to survive WPF's scaling — at full
+                // sensor res the per-pixel noise gets averaged out during the
+                // ~3x downscale and banding reappears. Also slashes memory/CPU.
+                return full?.Downsample(LinearRawPreviewWidth);
+            }, ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+            if (raw == null)
+            {
+                // Surface the failure so users don't silently keep operating on JPEG.
+                ExposureSourceLabel = "EV (JPG — RAW decode failed)";
+                return;
+            }
 
-        if (!ct.IsCancellationRequested && SelectedPhoto == photo)
-            HistogramData = histData;
+            _baseRawImage = raw;
+            IsLinearRawReady = true;
+            ExposureSourceLabel = "EV (RAW)";
+            // Re-render the current preview through the linear pipeline so the user
+            // sees the more accurate rendition even at EV=0, and so subsequent slider
+            // moves operate on real sensor data.
+            var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ExposureCompensation), ct);
+            if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+                PreviewImage = rendered;
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+        catch
+        {
+            ExposureSourceLabel = "EV (JPG — RAW decode failed)";
+        }
     }
 
     private async Task ComputeFocusPeakingAsync(PhotoItem photo, CancellationToken ct)
@@ -580,6 +635,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 _ = ComputeHistogramAsync(photo, ct);
                 if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
                 _ = PreloadFullJpegAsync(photo, ct);
+                StartRawDecode(photo);
                 return;
             }
 
@@ -612,8 +668,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _ = ComputeHistogramAsync(photo, ct);
             if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
             _ = PreloadFullJpegAsync(photo, ct);
+            StartRawDecode(photo);
         }
         catch (OperationCanceledException) { /* selection moved on */ }
+    }
+
+    private void StartRawDecode(PhotoItem photo)
+    {
+        if (!photo.IsRaw || photo.IsVideo) return;
+        _rawDecodeCts?.Cancel();
+        _rawDecodeCts = new CancellationTokenSource();
+        _ = LoadLinearRawAsync(photo, _rawDecodeCts.Token);
     }
 
     public async Task LoadHighResPreviewAsync()
@@ -722,6 +787,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // full sensor-sized JPEG (~6000x4000); decoding at this width uses the JPEG
     // codec's fast 1/2/1/4/1/8 native scaling, which is far faster than full decode.
     private const int PreviewDecodeWidth = 1920;
+
+    // Target width for the cached linear-RAW preview buffer. ~2x display width gives
+    // headroom for moderate zoom while keeping dither at display-relevant frequency.
+    private const int LinearRawPreviewWidth = 2400;
     private const int ThumbnailDecodeWidth = 320;
 
     /// <summary>

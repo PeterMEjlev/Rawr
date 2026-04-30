@@ -40,6 +40,106 @@ public sealed class LibRawExtractor : IPreviewExtractor
 
     public byte[]? ExtractFullJpeg(string filePath) => ExtractDefaultThumb(filePath);
 
+    /// <summary>
+    /// Decode the RAW sensor data into a 16-bit linear RGB image (camera WB applied,
+    /// sRGB primaries, gamma=1.0). This is the actual sensor data — clipping in the
+    /// returned pixels reflects the sensor's true highlight ceiling, and shadow values
+    /// preserve the full bit depth recorded by the camera.
+    ///
+    /// Significantly slower than thumbnail extraction (~300ms-2s depending on sensor
+    /// size and CPU); intended for the currently selected photo, not bulk scanning.
+    /// </summary>
+    public LinearRawImage? ExtractLinearRgb(string filePath)
+    {
+        if (!_isAvailable) return null;
+
+        nint handle = 0;
+        nint imagePtr = 0;
+        try
+        {
+            handle = LibRawInterop.Init(0);
+            if (handle == 0) return null;
+
+            int ret = LibRawInterop.OpenFile(handle, filePath);
+            if (ret != 0) return null;
+
+            // 16-bit, linear (gamma=1.0), no auto-bright, sRGB primaries, fast linear
+            // demosaic. Linear demosaic (demosaic=0) is rough on fine detail but ~4-5x
+            // faster than AHD — fine for a culling preview.
+            LibRawInterop.SetOutputBps(handle, 16);
+            LibRawInterop.SetNoAutoBright(handle, 1);
+            LibRawInterop.SetGamma(handle, 0, 1.0f);
+            LibRawInterop.SetGamma(handle, 1, 1.0f);
+            LibRawInterop.SetOutputColor(handle, 1);
+            LibRawInterop.SetDemosaic(handle, 0);
+
+            ret = LibRawInterop.Unpack(handle);
+            if (ret != 0) return null;
+
+            // Use camera-recorded WB. cam_mul is populated by Unpack(); copying it to
+            // user_mul stands in for use_camera_wb=1, whose setter isn't always exported.
+            for (int i = 0; i < 4; i++)
+            {
+                float m = LibRawInterop.GetCamMul(handle, i);
+                if (m > 0) LibRawInterop.SetUserMul(handle, i, m);
+            }
+
+            ret = LibRawInterop.DcrawProcess(handle);
+            if (ret != 0) return null;
+
+            imagePtr = LibRawInterop.MakeMemImage(handle, out int errCode);
+            if (imagePtr == 0 || errCode != 0) return null;
+
+            // libraw_processed_image_t actual layout — `type` is a C enum which
+            // compiles to a 4-byte int on MSVC/Windows, not a ushort. The thumb path
+            // above only reads `type` (low 2 bytes happen to hold value 1 = JPEG) and
+            // `data_size` (offset 12 is right either way), so it gets away with
+            // reading at offset 2. We need the real offsets:
+            //   int    type;       (0)   = LIBRAW_IMAGE_BITMAP=2
+            //   ushort height;     (4)
+            //   ushort width;      (6)
+            //   ushort colors;     (8)
+            //   ushort bits;       (10)
+            //   int    data_size;  (12)
+            //   byte[] data;       (16)
+            int type = Marshal.ReadInt32(imagePtr, 0);
+            ushort height = (ushort)Marshal.ReadInt16(imagePtr, 4);
+            ushort width = (ushort)Marshal.ReadInt16(imagePtr, 6);
+            ushort colors = (ushort)Marshal.ReadInt16(imagePtr, 8);
+            ushort bits = (ushort)Marshal.ReadInt16(imagePtr, 10);
+            int dataSize = Marshal.ReadInt32(imagePtr, 12);
+            if (type != 2) return null;
+
+            if (colors != 3 || bits != 16 || dataSize <= 0) return null;
+            int pixelCount = width * height * 3;
+            if (dataSize != pixelCount * 2) return null;
+
+            var pixels = new ushort[pixelCount];
+            unsafe
+            {
+                fixed (ushort* dst = pixels)
+                {
+                    Buffer.MemoryCopy((void*)(imagePtr + 16), dst, dataSize, dataSize);
+                }
+            }
+
+            return new LinearRawImage(width, height, pixels);
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (imagePtr != 0) LibRawInterop.ClearMem(imagePtr);
+            if (handle != 0)
+            {
+                LibRawInterop.Recycle(handle);
+                LibRawInterop.Close(handle);
+            }
+        }
+    }
+
     public PhotoMetadata? ExtractMetadata(string filePath)
     {
         if (!_isAvailable) return null;

@@ -70,6 +70,60 @@ internal static partial class LibRawInterop
     [LibraryImport(LibName, EntryPoint = "libraw_dcraw_clear_mem")]
     internal static partial void ClearMem(nint image);
 
+    // ── RAW pixel decoding ──
+
+    /// <summary>Decode the Bayer sensor data from the RAW file. Required before dcraw_process.</summary>
+    [LibraryImport(LibName, EntryPoint = "libraw_unpack")]
+    internal static partial int Unpack(nint handle);
+
+    /// <summary>
+    /// Run the dcraw-equivalent processing pipeline (demosaic, white balance, color
+    /// conversion, gamma) on the unpacked RAW data. Output is controlled by the
+    /// libraw_set_* configuration calls below.
+    /// </summary>
+    [LibraryImport(LibName, EntryPoint = "libraw_dcraw_process")]
+    internal static partial int DcrawProcess(nint handle);
+
+    /// <summary>
+    /// Get the processed image as an in-memory bitmap. Returns a libraw_processed_image_t*
+    /// with type=LIBRAW_IMAGE_BITMAP. Caller must free with dcraw_clear_mem().
+    /// </summary>
+    [LibraryImport(LibName, EntryPoint = "libraw_dcraw_make_mem_image")]
+    internal static partial nint MakeMemImage(nint handle, out int errorCode);
+
+    // ── Output configuration ──
+    // These are libraw_set_* accessor functions exported by LibRaw 0.18+.
+    // They mutate the params struct without us needing to know its memory layout.
+
+    [LibraryImport(LibName, EntryPoint = "libraw_set_output_bps")]
+    internal static partial void SetOutputBps(nint handle, int value);
+
+    [LibraryImport(LibName, EntryPoint = "libraw_set_no_auto_bright")]
+    internal static partial void SetNoAutoBright(nint handle, int value);
+
+    [LibraryImport(LibName, EntryPoint = "libraw_set_gamma")]
+    internal static partial void SetGamma(nint handle, int index, float value);
+
+    [LibraryImport(LibName, EntryPoint = "libraw_set_output_color")]
+    internal static partial void SetOutputColor(nint handle, int value);
+
+    [LibraryImport(LibName, EntryPoint = "libraw_set_demosaic")]
+    internal static partial void SetDemosaic(nint handle, int value);
+
+    /// <summary>
+    /// Read a single channel of the camera-recorded white balance multiplier (0=R, 1=G, 2=B, 3=G2).
+    /// Populated after libraw_unpack().
+    /// </summary>
+    [LibraryImport(LibName, EntryPoint = "libraw_get_cam_mul")]
+    internal static partial float GetCamMul(nint handle, int index);
+
+    /// <summary>
+    /// Set a user white balance multiplier. Setting these to the cam_mul values is
+    /// equivalent to use_camera_wb=1 for builds where that setter isn't exported.
+    /// </summary>
+    [LibraryImport(LibName, EntryPoint = "libraw_set_user_mul")]
+    internal static partial void SetUserMul(nint handle, int index, float value);
+
     // ── Error handling ──
 
     [LibraryImport(LibName, EntryPoint = "libraw_strerror")]

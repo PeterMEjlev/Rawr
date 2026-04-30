@@ -10,7 +10,8 @@
       "Bash(dotnet build *)",
       "Bash(git log *)",
       "Bash(grep -E \"\\\\.\\(xaml|cs\\)$\")",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "WebFetch(domain:www.fastrawviewer.com)"
     ]
   }
 }
