@@ -626,6 +626,7 @@
                     <ComboBoxItem Content="Color"  Tag="{x:Static vm:SortField.ColorLabel}" />
                     <ComboBoxItem Content="Flag"   Tag="{x:Static vm:SortField.Flag}" />
                     <ComboBoxItem Content="Burst"  Tag="{x:Static vm:SortField.Burst}" />
+                    <ComboBoxItem Content="Type"   Tag="{x:Static vm:SortField.ImageType}" />
                 </ComboBox>
                 <Button DockPanel.Dock="Left" Content="{Binding SortDirectionLabel}" Command="{Binding ToggleSortDirectionCommand}" Margin="0,0,8,0" ToolTip="Reverse sort order" />
 
