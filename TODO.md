@@ -1,5 +1,6 @@
 ## SONNET:
-
+- ## Histogram
+Add a histogram of the photo information to the top of the panel that appears to the right of the preview (the panel with the metadata). The histogram should appear at the top of the panel, with a edge under it that allows it to be resized (vertically)
 
 ## OPUS:
 - ## Burst group thumbnail

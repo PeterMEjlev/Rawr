@@ -6,6 +6,7 @@
         xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         xmlns:vm="clr-namespace:Rawr.App.ViewModels"
         xmlns:models="clr-namespace:Rawr.Core.Models;assembly=Rawr.Core"
+        xmlns:controls="clr-namespace:Rawr.App.Controls"
         mc:Ignorable="d"
         Title="RAWR — RAW Photo Culling"
         Height="800" Width="1280"
@@ -1281,10 +1282,64 @@
                     Width="280"
                     Background="{StaticResource BgPanelBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1,0,0,0"
-                    Padding="12">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
+                    BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="140" MinHeight="80" />
+                        <RowDefinition Height="4" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Histogram + channel toggle -->
+                    <Grid Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <controls:HistogramControl Grid.Row="0"
+                                                   Data="{Binding HistogramData}"
+                                                   ShowRgb="{Binding ShowRgbHistogram}" />
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,4"
+                                    Visibility="{Binding HistogramData, Converter={StaticResource NullToVisibility}}">
+                            <ToggleButton Content="RGB" Command="{Binding ShowRgbHistogramModeCommand}"
+                                          FontSize="10" Padding="8,2" Margin="0,0,2,0">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                        <Setter Property="IsChecked" Value="False" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowRgbHistogram}" Value="True">
+                                                <Setter Property="IsChecked" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
+                            <ToggleButton Content="All" Command="{Binding ShowCombinedHistogramModeCommand}"
+                                          FontSize="10" Padding="8,2">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                        <Setter Property="IsChecked" Value="False" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowRgbHistogram}" Value="False">
+                                                <Setter Property="IsChecked" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Resize handle -->
+                    <GridSplitter Grid.Row="1"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"
+                                  Background="{StaticResource BorderBrush}"
+                                  Cursor="SizeNS" />
+
+                    <!-- Metadata scroll area -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
                         <TextBlock Text="PHOTO" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
                         <TextBlock Text="{Binding SelectedPhoto.FileName, FallbackValue='(no selection)'}"
                                    FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" />
@@ -1356,7 +1411,8 @@
                         <TextBlock Text="Ctrl+O  Open folder" Margin="0,1" />
                         <TextBlock Text="Ctrl+C  Copy picks" Margin="0,1" />
                     </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </Grid>
             </Border>
         </Grid>
 

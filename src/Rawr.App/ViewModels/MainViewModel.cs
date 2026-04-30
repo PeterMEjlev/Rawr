@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.VisualBasic.FileIO;
 using Microsoft.Win32;
 using Rawr.App.Dialogs;
+using Rawr.App.Services;
 using Rawr.Core.Data;
 using Rawr.Core.Models;
 using Rawr.Core.Services;
@@ -59,6 +60,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _filmstripItemWidth = 140.0; // derived in code-behind from filmstrip height
     [ObservableProperty] private bool _showGrid = true;
     [ObservableProperty] private bool _showFilmstrip = true;
+    [ObservableProperty] private HistogramData? _histogramData;
+    [ObservableProperty] private bool _showRgbHistogram = true;
 
     // Filter state
     [ObservableProperty]
@@ -404,6 +407,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _previewCts = new CancellationTokenSource();
         var ct = _previewCts.Token;
 
+        HistogramData = null;
         EvictFarPhotos(value);
         _ = LoadPreviewForSelectedAsync(ct);
         _ = PrefetchNeighborsAsync(value, ct);
@@ -434,6 +438,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void NotifyDateFormatChanged() =>
         OnPropertyChanged(nameof(SelectedPhotoCaptureDateFormatted));
+
+    [RelayCommand]
+    private void ShowRgbHistogramMode() => ShowRgbHistogram = true;
+
+    [RelayCommand]
+    private void ShowCombinedHistogramMode() => ShowRgbHistogram = false;
+
+    private async Task ComputeHistogramAsync(PhotoItem photo, CancellationToken ct)
+    {
+        var jpeg = photo.FullJpeg ?? photo.PreviewJpeg;
+        if (jpeg == null) return;
+        var histData = await Task.Run(() => HistogramComputer.Compute(jpeg), ct);
+        if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+            HistogramData = histData;
+    }
 
     [RelayCommand]
     private void NextPhoto()
@@ -476,6 +495,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
                 photo.PreviewJpeg = cached;
                 PreviewImage = bs;
+                _ = ComputeHistogramAsync(photo, ct);
                 _ = PreloadFullJpegAsync(photo, ct);
                 return;
             }
@@ -506,6 +526,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
 
             PreviewImage = fullBs;
+            _ = ComputeHistogramAsync(photo, ct);
             _ = PreloadFullJpegAsync(photo, ct);
         }
         catch (OperationCanceledException) { /* selection moved on */ }
@@ -546,7 +567,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractFullJpeg(photo.FilePath), ct);
             if (!ct.IsCancellationRequested && jpeg != null)
+            {
                 photo.FullJpeg = jpeg;
+                _ = ComputeHistogramAsync(photo, ct);
+            }
         }
         catch (OperationCanceledException) { /* selection moved on */ }
         catch { /* extraction failed — fall back to on-demand on zoom */ }
