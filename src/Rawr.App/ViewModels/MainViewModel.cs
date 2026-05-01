@@ -1068,7 +1068,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void CreateTag()
     {
-        if (_db == null) return;
+        if (_db == null)
+        {
+            MessageBox.Show(
+                "Open a folder first to start creating tags.",
+                "No folder open",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
         var name = InputDialog.Show(Application.Current.MainWindow, "New Tag", "Tag name:");
         if (string.IsNullOrWhiteSpace(name)) return;
         var tag = _db.CreateGroup(name);
