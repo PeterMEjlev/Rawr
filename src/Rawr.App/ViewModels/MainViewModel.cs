@@ -57,7 +57,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _filterDescription = "All";
     [ObservableProperty] private int _totalCount;
     [ObservableProperty] private int _visibleCount;
-    [ObservableProperty] private double _gridThumbnailSize = 90.0; // derived in code-behind from GridColumnCount
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GridFilenameVisibility))]
+    private double _gridThumbnailSize = 90.0; // derived in code-behind from GridColumnCount
+
+    public Visibility GridFilenameVisibility => GridThumbnailSize >= 60 ? Visibility.Visible : Visibility.Collapsed;
+
     [ObservableProperty] private int _gridColumnCount = 2;
     [ObservableProperty] private double _filmstripItemWidth = 140.0; // derived in code-behind from filmstrip height
     [ObservableProperty] private bool _showGrid = true;

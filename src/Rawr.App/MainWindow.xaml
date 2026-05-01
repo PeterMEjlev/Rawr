@@ -941,15 +941,17 @@
                              PreviewMouseRightButtonDown="PhotoList_PreviewMouseRightButtonDown"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.CanContentScroll="False"
                              VirtualizingPanel.IsVirtualizing="False">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <UniformGrid x:Name="GridItemsPanel" Columns="2" />
+                                <WrapPanel x:Name="GridItemsPanel" Orientation="Horizontal" />
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type models:PhotoItem}">
-                                <StackPanel Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <StackPanel Width="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                                     <StackPanel.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="Tags"
@@ -986,12 +988,13 @@
                                                 Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
 
                                         <Border Background="#FF0E0E0E"
-                                                Margin="8,8,0,0"
                                                 MouseLeftButtonUp="GridItem_MouseLeftButtonUp">
                                         <Border.Style>
                                             <Style TargetType="Border">
+                                                <Setter Property="Margin" Value="0" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" Value="Visible">
+                                                        <Setter Property="Margin" Value="8,8,0,0" />
                                                         <Setter Property="Effect">
                                                             <Setter.Value>
                                                                 <DropShadowEffect BlurRadius="6" ShadowDepth="2" Direction="315" Opacity="0.55" Color="Black" />
@@ -1003,9 +1006,10 @@
                                         </Border.Style>
                                         <Grid>
                                             <Image Source="{Binding ThumbnailJpeg, Converter={StaticResource ThumbBytesToImage}}"
-                                                   Stretch="Uniform"
+                                                   Stretch="UniformToFill"
                                                    SnapsToDevicePixels="True"
-                                                   RenderOptions.BitmapScalingMode="LowQuality" />
+                                                   RenderOptions.BitmapScalingMode="LowQuality"
+                                                   ClipToBounds="True" />
                                             <Rectangle Width="3"
                                                        HorizontalAlignment="Left"
                                                        Fill="{Binding Flag, Converter={StaticResource FlagToBrush}}" />
@@ -1082,7 +1086,8 @@
                                                Foreground="{StaticResource TextDimBrush}"
                                                FontSize="10"
                                                TextTrimming="CharacterEllipsis"
-                                               Padding="2,2,2,0" />
+                                               Padding="2,2,2,0"
+                                               Visibility="{Binding DataContext.GridFilenameVisibility, RelativeSource={RelativeSource AncestorType=Window}}" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

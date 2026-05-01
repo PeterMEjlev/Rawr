@@ -32,7 +32,7 @@ public partial class MainWindow : Window
     private Point _panStart;
     private double _panStartTx;
     private double _panStartTy;
-    private UniformGrid? _gridItemsPanel;
+    private WrapPanel? _gridItemsPanel;
     private GridLength _savedFilmstripHeight = new GridLength(148);
     private GridLength _savedGridWidth = new GridLength(200);
     private PhotoItem? _prevSelectedPhoto;
@@ -195,22 +195,20 @@ public partial class MainWindow : Window
 
     private void GridView_SizeChanged(object sender, SizeChangedEventArgs e) => RecalcGridThumbnailSize();
 
-    // GridThumbnailSize drives the square height of each cell.
-    // UniformGrid owns the column count and divides available width automatically,
-    // so we only need to set Columns and provide a matching height.
+    // GridThumbnailSize drives both the width and height of each thumbnail cell.
+    // WrapPanel arranges items at their natural size; the column count is implied
+    // by item width fitting into the available row width.
     // Subtract 12 to reserve space for the slim scrollbar (10 px) plus rounding buffer,
-    // and subtract 4 more for the 2 px item margin on each side (FilmstripItemStyle).
+    // and subtract 8 for the 2 px item margin + 2 px border on each side (FilmstripItemStyle).
     private void RecalcGridThumbnailSize()
     {
         if (DataContext is not MainViewModel vm) return;
 
-        _gridItemsPanel ??= FindDescendant<UniformGrid>(GridView);
-        if (_gridItemsPanel != null)
-            _gridItemsPanel.Columns = vm.GridColumnCount;
+        _gridItemsPanel ??= FindDescendant<WrapPanel>(GridView);
 
         var available = GridView.ActualWidth - 12;
         if (available <= 0) return;
-        vm.GridThumbnailSize = Math.Max(20, Math.Floor(available / vm.GridColumnCount) - 4);
+        vm.GridThumbnailSize = Math.Max(20, Math.Floor(available / vm.GridColumnCount) - 8);
     }
 
     private void GridView_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
