@@ -47,31 +47,32 @@ public static class ExposureProcessor
     /// smooth gradients (skin, sky). With ±0.5-byte uniform dither and a sub-byte
     /// LUT, the rounding becomes probabilistic and banding turns into fine noise.
     /// </summary>
-    public static BitmapSource Render(LinearRawImage raw, double stops)
+    public static BitmapSource Render(LinearRawImage raw, double stops, CancellationToken ct = default)
     {
         int w = raw.Width;
         int h = raw.Height;
+        int n = w * h;
         int stride = w * 3;
         byte[] bgr = new byte[h * stride];
         ushort[] src = raw.Pixels;
 
         double gain = Math.Pow(2.0, stops);
         var lut = LinearToSrgbF;
+        var po = new ParallelOptions { CancellationToken = ct };
 
-        // The per-channel gamma lift in the LUT compresses chroma — pulling R/G/B
-        // values closer together — so the post-tone-curve image is noticeably less
-        // saturated than the camera JPEG (Picture Style "Standard" actively boosts
-        // chroma). We undo that here by scaling each channel away from Rec.709
-        // luma, which preserves perceived brightness while widening colour range.
-        const float saturation = 1.15f;
+        // Decompose post-tone-curve RGB into luma + Rec.709 chroma differences so
+        // the chroma planes can be blurred independently. Sensor read noise is
+        // roughly equal across channels, but the eye sees it as colour speckle —
+        // i.e. it concentrates in chroma. A small box on chroma kills the speckle
+        // while leaving luma detail (the part the eye locks onto) untouched.
+        float[] luma = new float[n];
+        float[] cb = new float[n]; // B - Y
+        float[] cr = new float[n]; // R - Y
 
-        // Per-thread XorShift32 — fast, decent entropy, deterministic for repro.
-        uint rng = 0x12345678u;
-
-        int srcIdx = 0;
-        for (int y = 0; y < h; y++)
+        Parallel.For(0, h, po, yy =>
         {
-            int row = y * stride;
+            int rowI = yy * w;
+            int srcIdx = rowI * 3;
             for (int x = 0; x < w; x++)
             {
                 int r = (int)(src[srcIdx] * gain);
@@ -81,11 +82,51 @@ public static class ExposureProcessor
                 if (g > 65535) g = 65535; else if (g < 0) g = 0;
                 if (b > 65535) b = 65535; else if (b < 0) b = 0;
 
+                float lr = lut[r];
+                float lg = lut[g];
+                float lb = lut[b];
+                float y = 0.2126f * lr + 0.7152f * lg + 0.0722f * lb;
+                int i = rowI + x;
+                luma[i] = y;
+                cb[i] = lb - y;
+                cr[i] = lr - y;
+                srcIdx += 3;
+            }
+        });
+
+        // Separable 5-tap box on chroma only. Radius 2 at preview resolution is
+        // strong enough to dissolve high-ISO chroma blotching without bleeding
+        // visible colour into adjacent regions.
+        BoxBlurSeparable(cb, w, h, 2, po);
+        BoxBlurSeparable(cr, w, h, 2, po);
+
+        // Saturation boost folds into the chroma scale: lr = y + cr*sat is
+        // algebraically identical to the old luma + (lr - luma)*sat path.
+        const float saturation = 1.15f;
+
+        Parallel.For(0, h, po, yy =>
+        {
+            // Per-row XorShift seed (Knuth multiplicative constant, then offset)
+            // — gives each row an independent deterministic dither stream so the
+            // result doesn't change with thread scheduling.
+            uint rng = unchecked((uint)yy * 2654435761u + 0x12345678u);
+            if (rng == 0) rng = 1;
+
+            int row = yy * stride;
+            int rowI = yy * w;
+            for (int x = 0; x < w; x++)
+            {
+                int i = rowI + x;
+                float y = luma[i];
+                float crv = cr[i] * saturation;
+                float cbv = cb[i] * saturation;
+                float lr = y + crv;
+                float lb = y + cbv;
+                float lg = (y - 0.2126f * lr - 0.0722f * lb) * (1f / 0.7152f);
+
                 // TPDF dither (sum of two uniforms): triangular distribution in
-                // [-1, 1) per channel. Gives ~2x amplitude over uniform ±0.5 and a
-                // smoother visual character — strong enough to survive WPF's display
-                // scaling without becoming visible noise. Independent per channel
-                // keeps the noise neutral-coloured.
+                // [-1, 1) per channel. Independent per channel keeps the dither
+                // noise neutral-coloured.
                 rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
                 float ar = (rng & 0xFFFF) * (1f / 65536f) - 0.5f;
                 rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
@@ -102,14 +143,6 @@ public static class ExposureProcessor
                 float bb = (rng & 0xFFFF) * (1f / 65536f) - 0.5f;
                 float db = ab + bb;
 
-                float lr = lut[r];
-                float lg = lut[g];
-                float lb = lut[b];
-                float luma = 0.2126f * lr + 0.7152f * lg + 0.0722f * lb;
-                lr = luma + (lr - luma) * saturation;
-                lg = luma + (lg - luma) * saturation;
-                lb = luma + (lb - luma) * saturation;
-
                 int rv = (int)(lr + dr + 0.5f);
                 int gv = (int)(lg + dg + 0.5f);
                 int bv = (int)(lb + db + 0.5f);
@@ -118,13 +151,60 @@ public static class ExposureProcessor
                 bgr[o]     = (byte)(bv < 0 ? 0 : bv > 255 ? 255 : bv);
                 bgr[o + 1] = (byte)(gv < 0 ? 0 : gv > 255 ? 255 : gv);
                 bgr[o + 2] = (byte)(rv < 0 ? 0 : rv > 255 ? 255 : rv);
-                srcIdx += 3;
             }
-        }
+        });
 
+        ct.ThrowIfCancellationRequested();
         var result = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgr24, null, bgr, stride);
         result.Freeze();
         return result;
+    }
+
+    // Sliding-window box blur, horizontal then vertical. Edges clamp-extend.
+    private static void BoxBlurSeparable(float[] plane, int w, int h, int radius, ParallelOptions po)
+    {
+        int taps = radius * 2 + 1;
+        float inv = 1f / taps;
+        var tmp = new float[plane.Length];
+
+        Parallel.For(0, h, po, y =>
+        {
+            int row = y * w;
+            float sum = 0f;
+            for (int k = -radius; k <= radius; k++)
+            {
+                int xc = k < 0 ? 0 : k >= w ? w - 1 : k;
+                sum += plane[row + xc];
+            }
+            for (int x = 0; x < w; x++)
+            {
+                tmp[row + x] = sum * inv;
+                int addX = x + radius + 1;
+                int subX = x - radius;
+                if (addX > w - 1) addX = w - 1;
+                if (subX < 0) subX = 0;
+                sum += plane[row + addX] - plane[row + subX];
+            }
+        });
+
+        Parallel.For(0, w, po, x =>
+        {
+            float sum = 0f;
+            for (int k = -radius; k <= radius; k++)
+            {
+                int yc = k < 0 ? 0 : k >= h ? h - 1 : k;
+                sum += tmp[yc * w + x];
+            }
+            for (int y = 0; y < h; y++)
+            {
+                plane[y * w + x] = sum * inv;
+                int addY = y + radius + 1;
+                int subY = y - radius;
+                if (addY > h - 1) addY = h - 1;
+                if (subY < 0) subY = 0;
+                sum += tmp[addY * w + x] - tmp[subY * w + x];
+            }
+        });
     }
 
     private static float[] BuildLinearToSrgbLutF()

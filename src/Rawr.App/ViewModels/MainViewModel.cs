@@ -552,19 +552,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var raw = _baseRawImage;
         if (raw != null)
         {
-            var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ev), ct);
-            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
-            PreviewImage = rendered;
+            try
+            {
+                var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ev, ct), ct);
+                if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+                PreviewImage = rendered;
+            }
+            catch (OperationCanceledException) { /* superseded by a newer slider value */ }
             return;
         }
 
         var baseImage = _basePreviewImage;
         if (baseImage == null) return;
-        BitmapSource adjusted = ev == 0.0
-            ? baseImage
-            : await Task.Run(() => ExposureProcessor.Apply(baseImage, ev), ct);
-        if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
-        PreviewImage = adjusted;
+        try
+        {
+            BitmapSource adjusted = ev == 0.0
+                ? baseImage
+                : await Task.Run(() => ExposureProcessor.Apply(baseImage, ev), ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+            PreviewImage = adjusted;
+        }
+        catch (OperationCanceledException) { /* superseded */ }
     }
 
     /// <summary>
@@ -600,7 +608,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // Re-render the current preview through the linear pipeline so the user
             // sees the more accurate rendition even at EV=0, and so subsequent slider
             // moves operate on real sensor data.
-            var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ExposureCompensation), ct);
+            var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ExposureCompensation, ct), ct);
             if (!ct.IsCancellationRequested && SelectedPhoto == photo)
                 PreviewImage = rendered;
         }
