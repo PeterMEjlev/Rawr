@@ -1357,7 +1357,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             : items.OrderBy(p => p.FileName, StringComparer.OrdinalIgnoreCase)
     };
 
-    private void ApplyFilter()
+    public void ApplyFilter()
     {
         var previousSelection = SelectedPhoto;
         FilteredPhotos.Clear();

@@ -409,6 +409,7 @@ public partial class MainWindow : Window
         var startIdx = Math.Max(0, members.IndexOf(representative));
         var win = new BurstFocusWindow(vm, members, startIdx) { Owner = this };
         win.ShowDialog();
+        vm.ApplyFilter();
     }
 
     // ── Settings ──
