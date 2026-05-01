@@ -35,8 +35,10 @@ public static class ShortcutRegistry
             new("NextPhotoAlt",  "Next photo (alt)",    CatNav, Key.Down,  ModifierKeys.None,    Vm(vm => vm.NextPhotoCommand)),
             new("PreviousPhoto", "Previous photo",      CatNav, Key.Left,  ModifierKeys.None,    Vm(vm => vm.PreviousPhotoCommand)),
             new("PreviousPhotoAlt","Previous photo (alt)", CatNav, Key.Up, ModifierKeys.None,    Vm(vm => vm.PreviousPhotoCommand)),
-            new("NextBurst",     "Next burst",          CatNav, Key.Right, ModifierKeys.Control, Vm(vm => vm.NextBurstCommand)),
-            new("PreviousBurst", "Previous burst",      CatNav, Key.Left,  ModifierKeys.Control, Vm(vm => vm.PreviousBurstCommand)),
+            new("NextBurst",           "Next burst",              CatNav, Key.Right, ModifierKeys.Control | ModifierKeys.Shift, Vm(vm => vm.NextBurstCommand)),
+            new("PreviousBurst",       "Previous burst",          CatNav, Key.Left,  ModifierKeys.Control | ModifierKeys.Shift, Vm(vm => vm.PreviousBurstCommand)),
+            new("IncreaseExposure",    "Increase exposure +0.2",  CatEdit, Key.Right, ModifierKeys.Control, Vm(vm => vm.IncreaseExposureCommand)),
+            new("DecreaseExposure",    "Decrease exposure -0.2",  CatEdit, Key.Left,  ModifierKeys.Control, Vm(vm => vm.DecreaseExposureCommand)),
 
             // Flags
             new("TogglePick",       "Toggle pick",                CatFlag, Key.P, ModifierKeys.None,  Vm(vm => vm.TogglePickCommand)),

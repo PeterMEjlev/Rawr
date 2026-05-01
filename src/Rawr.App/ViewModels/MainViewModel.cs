@@ -534,6 +534,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         PreviewImage = ExposureCompensation == 0.0 ? bitmap : ExposureProcessor.Apply(bitmap, ExposureCompensation);
     }
 
+    [RelayCommand] private void IncreaseExposure() =>
+        ExposureCompensation = Math.Round(Math.Clamp(ExposureCompensation + 0.2, -5.0, 5.0), 10);
+
+    [RelayCommand] private void DecreaseExposure() =>
+        ExposureCompensation = Math.Round(Math.Clamp(ExposureCompensation - 0.2, -5.0, 5.0), 10);
+
     partial void OnExposureCompensationChanged(double value)
     {
         OnPropertyChanged(nameof(ExposureSelectionStart));
