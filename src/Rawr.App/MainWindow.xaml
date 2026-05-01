@@ -1551,6 +1551,7 @@
                      SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
                      ItemContainerStyle="{StaticResource FilmstripItemStyle}"
                      SelectionChanged="Filmstrip_SelectionChanged"
+                     PreviewKeyDown="Filmstrip_PreviewKeyDown"
                      PreviewMouseWheel="Filmstrip_PreviewMouseWheel"
                      PreviewMouseRightButtonDown="PhotoList_PreviewMouseRightButtonDown"
                      SizeChanged="Filmstrip_SizeChanged">

@@ -251,6 +251,32 @@ public partial class MainWindow : Window
         lb.ScrollIntoView(lb.SelectedItem);
     }
 
+    // ListBox swallows Left/Right at the ends without moving selection, blocking the
+    // window-level NextPhoto/PreviousPhoto KeyBindings from firing — wrap manually.
+    private void Filmstrip_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.None) return;
+        if (sender is not ListBox lb || DataContext is not MainViewModel vm) return;
+        if (vm.FilteredPhotos.Count == 0) return;
+
+        if (e.Key is Key.Right or Key.Down)
+        {
+            if (lb.SelectedIndex == vm.FilteredPhotos.Count - 1)
+            {
+                vm.NextPhotoCommand.Execute(null);
+                e.Handled = true;
+            }
+        }
+        else if (e.Key is Key.Left or Key.Up)
+        {
+            if (lb.SelectedIndex <= 0)
+            {
+                vm.PreviousPhotoCommand.Execute(null);
+                e.Handled = true;
+            }
+        }
+    }
+
     // ── Preview: wheel zooms around the cursor; left-drag pans when zoomed ──
 
     private void PreviewHost_MouseWheel(object sender, MouseWheelEventArgs e)
