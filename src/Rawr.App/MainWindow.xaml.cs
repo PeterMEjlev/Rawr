@@ -64,6 +64,14 @@ public partial class MainWindow : Window
         InitializeComponent();
         WindowHelper.ApplyDarkTitleBar(this);
 
+        // Text-input controls take precedence over window shortcuts: while a TextBox
+        // has keyboard focus, we suspend InputBindings so keys like P/T/G/Ctrl+C type
+        // or do clipboard ops on the field instead of firing the shortcut. They're
+        // restored on focus loss.
+        AddHandler(GotKeyboardFocusEvent,
+                   new KeyboardFocusChangedEventHandler(OnAnyGotKeyboardFocus),
+                   handledEventsToo: true);
+
         ShortcutBinder.ApplyTo(this, AppSettings.Current);
 
         if (DataContext is INotifyPropertyChanged inpc)
@@ -249,6 +257,24 @@ public partial class MainWindow : Window
     {
         if (sender is not ListBox lb || lb.SelectedItem is null) return;
         lb.ScrollIntoView(lb.SelectedItem);
+    }
+
+    private List<InputBinding>? _suspendedInputBindings;
+
+    private void OnAnyGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        var isText = e.NewFocus is TextBox or PasswordBox or RichTextBox;
+        if (isText && _suspendedInputBindings is null)
+        {
+            _suspendedInputBindings = new List<InputBinding>(InputBindings.Count);
+            foreach (InputBinding ib in InputBindings) _suspendedInputBindings.Add(ib);
+            InputBindings.Clear();
+        }
+        else if (!isText && _suspendedInputBindings is not null)
+        {
+            foreach (var ib in _suspendedInputBindings) InputBindings.Add(ib);
+            _suspendedInputBindings = null;
+        }
     }
 
     // ListBox swallows Left/Right at the ends without moving selection, blocking the
