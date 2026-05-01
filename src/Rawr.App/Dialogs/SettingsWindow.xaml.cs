@@ -46,6 +46,7 @@ public partial class SettingsWindow : Window
 
         // Load current values into controls
         GapSlider.Value = Math.Clamp(current.BurstMaxGapSeconds, 1, 30);
+        FocusPeakingStrictnessSlider.Value = Math.Clamp(current.FocusPeakingThreshold, (byte)10, (byte)100);
         ThumbHighestRated.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.HighestRated;
         ThumbFirstChronological.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.FirstChronological;
         CollapseOnOpen.IsChecked = current.CollapseBurstsOnOpen;
@@ -266,6 +267,7 @@ public partial class SettingsWindow : Window
                                     : DateFormatBox.Text,
             CollapseBurstsOnOpen = CollapseOnOpen.IsChecked == true,
             DefaultSortField    = SortOptions[sortIdx].Value,
+            FocusPeakingThreshold = (byte)FocusPeakingStrictnessSlider.Value,
             KeyBindings         = new Dictionary<string, string>(_editedBindings),
         };
         DialogResult = true;

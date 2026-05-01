@@ -485,6 +485,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ = ComputeFocusPeakingAsync(photo, ct);
     }
 
+    public void RefreshFocusPeaking()
+    {
+        if (!FocusPeakingEnabled) return;
+        var photo = SelectedPhoto;
+        if (photo == null) return;
+        var ct = _previewCts?.Token ?? CancellationToken.None;
+        _ = ComputeFocusPeakingAsync(photo, ct);
+    }
+
     private void SetBasePreview(BitmapSource bitmap)
     {
         _basePreviewImage = bitmap;
@@ -577,7 +586,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var jpeg = photo.FullJpeg ?? photo.PreviewJpeg;
         if (jpeg == null) return;
-        var overlay = await Task.Run(() => FocusPeakingComputer.Compute(jpeg), ct);
+        var threshold = AppSettings.Current.FocusPeakingThreshold;
+        var overlay = await Task.Run(() => FocusPeakingComputer.Compute(jpeg, threshold), ct);
         if (!ct.IsCancellationRequested && SelectedPhoto == photo && FocusPeakingEnabled)
             FocusPeakingOverlay = overlay;
     }

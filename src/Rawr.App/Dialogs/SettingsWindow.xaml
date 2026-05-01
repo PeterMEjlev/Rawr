@@ -104,6 +104,32 @@
             <TextBlock Text="Default sort when opening a folder" Margin="0,0,0,6" />
             <ComboBox x:Name="SortFieldBox" HorizontalAlignment="Left" MinWidth="160" Margin="0,0,0,20" />
 
+            <!-- ── FOCUS PEAKING ── -->
+            <Separator Margin="0,0,0,16" />
+            <TextBlock Text="FOCUS PEAKING"
+                       FontSize="10"
+                       Foreground="{StaticResource TextDimBrush}"
+                       Margin="0,0,0,10" />
+
+            <!-- Strictness -->
+            <TextBlock Text="Strictness" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <Slider x:Name="FocusPeakingStrictnessSlider"
+                        Minimum="10" Maximum="100"
+                        SmallChange="5" LargeChange="10"
+                        TickFrequency="5" IsSnapToTickEnabled="True"
+                        Width="280"
+                        VerticalAlignment="Center" />
+                <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                    <Run Text="{Binding ElementName=FocusPeakingStrictnessSlider, Path=Value, StringFormat={}{0:F0}}" />
+                </TextBlock>
+            </StackPanel>
+            <TextBlock Text="Higher values highlight only very sharp in-focus edges. Lower values also include softer transitions."
+                       Foreground="{StaticResource TextDimBrush}"
+                       FontSize="10"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,20" />
+
             <!-- ── KEYBOARD SHORTCUTS ── -->
             <Separator Margin="0,0,0,16" />
             <DockPanel Margin="0,0,0,10">

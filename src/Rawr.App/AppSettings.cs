@@ -16,6 +16,8 @@ public sealed class AppSettings
     public bool CollapseBurstsOnOpen { get; set; } = true;
     public SortField DefaultSortField { get; set; } = SortField.FileName;
 
+    public byte FocusPeakingThreshold { get; set; } = 60;
+
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
     public Dictionary<string, string> KeyBindings { get; set; } = new();
@@ -53,6 +55,7 @@ public sealed class AppSettings
         DateFormat = DateFormat,
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,
         DefaultSortField = DefaultSortField,
+        FocusPeakingThreshold = FocusPeakingThreshold,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
     };
 

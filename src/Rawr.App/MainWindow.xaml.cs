@@ -434,6 +434,9 @@ public partial class MainWindow : Window
 
         if (burstSettingsChanged)
             vm.ApplyBurstSettings();
+
+        if (prev.FocusPeakingThreshold != AppSettings.Current.FocusPeakingThreshold)
+            vm.RefreshFocusPeaking();
     }
 
     // ── Context menu: select item on right-click so ToggleGroupForSelected works on the right photo ──
