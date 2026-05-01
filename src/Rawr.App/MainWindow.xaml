@@ -9,6 +9,7 @@
         xmlns:controls="clr-namespace:Rawr.App.Controls"
         mc:Ignorable="d"
         Title="RAWR — RAW Photo Culling"
+        Icon="Assets/rawr.ico"
         Height="800" Width="1280"
         WindowStartupLocation="CenterScreen">
 

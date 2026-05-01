@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon />
+    <ApplicationIcon>Assets\rawr.ico</ApplicationIcon>
     <AssemblyName>RAWR</AssemblyName>
     <RootNamespace>Rawr.App</RootNamespace>
   </PropertyGroup>
@@ -16,6 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\rawr.ico" />
+
     <!-- LibRaw native DLLs and their dependencies. Place all DLLs in src/Rawr.App/native/ -->
     <Content Include="native\*.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
