@@ -11,8 +11,6 @@
 - ## Folder tree panel
 tree-based browser for navigating the filesystem without a separate open dialog
 
-- ## Fully rebindable keyboard shortcuts
-
 - ## TIFF and PNG support 
 (RAWR is CR3/JPEG/video only)
 

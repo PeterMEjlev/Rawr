@@ -7,7 +7,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using CommunityToolkit.Mvvm.Input;
 using Rawr.App.Dialogs;
+using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
 
@@ -45,10 +47,24 @@ public partial class MainWindow : Window
     private TimeSpan _videoDuration;
     private bool _videoIsMuted;
 
+    /// <summary>Toggles the tags popup. Bound by default to 'T' via the shortcut registry.</summary>
+    public ICommand OpenTagsCommand { get; }
+
     public MainWindow()
     {
+        OpenTagsCommand = new RelayCommand(() =>
+        {
+            if (TagsPopup is not null) TagsPopup.IsOpen = !TagsPopup.IsOpen;
+        });
+
+        // Load persisted settings before InputBindings are applied so user-customised
+        // keyboard shortcuts are in place by the time the window is shown.
+        AppSettings.Current = AppSettings.Load();
+
         InitializeComponent();
         WindowHelper.ApplyDarkTitleBar(this);
+
+        ShortcutBinder.ApplyTo(this, AppSettings.Current);
 
         if (DataContext is INotifyPropertyChanged inpc)
         {
@@ -81,8 +97,6 @@ public partial class MainWindow : Window
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
         Loaded += async (_, _) =>
         {
-            AppSettings.Current = AppSettings.Load();
-
             if (DataContext is MainViewModel vm)
             {
                 var layout = await LoadLayoutSettingsAsync();
@@ -407,6 +421,8 @@ public partial class MainWindow : Window
         var prev = AppSettings.Current;
         AppSettings.Current = dlg.Result;
         AppSettings.Current.Save();
+
+        ShortcutBinder.ApplyTo(this, AppSettings.Current);
 
         if (DataContext is not MainViewModel vm) return;
 

@@ -16,6 +16,10 @@ public sealed class AppSettings
     public bool CollapseBurstsOnOpen { get; set; } = true;
     public SortField DefaultSortField { get; set; } = SortField.FileName;
 
+    // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
+    // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
+    public Dictionary<string, string> KeyBindings { get; set; } = new();
+
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR", "settings.json");
 
@@ -49,5 +53,7 @@ public sealed class AppSettings
         DateFormat = DateFormat,
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,
         DefaultSortField = DefaultSortField,
+        KeyBindings = new Dictionary<string, string>(KeyBindings),
     };
+
 }
