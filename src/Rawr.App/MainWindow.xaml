@@ -731,6 +731,44 @@
                                     </Button>
                                 </StackPanel>
 
+                                <!-- Rename -->
+                                <TextBlock Text="RENAME" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Margin="0,0,0,10">
+                                    <CheckBox Content="Rename files" IsChecked="{Binding CopyRenameEnabled}" Margin="0,0,0,4" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Name:" VerticalAlignment="Center" Margin="0,0,5,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CopyRenameEnabled}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.4" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBox Grid.Column="1" Text="{Binding CopyCustomBaseName, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding CopyRenameEnabled}" MinWidth="120" />
+                                        <TextBlock Grid.Column="2" Text="_001.ext" VerticalAlignment="Center" Margin="3,0,0,0"
+                                                   Foreground="{StaticResource TextDimBrush}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CopyRenameEnabled}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.4" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </StackPanel>
+
                                 <Separator Margin="0,2,0,8" />
                                 <Button Content="📋 Copy…" Command="{Binding CopyPickedCommand}"
                                         HorizontalAlignment="Stretch" ToolTip="Ctrl+C — copy matching photos to a folder" />

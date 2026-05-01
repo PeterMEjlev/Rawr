@@ -15,11 +15,13 @@ public static class FileOperations
         IEnumerable<PhotoItem> photos,
         string destinationFolder,
         IProgress<(int current, int total, string fileName)>? progress = null,
+        string? customBaseName = null,
         CancellationToken ct = default)
     {
         Directory.CreateDirectory(destinationFolder);
 
         var fileList = photos.ToList();
+        int digits = fileList.Count.ToString().Length;
         int copied = 0;
 
         for (int i = 0; i < fileList.Count; i++)
@@ -27,12 +29,15 @@ public static class FileOperations
             ct.ThrowIfCancellationRequested();
 
             var photo = fileList[i];
-            var destPath = Path.Combine(destinationFolder, photo.FileName);
+            string destName = string.IsNullOrWhiteSpace(customBaseName)
+                ? photo.FileName
+                : $"{customBaseName}_{(i + 1).ToString().PadLeft(Math.Max(digits, 3), '0')}{Path.GetExtension(photo.FileName)}";
+            var destPath = Path.Combine(destinationFolder, destName);
 
             await Task.Run(() => File.Copy(photo.FilePath, destPath, overwrite: true), ct);
             copied++;
 
-            progress?.Report((i + 1, fileList.Count, photo.FileName));
+            progress?.Report((i + 1, fileList.Count, destName));
         }
 
         return copied;

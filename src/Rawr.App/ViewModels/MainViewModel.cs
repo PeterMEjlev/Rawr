@@ -157,6 +157,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] private CullFlag? _copyFlagFilter = CullFlag.Pick;
     [ObservableProperty] private ColorLabel? _copyColorLabelFilter;
+    [ObservableProperty] private bool _copyRenameEnabled;
+    [ObservableProperty] private string _copyCustomBaseName = string.Empty;
 
     public int CopyActiveRatingValue => CopyRatingFilterMode == RatingFilterMode.Any ? -1 : CopyRatingFilterValue;
 
@@ -1533,7 +1535,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             StatusText = $"Copying {p.current}/{p.total}: {p.fileName}";
         });
 
-        var count = await FileOperations.CopyFilesAsync(photos, dialog.FolderName, progress);
+        string? baseName = CopyRenameEnabled && !string.IsNullOrWhiteSpace(CopyCustomBaseName)
+            ? CopyCustomBaseName.Trim()
+            : null;
+        var count = await FileOperations.CopyFilesAsync(photos, dialog.FolderName, progress, baseName);
         StatusText = $"Copied {count} photos to {dialog.FolderName}";
     }
 

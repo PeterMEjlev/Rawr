@@ -1,7 +1,5 @@
 ## SONNET:
 
-- ## Fix the histogram when the exposure slider is increased
-
 - ## File renaming (w. templates)
 
 - ## True RAW histogram
