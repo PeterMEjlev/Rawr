@@ -142,6 +142,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public record TagAssignmentItem(PhotoTag Tag, bool IsAssigned);
 
     // Copy criteria state (independent of filter; defaults to "Pick" to match original behaviour)
+    [ObservableProperty] private bool _copyUseActiveFilter;
+
+    [RelayCommand] private void UseCopyCurrentView()  => CopyUseActiveFilter = true;
+    [RelayCommand] private void UseCopyCustomFilter()  => CopyUseActiveFilter = false;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CopyActiveRatingValue))]
     [NotifyPropertyChangedFor(nameof(CopyRatingModeLabel))]
@@ -1506,20 +1511,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task CopyPickedAsync()
     {
-        IEnumerable<PhotoItem> candidates = AllPhotos;
-        candidates = CopyRatingFilterMode switch
+        List<PhotoItem> photos;
+        if (CopyUseActiveFilter)
         {
-            RatingFilterMode.Exact    => candidates.Where(p => p.Rating == CopyRatingFilterValue),
-            RatingFilterMode.AtLeast  => candidates.Where(p => p.Rating >= CopyRatingFilterValue),
-            RatingFilterMode.LessThan => candidates.Where(p => p.Rating < CopyRatingFilterValue),
-            _                         => candidates
-        };
-        if (CopyFlagFilter.HasValue)
-            candidates = candidates.Where(p => p.Flag == CopyFlagFilter.Value);
-        if (CopyColorLabelFilter.HasValue)
-            candidates = candidates.Where(p => p.ColorLabel == CopyColorLabelFilter.Value);
-
-        var photos = candidates.ToList();
+            photos = FilteredPhotos.ToList();
+        }
+        else
+        {
+            IEnumerable<PhotoItem> candidates = AllPhotos;
+            candidates = CopyRatingFilterMode switch
+            {
+                RatingFilterMode.Exact    => candidates.Where(p => p.Rating == CopyRatingFilterValue),
+                RatingFilterMode.AtLeast  => candidates.Where(p => p.Rating >= CopyRatingFilterValue),
+                RatingFilterMode.LessThan => candidates.Where(p => p.Rating < CopyRatingFilterValue),
+                _                         => candidates
+            };
+            if (CopyFlagFilter.HasValue)
+                candidates = candidates.Where(p => p.Flag == CopyFlagFilter.Value);
+            if (CopyColorLabelFilter.HasValue)
+                candidates = candidates.Where(p => p.ColorLabel == CopyColorLabelFilter.Value);
+            photos = candidates.ToList();
+        }
         if (photos.Count == 0)
         {
             StatusText = "No photos match the copy criteria.";

@@ -575,6 +575,46 @@
                                 Padding="10,8">
                             <StackPanel>
 
+                                <!-- Source -->
+                                <TextBlock Text="SOURCE" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Current view" Command="{Binding UseCopyCurrentViewCommand}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyUseActiveFilter}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Custom filter" Command="{Binding UseCopyCustomFilterCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyUseActiveFilter}" Value="False">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+
+                                <!-- Custom filter criteria (disabled when using active filter) -->
+                                <StackPanel>
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CopyUseActiveFilter}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                    <Setter Property="Opacity" Value="0.4" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+
                                 <!-- Rating -->
                                 <TextBlock Text="RATING" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
                                 <StackPanel Margin="0,0,0,10">
@@ -730,6 +770,9 @@
                                         <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Margin="0,0,5,0" Fill="{Binding Source={x:Static models:ColorLabel.Purple}, Converter={StaticResource LabelToBrush}}" /><TextBlock Text="Purple" /></StackPanel>
                                     </Button>
                                 </StackPanel>
+
+                                </StackPanel>
+                                <!-- end custom filter criteria -->
 
                                 <!-- Rename -->
                                 <TextBlock Text="RENAME" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
