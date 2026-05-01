@@ -275,29 +275,26 @@ public partial class MainWindow : Window
         }
     }
 
-    // ListBox swallows Left/Right at the ends without moving selection, blocking the
-    // window-level NextPhoto/PreviousPhoto KeyBindings from firing — wrap manually.
+    // Take over arrow navigation entirely so ListBox's own arrow-key handler never
+    // gets a turn. ListBox at the boundary consumes the first press as an internal
+    // focus move (without changing selection), forcing a second press to wrap —
+    // routing every press through Next/PreviousPhotoCommand makes the wrap happen
+    // on the first press regardless of ListBox internal focus state.
     private void Filmstrip_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (Keyboard.Modifiers != ModifierKeys.None) return;
-        if (sender is not ListBox lb || DataContext is not MainViewModel vm) return;
+        if (DataContext is not MainViewModel vm) return;
         if (vm.FilteredPhotos.Count == 0) return;
 
         if (e.Key is Key.Right or Key.Down)
         {
-            if (lb.SelectedIndex == vm.FilteredPhotos.Count - 1)
-            {
-                vm.NextPhotoCommand.Execute(null);
-                e.Handled = true;
-            }
+            vm.NextPhotoCommand.Execute(null);
+            e.Handled = true;
         }
         else if (e.Key is Key.Left or Key.Up)
         {
-            if (lb.SelectedIndex <= 0)
-            {
-                vm.PreviousPhotoCommand.Execute(null);
-                e.Handled = true;
-            }
+            vm.PreviousPhotoCommand.Execute(null);
+            e.Handled = true;
         }
     }
 
