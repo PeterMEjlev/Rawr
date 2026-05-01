@@ -46,6 +46,7 @@ public partial class SettingsWindow : Window
 
         // Load current values into controls
         GapSlider.Value = Math.Clamp(current.BurstMaxGapSeconds, 1, 30);
+        SimilaritySlider.Value = Math.Clamp(current.BurstSimilarityStrictness, 0, 100);
         FocusPeakingStrictnessSlider.Value = Math.Clamp(current.FocusPeakingThreshold, (byte)10, (byte)100);
         ThumbHighestRated.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.HighestRated;
         ThumbFirstChronological.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.FirstChronological;
@@ -259,6 +260,7 @@ public partial class SettingsWindow : Window
         Result = new AppSettings
         {
             BurstMaxGapSeconds  = (int)GapSlider.Value,
+            BurstSimilarityStrictness = (int)SimilaritySlider.Value,
             BurstThumbnailMode  = ThumbFirstChronological.IsChecked == true
                                     ? BurstThumbnailMode.FirstChronological
                                     : BurstThumbnailMode.HighestRated,

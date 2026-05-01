@@ -1,36 +1,65 @@
+using System.Numerics;
 using Rawr.Core.Models;
 
 namespace Rawr.Core.Services;
 
 /// <summary>
 /// Groups photos shot in rapid succession on the same camera into "bursts".
-/// Two photos are in the same burst if their EXIF capture times are within
-/// <see cref="MaxGap"/> of each other and they were shot on the same camera body.
-/// Photos without capture time are left ungrouped.
+/// Two consecutive same-camera photos are grouped if their EXIF capture times
+/// are close enough AND their thumbnails are visually similar (per dHash).
+/// Without that visual check, two unrelated shots taken seconds apart would
+/// be erroneously grouped just because they happened back-to-back.
 /// </summary>
 public static class BurstDetector
 {
-    public static readonly TimeSpan DefaultMaxGap = TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan DefaultRelaxedGap = TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan DefaultStrictGap = TimeSpan.FromSeconds(10);
+
+    // Default Hamming distance thresholds on the 64-bit dHash. Callers can
+    // override via the strictness setting in AppSettings.
+    public const int DefaultLooseHammingThreshold = 18;   // 0-2s window
+    public const int DefaultStrictHammingThreshold = 10;  // 2-10s window
+
+    // Maps a 0-100 strictness slider to a (loose, strict) Hamming pair.
+    // 0 → 32/18 (very permissive), 50 → 16/9 (≈ defaults), 100 → 0/0 (near-identical only).
+    public static (int Loose, int Strict) ThresholdsFromStrictness(int strictness)
+    {
+        var s = Math.Clamp(strictness, 0, 100);
+        int loose = (int)Math.Round((100 - s) * 32.0 / 100.0);
+        int strict = (int)Math.Round(loose * 0.55);
+        return (loose, strict);
+    }
 
     /// <summary>
     /// Assigns <see cref="PhotoItem.GroupId"/> and <see cref="PhotoItem.BurstBadge"/>
     /// for each photo. Returns the number of bursts detected (groups of ≥ 2 photos).
-    /// Photos that aren't part of a burst get GroupId=0 and BurstBadge="".
     /// </summary>
-    public static int Detect(IReadOnlyList<PhotoItem> photos, TimeSpan? maxGap = null)
+    /// <param name="relaxedGap">
+    /// Time gap within which photos only need to be loosely similar to group.
+    /// Defaults to 2s.
+    /// </param>
+    /// <param name="strictGap">
+    /// Hard upper bound on gap between consecutive shots in a burst. Between
+    /// <paramref name="relaxedGap"/> and this, photos must be strongly similar.
+    /// Defaults to 10s. If less than relaxedGap, falls back to relaxedGap.
+    /// </param>
+    public static int Detect(
+        IReadOnlyList<PhotoItem> photos,
+        TimeSpan? relaxedGap = null,
+        TimeSpan? strictGap = null,
+        int looseHammingThreshold = DefaultLooseHammingThreshold,
+        int strictHammingThreshold = DefaultStrictHammingThreshold)
     {
-        var gap = maxGap ?? DefaultMaxGap;
+        var loose = relaxedGap ?? DefaultRelaxedGap;
+        var strict = strictGap ?? DefaultStrictGap;
+        if (strict < loose) strict = loose;
 
-        // Reset existing burst state — this pass is the source of truth.
         foreach (var p in photos)
         {
             p.GroupId = 0;
             p.BurstBadge = "";
         }
 
-        // Sort by camera (so two cameras shooting simultaneously don't collide),
-        // then by capture time. Photos with no capture time are skipped entirely.
-        // Videos are excluded — burst grouping is a stills concept.
         var ordered = photos
             .Where(p => !p.IsVideo && p.Metadata?.CaptureTime.HasValue == true)
             .OrderBy(p => p.Metadata!.CameraModel, StringComparer.OrdinalIgnoreCase)
@@ -40,8 +69,7 @@ public static class BurstDetector
         int nextGroupId = 0;
         int burstCount = 0;
         var current = new List<PhotoItem>();
-        DateTime? prevTime = null;
-        string? prevCam = null;
+        PhotoItem? prev = null;
 
         void Flush()
         {
@@ -60,20 +88,37 @@ public static class BurstDetector
 
         foreach (var p in ordered)
         {
-            var t = p.Metadata!.CaptureTime!.Value;
-            var cam = p.Metadata.CameraModel ?? "";
-            if (prevTime is null
-                || !string.Equals(cam, prevCam, StringComparison.OrdinalIgnoreCase)
-                || (t - prevTime.Value) > gap)
-            {
+            if (prev is null || !ShouldContinueBurst(prev, p, loose, strict, looseHammingThreshold, strictHammingThreshold))
                 Flush();
-            }
+
             current.Add(p);
-            prevTime = t;
-            prevCam = cam;
+            prev = p;
         }
         Flush();
 
         return burstCount;
+    }
+
+    private static bool ShouldContinueBurst(
+        PhotoItem prev, PhotoItem curr,
+        TimeSpan loose, TimeSpan strict,
+        int looseHamming, int strictHamming)
+    {
+        var prevCam = prev.Metadata?.CameraModel ?? "";
+        var currCam = curr.Metadata?.CameraModel ?? "";
+        if (!string.Equals(prevCam, currCam, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var dt = curr.Metadata!.CaptureTime!.Value - prev.Metadata!.CaptureTime!.Value;
+        if (dt > strict) return false;
+
+        // No hashes yet → preserve legacy time-only grouping inside the relaxed window.
+        if (prev.Phash is null || curr.Phash is null)
+            return dt <= loose;
+
+        int dist = BitOperations.PopCount(prev.Phash.Value ^ curr.Phash.Value);
+        return dt <= loose
+            ? dist <= looseHamming
+            : dist <= strictHamming;
     }
 }

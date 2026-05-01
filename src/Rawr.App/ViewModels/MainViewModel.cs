@@ -291,6 +291,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 photo.ColorLabel = state.ColorLabel;
                 photo.GroupId = state.GroupId;
                 photo.IsBestInGroup = state.IsBestInGroup;
+                photo.Phash = state.Phash;
             }
 
             AllPhotos.Add(photo);
@@ -367,6 +368,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 Parallel.ForEach(AllPhotos, po, photo =>
                 {
+                    byte[]? thumbBytes = null;
                     if (needsThumb.Contains(photo))
                     {
                         var jpeg = ExtractorFor(photo).ExtractThumbnail(photo.FilePath);
@@ -374,13 +376,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                         {
                             var thumb = ProcessJpegForCache(jpeg, ThumbnailDecodeWidth) ?? jpeg;
                             _cache!.SaveThumbnail(photo.FileName, thumb);
+                            thumbBytes = thumb;
                             Application.Current.Dispatcher.Invoke(() => photo.ThumbnailJpeg = thumb);
                         }
+                    }
+                    else
+                    {
+                        thumbBytes = photo.ThumbnailJpeg; // loaded from disk cache in pass 1
                     }
 
                     var metadata = ExtractorFor(photo).ExtractMetadata(photo.FilePath);
                     if (metadata != null)
                         Application.Current.Dispatcher.Invoke(() => photo.Metadata = metadata);
+
+                    // Compute the perceptual hash from the thumbnail once and reuse on every
+                    // subsequent open via the SQLite cache. Used by BurstDetector below.
+                    if (photo.Phash == null && thumbBytes != null)
+                        photo.Phash = Rawr.App.Services.PerceptualHash.Compute(thumbBytes);
 
                     var d = Interlocked.Increment(ref done);
                     if (d % 10 == 0)
@@ -401,11 +413,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // so run it on the dispatcher.
         await Application.Current.Dispatcher.InvokeAsync(() =>
         {
+            var (loose, strict) = BurstDetector.ThresholdsFromStrictness(AppSettings.Current.BurstSimilarityStrictness);
             BurstCount = BurstDetector.Detect(AllPhotos,
-                TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds));
+                TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
+                looseHammingThreshold: loose,
+                strictHammingThreshold: strict);
         });
 
-        if (BurstCount > 0 && _db != null)
+        // Persist burst assignments and freshly-computed perceptual hashes so the
+        // next session reuses them without re-decoding every thumbnail.
+        if (_db != null)
         {
             try { await Task.Run(() => _db.SaveBatch(AllPhotos), ct); }
             catch (OperationCanceledException) { }
@@ -1272,8 +1289,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void ApplyBurstSettings()
     {
         if (AllPhotos.Count == 0) return;
+        var (loose, strict) = BurstDetector.ThresholdsFromStrictness(AppSettings.Current.BurstSimilarityStrictness);
         BurstCount = BurstDetector.Detect(AllPhotos,
-            TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds));
+            TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
+            looseHammingThreshold: loose,
+            strictHammingThreshold: strict);
         ApplyFilter();
     }
 

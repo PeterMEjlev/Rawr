@@ -59,6 +59,27 @@ public sealed class CullingDatabase : IDisposable
             );
             """;
         cmd.ExecuteNonQuery();
+
+        // Migration: phash column added later. SQLite has no IF NOT EXISTS for ADD COLUMN.
+        if (!ColumnExists("photos", "phash"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN phash INTEGER NOT NULL DEFAULT 0";
+            alter.ExecuteNonQuery();
+        }
+    }
+
+    private bool ColumnExists(string table, string column)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table})";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -70,11 +91,15 @@ public sealed class CullingDatabase : IDisposable
         var result = new Dictionary<string, PhotoState>(StringComparer.OrdinalIgnoreCase);
 
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best FROM photos";
+        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash FROM photos";
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
+            // SQLite stores INTEGER as signed 64-bit; reinterpret to ulong for the unsigned dHash.
+            long rawHash = reader.GetInt64(6);
+            ulong? phash = rawHash == 0 ? null : unchecked((ulong)rawHash);
+
             result[reader.GetString(0)] = new PhotoState
             {
                 Rating = reader.GetInt32(1),
@@ -82,6 +107,7 @@ public sealed class CullingDatabase : IDisposable
                 ColorLabel = (ColorLabel)reader.GetInt32(3),
                 GroupId = reader.GetInt32(4),
                 IsBestInGroup = reader.GetInt32(5) != 0,
+                Phash = phash,
             };
         }
 
@@ -92,14 +118,15 @@ public sealed class CullingDatabase : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best)
-            VALUES ($name, $rating, $flag, $color, $group, $best)
+            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash)
+            VALUES ($name, $rating, $flag, $color, $group, $best, $phash)
             ON CONFLICT(file_name) DO UPDATE SET
                 rating = $rating,
                 flag = $flag,
                 color_label = $color,
                 group_id = $group,
-                is_best = $best
+                is_best = $best,
+                phash = $phash
             """;
         cmd.Parameters.AddWithValue("$name", photo.FileName);
         cmd.Parameters.AddWithValue("$rating", photo.Rating);
@@ -107,6 +134,7 @@ public sealed class CullingDatabase : IDisposable
         cmd.Parameters.AddWithValue("$color", (int)photo.ColorLabel);
         cmd.Parameters.AddWithValue("$group", photo.GroupId);
         cmd.Parameters.AddWithValue("$best", photo.IsBestInGroup ? 1 : 0);
+        cmd.Parameters.AddWithValue("$phash", photo.Phash.HasValue ? unchecked((long)photo.Phash.Value) : 0L);
         cmd.ExecuteNonQuery();
     }
 
@@ -225,4 +253,5 @@ public record PhotoState
     public ColorLabel ColorLabel { get; init; }
     public int GroupId { get; init; }
     public bool IsBestInGroup { get; init; }
+    public ulong? Phash { get; init; }
 }

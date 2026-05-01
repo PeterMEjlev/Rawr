@@ -34,6 +34,10 @@ public sealed partial class PhotoItem : ObservableObject
     [ObservableProperty] private byte[]? _previewJpeg;    // medium JPEG bytes (~1620px)
     [ObservableProperty] private PhotoMetadata? _metadata;
 
+    // 64-bit dHash over the embedded thumbnail. Used by BurstDetector to gate
+    // grouping on visual similarity. Null until computed; persisted in culling.db.
+    public ulong? Phash { get; set; }
+
     // Full sensor-resolution JPEG bytes (~3-5 MB). Pre-extracted in the background
     // for the active selection so zoom-in is instant. Cleared by eviction when the
     // user navigates far enough away. Not observable — never bound to UI.

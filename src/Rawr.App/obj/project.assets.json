@@ -435,11 +435,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
+      "projectUniqueName": "c:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
       "projectName": "RAWR",
-      "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
+      "projectPath": "c:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
       "packagesPath": "C:\\Users\\Torsten\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\obj\\",
+      "outputPath": "c:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Torsten\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -457,8 +457,8 @@
             "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
               "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
             },
-            "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj": {
-              "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj"
+            "c:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj": {
+              "projectPath": "c:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj"
             }
           }
         }

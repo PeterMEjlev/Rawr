@@ -483,6 +483,7 @@ public partial class MainWindow : Window
 
         bool burstSettingsChanged =
             prev.BurstMaxGapSeconds != AppSettings.Current.BurstMaxGapSeconds ||
+            prev.BurstSimilarityStrictness != AppSettings.Current.BurstSimilarityStrictness ||
             prev.BurstThumbnailMode != AppSettings.Current.BurstThumbnailMode;
 
         if (burstSettingsChanged)

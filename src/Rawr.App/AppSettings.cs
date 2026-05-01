@@ -11,6 +11,11 @@ public sealed class AppSettings
     public static AppSettings Current { get; set; } = new();
 
     public int BurstMaxGapSeconds { get; set; } = 2;
+
+    // 0 = group anything within the time gap (visual filter effectively off).
+    // 100 = only near-identical photos group. 50 ≈ the BurstDetector defaults.
+    public int BurstSimilarityStrictness { get; set; } = 50;
+
     public BurstThumbnailMode BurstThumbnailMode { get; set; } = BurstThumbnailMode.HighestRated;
     public string DateFormat { get; set; } = "dd-MM-yyyy  HH:mm:ss";
     public bool CollapseBurstsOnOpen { get; set; } = true;
@@ -51,6 +56,7 @@ public sealed class AppSettings
     public AppSettings Clone() => new()
     {
         BurstMaxGapSeconds = BurstMaxGapSeconds,
+        BurstSimilarityStrictness = BurstSimilarityStrictness,
         BurstThumbnailMode = BurstThumbnailMode,
         DateFormat = DateFormat,
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,

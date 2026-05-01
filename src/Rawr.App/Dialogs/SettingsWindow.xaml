@@ -45,6 +45,25 @@
                        TextWrapping="Wrap"
                        Margin="0,0,0,14" />
 
+            <!-- Visual similarity strictness -->
+            <TextBlock Text="Visual similarity" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <Slider x:Name="SimilaritySlider"
+                        Minimum="0" Maximum="100"
+                        SmallChange="5" LargeChange="10"
+                        TickFrequency="5" IsSnapToTickEnabled="True"
+                        Width="280"
+                        VerticalAlignment="Center" />
+                <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                    <Run Text="{Binding ElementName=SimilaritySlider, Path=Value, StringFormat={}{0:F0}}" />
+                </TextBlock>
+            </StackPanel>
+            <TextBlock Text="How visually similar two shots must be to join the same burst. Lower groups looser scenes; higher only groups near-identical frames."
+                       Foreground="{StaticResource TextDimBrush}"
+                       FontSize="10"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,14" />
+
             <!-- Burst thumbnail -->
             <TextBlock Text="Group thumbnail" Margin="0,0,0,6" />
             <RadioButton x:Name="ThumbHighestRated"
