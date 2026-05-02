@@ -228,6 +228,21 @@ public partial class MainWindow : Window
         lb.ScrollIntoView(lb.SelectedItem);
     }
 
+    // ── Folder tree: single-click to navigate ──
+    //
+    // Uses SelectedItemChanged (not a MouseBinding) so keyboard nav works too.
+    // Bails when the new selection already matches CurrentFolder so programmatic
+    // selection (e.g. when SetTreeRoot marks the root selected after load) does
+    // not trigger a redundant reload.
+    private async void FolderTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (e.NewValue is not FolderNode node) return;
+        if (node.IsPlaceholder || string.IsNullOrEmpty(node.FullPath)) return;
+        if (DataContext is not MainViewModel vm) return;
+        if (string.Equals(vm.CurrentFolder, node.FullPath, StringComparison.OrdinalIgnoreCase)) return;
+        await vm.LoadFolderAsync(node.FullPath);
+    }
+
     // ── Filmstrip: size tracks height so items shrink when strip is made smaller ──
 
     private void Filmstrip_SizeChanged(object sender, SizeChangedEventArgs e) => RecalcFilmstripItemWidth();

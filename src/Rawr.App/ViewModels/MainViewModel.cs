@@ -67,6 +67,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _filmstripItemWidth = 140.0; // derived in code-behind from filmstrip height
     [ObservableProperty] private bool _showGrid = true;
     [ObservableProperty] private bool _showFilmstrip = true;
+
+    public ObservableCollection<FolderNode> FolderTreeRoots { get; } = [];
     [ObservableProperty] private HistogramData? _histogramData;
     [ObservableProperty] private HistogramMode _histogramMode = HistogramMode.Rgb;
     [ObservableProperty] private bool _focusPeakingEnabled;
@@ -218,7 +220,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (!File.Exists(LastFolderFile)) return;
             var folder = (await File.ReadAllTextAsync(LastFolderFile)).Trim();
             if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
-                await LoadFolderAsync(folder);
+                await OpenRootFolderAsync(folder);
         }
         catch { /* non-critical */ }
     }
@@ -236,7 +238,39 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (dialog.ShowDialog() != true || string.IsNullOrEmpty(dialog.FolderName))
             return;
 
-        await LoadFolderAsync(dialog.FolderName);
+        await OpenRootFolderAsync(dialog.FolderName);
+    }
+
+    /// <summary>
+    /// Establishes <paramref name="folderPath"/> as the new sidebar tree root and
+    /// loads its photos. The tree is rebuilt; subfolders show up as children that
+    /// the user can click to navigate into. Used by Ctrl+O and last-folder restore;
+    /// in-tree navigation should call <see cref="LoadFolderAsync"/> directly so the
+    /// root remains pinned to the originally-opened folder.
+    /// </summary>
+    public async Task OpenRootFolderAsync(string folderPath)
+    {
+        SetTreeRoot(folderPath);
+        await LoadFolderAsync(folderPath);
+        // Select the root after the load so the tree-selection handler — which
+        // bails when the selected node already matches CurrentFolder — doesn't
+        // kick off a redundant second load.
+        if (FolderTreeRoots.Count > 0)
+            FolderTreeRoots[0].IsSelected = true;
+    }
+
+    private void SetTreeRoot(string folderPath)
+    {
+        FolderTreeRoots.Clear();
+        if (!Directory.Exists(folderPath)) return;
+
+        var trimmed = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var name = Path.GetFileName(trimmed);
+        if (string.IsNullOrEmpty(name)) name = folderPath; // drive root: "C:\"
+
+        var root = new FolderNode(name, folderPath);
+        FolderTreeRoots.Add(root);
+        root.IsExpanded = true; // lazy-loads children synchronously
     }
 
     public async Task LoadFolderAsync(string folderPath)

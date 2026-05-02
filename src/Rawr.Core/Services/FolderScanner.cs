@@ -63,6 +63,24 @@ public static class FolderScanner
             .Any(f => SupportedExtensions.Contains(Path.GetExtension(f)));
     }
 
+    /// <summary>
+    /// Count of supported image/video files directly in <paramref name="folderPath"/>
+    /// (non-recursive). Returns 0 for missing or inaccessible paths.
+    /// </summary>
+    public static int CountSupportedFiles(string folderPath)
+    {
+        if (!Directory.Exists(folderPath))
+            return 0;
+
+        try
+        {
+            return Directory.EnumerateFiles(folderPath)
+                .Count(f => SupportedExtensions.Contains(Path.GetExtension(f)));
+        }
+        catch (UnauthorizedAccessException) { return 0; }
+        catch (IOException) { return 0; }
+    }
+
     public static bool IsSupported(string filePath) =>
         SupportedExtensions.Contains(Path.GetExtension(filePath));
 

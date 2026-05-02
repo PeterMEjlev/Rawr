@@ -17,6 +17,7 @@
             <conv:NullToVisibilityConverter x:Key="NullToVisibility" />
             <conv:NullToVisibilityConverter x:Key="NotNullToCollapsed" Invert="True" />
             <conv:EqualityConverter x:Key="Equality" />
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
