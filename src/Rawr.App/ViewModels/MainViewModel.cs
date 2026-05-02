@@ -1806,6 +1806,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetRatingBucket(int rating)
     {
         var isSame = RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == rating;
+        ClearOtherSidebarFilters(SidebarFilterKind.Rating);
         if (isSame)
         {
             RatingFilterMode = RatingFilterMode.Any;
@@ -1817,6 +1818,46 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             RatingFilterMode = RatingFilterMode.Exact;
         }
         ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void SetSidebarColorLabel(ColorLabel label)
+    {
+        var isSame = ColorLabelFilter == label;
+        ClearOtherSidebarFilters(SidebarFilterKind.Color);
+        ColorLabelFilter = isSame ? null : label;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void SetSidebarTag(PhotoTag tag)
+    {
+        var isSame = TagFilter?.Id == tag.Id;
+        ClearOtherSidebarFilters(SidebarFilterKind.Tag);
+        TagFilter = isSame ? null : tag;
+        ApplyFilter();
+    }
+
+    private enum SidebarFilterKind { Rating, Color, Tag }
+
+    private void ClearOtherSidebarFilters(SidebarFilterKind keep)
+    {
+        if (keep != SidebarFilterKind.Rating)
+        {
+            RatingFilterMode = RatingFilterMode.Any;
+            RatingFilterValue = 0;
+        }
+        if (keep != SidebarFilterKind.Color)
+        {
+            ColorLabelFilter = null;
+        }
+        if (keep != SidebarFilterKind.Tag)
+        {
+            TagFilter = null;
+        }
+        FlagFilter = null;
+        BurstFilter = BurstFilterMode.Any;
+        ImageTypeFilter = ImageTypeFilterMode.Any;
     }
 
     private void RefreshFilterBuckets()

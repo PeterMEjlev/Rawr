@@ -937,7 +937,7 @@
                         <StackPanel Margin="6,0,6,4">
                             <Button Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    Tag="{Binding IsRating5Active}">
+                                    controls:SidebarBucket.IsActive="{Binding IsRating5Active}">
                                 <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -950,7 +950,7 @@
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    Tag="{Binding IsRating4Active}">
+                                    controls:SidebarBucket.IsActive="{Binding IsRating4Active}">
                                 <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -963,7 +963,7 @@
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    Tag="{Binding IsRating3Active}">
+                                    controls:SidebarBucket.IsActive="{Binding IsRating3Active}">
                                 <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -976,7 +976,7 @@
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    Tag="{Binding IsRating2Active}">
+                                    controls:SidebarBucket.IsActive="{Binding IsRating2Active}">
                                 <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -989,7 +989,7 @@
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    Tag="{Binding IsRating1Active}">
+                                    controls:SidebarBucket.IsActive="{Binding IsRating1Active}">
                                 <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -1002,7 +1002,7 @@
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    Tag="{Binding IsRatingUnratedActive}">
+                                    controls:SidebarBucket.IsActive="{Binding IsRatingUnratedActive}">
                                 <Button.CommandParameter><sys:Int32>0</sys:Int32></Button.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -1019,8 +1019,8 @@
                         <TextBlock Text="Labelled" Style="{StaticResource SidebarSubsectionHeader}" />
                         <StackPanel Margin="6,0,6,4">
                             <Button Style="{StaticResource SidebarBucketStyle}"
-                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Red}"
-                                    Tag="{Binding IsLabelRedActive}">
+                                    Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Red}"
+                                    controls:SidebarBucket.IsActive="{Binding IsLabelRedActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1033,8 +1033,8 @@
                                 </Grid>
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
-                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Yellow}"
-                                    Tag="{Binding IsLabelYellowActive}">
+                                    Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Yellow}"
+                                    controls:SidebarBucket.IsActive="{Binding IsLabelYellowActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1047,8 +1047,8 @@
                                 </Grid>
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
-                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Green}"
-                                    Tag="{Binding IsLabelGreenActive}">
+                                    Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Green}"
+                                    controls:SidebarBucket.IsActive="{Binding IsLabelGreenActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1061,8 +1061,8 @@
                                 </Grid>
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
-                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Blue}"
-                                    Tag="{Binding IsLabelBlueActive}">
+                                    Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Blue}"
+                                    controls:SidebarBucket.IsActive="{Binding IsLabelBlueActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1075,8 +1075,8 @@
                                 </Grid>
                             </Button>
                             <Button Style="{StaticResource SidebarBucketStyle}"
-                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Purple}"
-                                    Tag="{Binding IsLabelPurpleActive}">
+                                    Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Purple}"
+                                    controls:SidebarBucket.IsActive="{Binding IsLabelPurpleActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1092,13 +1092,21 @@
 
                         <!-- ── TAGS section ── -->
                         <TextBlock Text="TAGS" Style="{StaticResource SidebarSectionHeader}" />
-                        <ItemsControl ItemsSource="{Binding Tags}" Margin="6,0,6,4">
+                        <ItemsControl x:Name="SidebarTagsList" ItemsSource="{Binding Tags}" Margin="6,0,6,4">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Button Style="{StaticResource SidebarBucketStyle}"
-                                            Command="{Binding DataContext.SetTagFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            Command="{Binding DataContext.SetSidebarTagCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}">
-                                        <TextBlock Text="{Binding Name}" FontSize="11" />
+                                        <controls:SidebarBucket.IsActive>
+                                            <MultiBinding Converter="{StaticResource Equality}">
+                                                <Binding Path="DataContext.TagFilter" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                <Binding />
+                                            </MultiBinding>
+                                        </controls:SidebarBucket.IsActive>
+                                        <Button.Content>
+                                            <TextBlock Text="{Binding Name}" FontSize="11" />
+                                        </Button.Content>
                                     </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
