@@ -881,8 +881,211 @@
             </DockPanel>
         </Border>
 
-        <!-- ================ MAIN SPLIT (grid panel + preview + metadata) ================ -->
-        <Grid x:Name="MainSplitGrid" Grid.Row="1" Background="{StaticResource BgBrush}">
+        <!-- ================ MAIN SPLIT (sidebar + grid panel + preview + metadata) ================ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" MinWidth="160" MaxWidth="400" />  <!-- Sidebar -->
+                <ColumnDefinition Width="4" />                                    <!-- Splitter -->
+                <ColumnDefinition Width="*" />                                    <!-- Existing main split -->
+            </Grid.ColumnDefinitions>
+
+            <!-- ────── LEFT SIDEBAR ────── -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource BgPanelBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,4,0,12">
+
+                        <!-- ── FILTERS section ── -->
+                        <TextBlock Text="FILTERS" Style="{StaticResource SidebarSectionHeader}" />
+
+                        <!-- Rated subsection -->
+                        <TextBlock Text="Rated" Style="{StaticResource SidebarSubsectionHeader}" />
+                        <StackPanel Margin="6,0,6,4">
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetRatingBucketCommand}"
+                                    Tag="{Binding IsRating5Active}">
+                                <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="★★★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating5Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetRatingBucketCommand}"
+                                    Tag="{Binding IsRating4Active}">
+                                <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="★★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating4Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetRatingBucketCommand}"
+                                    Tag="{Binding IsRating3Active}">
+                                <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating3Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetRatingBucketCommand}"
+                                    Tag="{Binding IsRating2Active}">
+                                <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating2Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetRatingBucketCommand}"
+                                    Tag="{Binding IsRating1Active}">
+                                <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="★" Foreground="{StaticResource StarBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating1Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetRatingBucketCommand}"
+                                    Tag="{Binding IsRatingUnratedActive}">
+                                <Button.CommandParameter><sys:Int32>0</sys:Int32></Button.CommandParameter>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Unrated" Foreground="{StaticResource TextBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding RatingUnratedCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Labelled subsection -->
+                        <TextBlock Text="Labelled" Style="{StaticResource SidebarSubsectionHeader}" />
+                        <StackPanel Margin="6,0,6,4">
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Red}"
+                                    Tag="{Binding IsLabelRedActive}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FFE53935" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Red" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelRedCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Yellow}"
+                                    Tag="{Binding IsLabelYellowActive}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FFFFC107" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Yellow" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelYellowCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Green}"
+                                    Tag="{Binding IsLabelGreenActive}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FF4CAF50" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Green" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelGreenCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Blue}"
+                                    Tag="{Binding IsLabelBlueActive}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FF2196F3" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Blue" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelBlueCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetColorLabelFilterCommand}" CommandParameter="{x:Static models:ColorLabel.Purple}"
+                                    Tag="{Binding IsLabelPurpleActive}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FF9C27B0" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Purple" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelPurpleCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- ── TAGS section ── -->
+                        <TextBlock Text="TAGS" Style="{StaticResource SidebarSectionHeader}" />
+                        <ItemsControl ItemsSource="{Binding Tags}" Margin="6,0,6,4">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource SidebarBucketStyle}"
+                                            Command="{Binding DataContext.SetTagFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <TextBlock Text="{Binding Name}" FontSize="11" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Splitter between sidebar and main split -->
+            <GridSplitter Grid.Column="1"
+                          Width="4"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"
+                          Cursor="SizeWE" />
+
+        <Grid x:Name="MainSplitGrid" Grid.Column="2" Background="{StaticResource BgBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="200" MinWidth="100" MaxWidth="500" />  <!-- Grid panel -->
                 <ColumnDefinition Width="4" />                                   <!-- Splitter -->
@@ -976,19 +1179,33 @@
                                     </StackPanel.ContextMenu>
                                     <Grid Height="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}">
                                         <!-- Stack-of-cards backers: same-sized cards offset diagonally behind main -->
-                                        <Border Background="#FF141414"
-                                                BorderBrush="#FF2A2A2A"
+                                        <Border Background="{StaticResource BurstStackBack1Brush}"
+                                                BorderBrush="{StaticResource BurstStackBackBorderBrush}"
                                                 BorderThickness="1"
+                                                CornerRadius="{StaticResource ThumbnailCornerRadius}"
                                                 Margin="0,0,8,8"
                                                 Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
-                                        <Border Background="#FF1A1A1A"
-                                                BorderBrush="#FF333333"
+                                        <Border Background="{StaticResource BurstStackBack2Brush}"
+                                                BorderBrush="{StaticResource BurstStackBackBorderBrush}"
                                                 BorderThickness="1"
+                                                CornerRadius="{StaticResource ThumbnailCornerRadius}"
                                                 Margin="4,4,4,4"
                                                 Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
 
-                                        <Border Background="#FF0E0E0E"
+                                        <Border x:Name="thumbCard"
+                                                Background="#FF0E0E0E"
+                                                CornerRadius="{StaticResource ThumbnailCornerRadius}"
                                                 MouseLeftButtonUp="GridItem_MouseLeftButtonUp">
+                                        <Border.OpacityMask>
+                                            <VisualBrush>
+                                                <VisualBrush.Visual>
+                                                    <Border Background="Black"
+                                                            CornerRadius="{StaticResource ThumbnailCornerRadius}"
+                                                            Width="{Binding ActualWidth, ElementName=thumbCard}"
+                                                            Height="{Binding ActualHeight, ElementName=thumbCard}" />
+                                                </VisualBrush.Visual>
+                                            </VisualBrush>
+                                        </Border.OpacityMask>
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Margin" Value="0" />
@@ -997,7 +1214,7 @@
                                                         <Setter Property="Margin" Value="8,8,0,0" />
                                                         <Setter Property="Effect">
                                                             <Setter.Value>
-                                                                <DropShadowEffect BlurRadius="6" ShadowDepth="2" Direction="315" Opacity="0.55" Color="Black" />
+                                                                <DropShadowEffect BlurRadius="10" ShadowDepth="3" Direction="315" Opacity="0.45" Color="Black" />
                                                             </Setter.Value>
                                                         </Setter>
                                                     </DataTrigger>
@@ -1028,7 +1245,7 @@
                                             </Border>
                                             <!-- Tag indicator -->
                                             <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                    Background="#CC007ACC"
+                                                    Background="#CC3B82F6"
                                                     Padding="4,1" Margin="2"
                                                     CornerRadius="2"
                                                     Visibility="{Binding TagDisplay, Converter={StaticResource NullToVisibility}}">
@@ -1061,14 +1278,25 @@
                                             </Border>
                                             <!-- Collapsed-burst count badge: only when collapsed -->
                                             <Border HorizontalAlignment="Left" VerticalAlignment="Top"
-                                                    Background="#E69C27B0"
-                                                    Padding="4,1" Margin="6,4,0,0"
-                                                    CornerRadius="2"
+                                                    Background="#CC1A1A1A"
+                                                    BorderBrush="#33FFFFFF"
+                                                    BorderThickness="1"
+                                                    Padding="6,2" Margin="6,6,0,0"
+                                                    CornerRadius="4"
                                                     ToolTip="Burst — double-click to focus"
                                                     Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}">
-                                                <TextBlock Foreground="White" FontSize="10" FontWeight="SemiBold">
-                                                    <Run Text="×" /><Run Text="{Binding CollapsedBurstCount, Mode=OneWay}" />
-                                                </TextBlock>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#x29C9;"
+                                                               Foreground="White"
+                                                               FontSize="10"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,4,0" />
+                                                    <TextBlock Text="{Binding CollapsedBurstCount, Mode=OneWay}"
+                                                               Foreground="White"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
                                             </Border>
                                             <!-- Video indicator -->
                                             <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
@@ -1225,7 +1453,7 @@
                                    FontSize="18"
                                    FontWeight="Bold" />
                     </Border>
-                    <Border Background="#CC007ACC"
+                    <Border Background="#CC3B82F6"
                             Padding="8,4"
                             CornerRadius="3"
                             Visibility="{Binding SelectedPhoto.TagDisplay, Converter={StaticResource NullToVisibility}}">
@@ -1237,7 +1465,7 @@
 
                 <!-- Focus peaking indicator (bottom-left) -->
                 <Border Grid.Row="0"
-                        Background="#CC1A4A8A"
+                        Background="#CC1E40AF"
                         Padding="6,2"
                         CornerRadius="3"
                         HorizontalAlignment="Left"
@@ -1538,6 +1766,7 @@
                 </Grid>
             </Border>
         </Grid>
+        </Grid>
 
         <!-- ================ FILMSTRIP SPLITTER ================ -->
         <GridSplitter Grid.Row="2"
@@ -1600,26 +1829,41 @@
                             <!-- Thumbnail area -->
                             <Grid Grid.Row="0">
                                 <!-- Stack-of-cards backers: same-sized cards offset diagonally behind main -->
-                                <Border Background="#FF141414"
-                                        BorderBrush="#FF2A2A2A"
+                                <Border Background="{StaticResource BurstStackBack1Brush}"
+                                        BorderBrush="{StaticResource BurstStackBackBorderBrush}"
                                         BorderThickness="1"
+                                        CornerRadius="{StaticResource ThumbnailCornerRadius}"
                                         Margin="0,0,8,8"
                                         Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
-                                <Border Background="#FF1A1A1A"
-                                        BorderBrush="#FF333333"
+                                <Border Background="{StaticResource BurstStackBack2Brush}"
+                                        BorderBrush="{StaticResource BurstStackBackBorderBrush}"
                                         BorderThickness="1"
+                                        CornerRadius="{StaticResource ThumbnailCornerRadius}"
                                         Margin="4,4,4,4"
                                         Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" />
-                            <Border Background="#FF0E0E0E"
-                                    Margin="8,8,0,0"
+                            <Border x:Name="thumbCard"
+                                    Background="#FF0E0E0E"
+                                    CornerRadius="{StaticResource ThumbnailCornerRadius}"
                                     MouseLeftButtonUp="FilmstripItem_MouseLeftButtonUp">
+                                <Border.OpacityMask>
+                                    <VisualBrush>
+                                        <VisualBrush.Visual>
+                                            <Border Background="Black"
+                                                    CornerRadius="{StaticResource ThumbnailCornerRadius}"
+                                                    Width="{Binding ActualWidth, ElementName=thumbCard}"
+                                                    Height="{Binding ActualHeight, ElementName=thumbCard}" />
+                                        </VisualBrush.Visual>
+                                    </VisualBrush>
+                                </Border.OpacityMask>
                                 <Border.Style>
                                     <Style TargetType="Border">
+                                        <Setter Property="Margin" Value="0" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" Value="Visible">
+                                                <Setter Property="Margin" Value="8,8,0,0" />
                                                 <Setter Property="Effect">
                                                     <Setter.Value>
-                                                        <DropShadowEffect BlurRadius="6" ShadowDepth="2" Direction="315" Opacity="0.55" Color="Black" />
+                                                        <DropShadowEffect BlurRadius="10" ShadowDepth="3" Direction="315" Opacity="0.45" Color="Black" />
                                                     </Setter.Value>
                                                 </Setter>
                                             </DataTrigger>
@@ -1655,7 +1899,7 @@
                                     </Border>
                                     <!-- Tag indicator (bottom-right) -->
                                     <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                            Background="#CC007ACC"
+                                            Background="#CC3B82F6"
                                             Padding="4,1" Margin="2"
                                             CornerRadius="2"
                                             Visibility="{Binding TagDisplay, Converter={StaticResource NullToVisibility}}">
@@ -1688,14 +1932,25 @@
                                     </Border>
                                     <!-- Collapsed-burst count badge: only when collapsed -->
                                     <Border HorizontalAlignment="Left" VerticalAlignment="Top"
-                                            Background="#E69C27B0"
-                                            Padding="4,1" Margin="6,4,0,0"
-                                            CornerRadius="2"
+                                            Background="#CC1A1A1A"
+                                            BorderBrush="#33FFFFFF"
+                                            BorderThickness="1"
+                                            Padding="6,2" Margin="6,6,0,0"
+                                            CornerRadius="4"
                                             ToolTip="Burst — double-click to focus"
                                             Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}">
-                                        <TextBlock Foreground="White" FontSize="10" FontWeight="SemiBold">
-                                            <Run Text="×" /><Run Text="{Binding CollapsedBurstCount, Mode=OneWay}" />
-                                        </TextBlock>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x29C9;"
+                                                       Foreground="White"
+                                                       FontSize="10"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,4,0" />
+                                            <TextBlock Text="{Binding CollapsedBurstCount, Mode=OneWay}"
+                                                       Foreground="White"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
                                     </Border>
                                     <!-- Video indicator -->
                                     <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"

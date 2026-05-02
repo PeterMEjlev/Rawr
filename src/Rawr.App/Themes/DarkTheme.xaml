@@ -3,20 +3,20 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- Palette -->
-    <Color x:Key="BgColor">#FF1E1E1E</Color>
-    <Color x:Key="BgPanelColor">#FF252526</Color>
-    <Color x:Key="BgFilmstripColor">#FF181818</Color>
-    <Color x:Key="BgToolbarColor">#FF2D2D30</Color>
-    <Color x:Key="BgControlColor">#FF333337</Color>
-    <Color x:Key="BgControlHoverColor">#FF3F3F46</Color>
-    <Color x:Key="BgControlPressedColor">#FF505057</Color>
-    <Color x:Key="BorderColor">#FF3F3F46</Color>
-    <Color x:Key="AccentColor">#FF007ACC</Color>
-    <Color x:Key="TextColor">#FFE6E6E6</Color>
-    <Color x:Key="TextDimColor">#FF9D9D9D</Color>
-    <Color x:Key="PickColor">#FF4CAF50</Color>
-    <Color x:Key="RejectColor">#FFE53935</Color>
-    <Color x:Key="StarColor">#FFFFC107</Color>
+    <Color x:Key="BgColor">#FF15171C</Color>
+    <Color x:Key="BgPanelColor">#FF1C1F26</Color>
+    <Color x:Key="BgFilmstripColor">#FF111318</Color>
+    <Color x:Key="BgToolbarColor">#FF1C1F26</Color>
+    <Color x:Key="BgControlColor">#FF24272F</Color>
+    <Color x:Key="BgControlHoverColor">#FF2D3038</Color>
+    <Color x:Key="BgControlPressedColor">#FF383B43</Color>
+    <Color x:Key="BorderColor">#FF2A2D34</Color>
+    <Color x:Key="AccentColor">#FF3B82F6</Color>
+    <Color x:Key="TextColor">#FFE8EAED</Color>
+    <Color x:Key="TextDimColor">#FF8A8F98</Color>
+    <Color x:Key="PickColor">#FF22C55E</Color>
+    <Color x:Key="RejectColor">#FFEF4444</Color>
+    <Color x:Key="StarColor">#FFFBBF24</Color>
 
     <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}" />
     <SolidColorBrush x:Key="BgPanelBrush" Color="{StaticResource BgPanelColor}" />
@@ -32,6 +32,22 @@
     <SolidColorBrush x:Key="PickBrush" Color="{StaticResource PickColor}" />
     <SolidColorBrush x:Key="RejectBrush" Color="{StaticResource RejectColor}" />
     <SolidColorBrush x:Key="StarBrush" Color="{StaticResource StarColor}" />
+
+    <!-- Burst stack backer brushes (subtle, blend into BgFilmstrip) -->
+    <SolidColorBrush x:Key="BurstStackBack1Brush" Color="#FF1A1D24" />
+    <SolidColorBrush x:Key="BurstStackBack2Brush" Color="#FF22252D" />
+    <SolidColorBrush x:Key="BurstStackBackBorderBrush" Color="#FF2E323B" />
+
+    <!-- Scrollbar thumb brushes -->
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#FF3D414A" />
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#FF555964" />
+
+    <!-- Subtle hover/select brushes for thumbnails -->
+    <SolidColorBrush x:Key="ItemHoverBorderBrush" Color="#FF4A4E58" />
+
+    <!-- Shape tokens -->
+    <CornerRadius x:Key="ThumbnailCornerRadius">5</CornerRadius>
+    <CornerRadius x:Key="BadgeCornerRadius">3</CornerRadius>
 
     <!-- Window default -->
     <Style TargetType="{x:Type Window}">
@@ -70,7 +86,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3">
+                            CornerRadius="4">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Margin="{TemplateBinding Padding}" />
@@ -108,7 +124,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3">
+                            CornerRadius="4">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Margin="{TemplateBinding Padding}" />
@@ -140,7 +156,7 @@
                             Background="{StaticResource BgControlBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="3">
+                            CornerRadius="4">
                         <Path x:Name="Arrow"
                               Data="M 0 0 L 4 4 L 8 0 Z"
                               Fill="{StaticResource TextDimBrush}"
@@ -237,7 +253,15 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Thumb}">
-                    <Border Background="#FF555555" CornerRadius="3" Margin="2" />
+                    <Border x:Name="Th"
+                            Background="{StaticResource ScrollThumbBrush}"
+                            CornerRadius="4"
+                            Margin="2" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Th" Property="Background" Value="{StaticResource ScrollThumbHoverBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -301,12 +325,12 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="Transparent"
                             BorderThickness="2"
-                            CornerRadius="2">
+                            CornerRadius="7">
                         <ContentPresenter />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="#FF555555" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ItemHoverBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
@@ -340,7 +364,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3">
+                            CornerRadius="4">
                         <ScrollViewer x:Name="PART_ContentHost"
                                       Margin="{TemplateBinding Padding}"
                                       VerticalAlignment="Center" />
@@ -371,7 +395,7 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3"
+                            CornerRadius="4"
                             Padding="{TemplateBinding Padding}">
                         <ItemsPresenter />
                     </Border>
@@ -395,7 +419,7 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3"
+                            CornerRadius="4"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter />
                     </Border>
@@ -520,10 +544,10 @@
                                 <Thumb>
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="{x:Type Thumb}">
-                                            <Ellipse Width="14" Height="14"
+                                            <Ellipse Width="12" Height="12"
                                                      Fill="{StaticResource AccentBrush}"
                                                      Stroke="{StaticResource BgBrush}"
-                                                     StrokeThickness="2" />
+                                                     StrokeThickness="1" />
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
@@ -577,10 +601,10 @@
                                 <Thumb>
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="{x:Type Thumb}">
-                                            <Ellipse Width="14" Height="14"
+                                            <Ellipse Width="12" Height="12"
                                                      Fill="{StaticResource AccentBrush}"
                                                      Stroke="{StaticResource BgBrush}"
-                                                     StrokeThickness="2" />
+                                                     StrokeThickness="1" />
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
@@ -652,7 +676,7 @@
                                 <Border Background="{StaticResource BgControlBrush}"
                                         BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="1"
-                                        CornerRadius="3"
+                                        CornerRadius="4"
                                         Padding="0,4">
                                     <ItemsPresenter />
                                 </Border>
@@ -686,6 +710,56 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Sidebar bucket button: a clickable filter row with hover and active states.
+         Active state is driven by the Button's Tag property (bind it to a bool). -->
+    <Style x:Key="SidebarBucketStyle" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
+                        </Trigger>
+                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlPressedBrush}" />
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Sidebar section header (FILTERS, TAGS, etc.) -->
+    <Style x:Key="SidebarSectionHeader" TargetType="{x:Type TextBlock}">
+        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="12,16,12,6" />
+    </Style>
+
+    <!-- Sidebar subsection header (Rated, Labelled) -->
+    <Style x:Key="SidebarSubsectionHeader" TargetType="{x:Type TextBlock}">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="12,8,12,4" />
     </Style>
 
 </ResourceDictionary>

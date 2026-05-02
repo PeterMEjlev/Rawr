@@ -1516,6 +1516,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             PreviewImage = null;
             VideoSourceUri = null;
         }
+
+        RefreshFilterBuckets();
     }
 
     private void UpdateFilterDescription()
@@ -1735,6 +1737,79 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         };
         var stars = SelectedPhoto.Rating > 0 ? $" {new string('★', SelectedPhoto.Rating)}" : "";
         StatusText = $"{pos}/{total}  {SelectedPhoto.FileName}{stars}{flag}  Filter: {FilterDescription}";
+    }
+
+    // ── Sidebar filter buckets ──
+    // Counts reflect AllPhotos (unfiltered totals) and refresh inside ApplyFilter().
+
+    public int Rating5Count        => AllPhotos.Count(p => p.Rating == 5);
+    public int Rating4Count        => AllPhotos.Count(p => p.Rating == 4);
+    public int Rating3Count        => AllPhotos.Count(p => p.Rating == 3);
+    public int Rating2Count        => AllPhotos.Count(p => p.Rating == 2);
+    public int Rating1Count        => AllPhotos.Count(p => p.Rating == 1);
+    public int RatingUnratedCount  => AllPhotos.Count(p => p.Rating == 0);
+
+    public int LabelRedCount    => AllPhotos.Count(p => p.ColorLabel == ColorLabel.Red);
+    public int LabelYellowCount => AllPhotos.Count(p => p.ColorLabel == ColorLabel.Yellow);
+    public int LabelGreenCount  => AllPhotos.Count(p => p.ColorLabel == ColorLabel.Green);
+    public int LabelBlueCount   => AllPhotos.Count(p => p.ColorLabel == ColorLabel.Blue);
+    public int LabelPurpleCount => AllPhotos.Count(p => p.ColorLabel == ColorLabel.Purple);
+
+    public bool IsRating5Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 5;
+    public bool IsRating4Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 4;
+    public bool IsRating3Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 3;
+    public bool IsRating2Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 2;
+    public bool IsRating1Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 1;
+    public bool IsRatingUnratedActive => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 0;
+
+    public bool IsLabelRedActive    => ColorLabelFilter == ColorLabel.Red;
+    public bool IsLabelYellowActive => ColorLabelFilter == ColorLabel.Yellow;
+    public bool IsLabelGreenActive  => ColorLabelFilter == ColorLabel.Green;
+    public bool IsLabelBlueActive   => ColorLabelFilter == ColorLabel.Blue;
+    public bool IsLabelPurpleActive => ColorLabelFilter == ColorLabel.Purple;
+
+    [RelayCommand]
+    private void SetRatingBucket(int rating)
+    {
+        var isSame = RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == rating;
+        if (isSame)
+        {
+            RatingFilterMode = RatingFilterMode.Any;
+            RatingFilterValue = 0;
+        }
+        else
+        {
+            RatingFilterValue = rating;
+            RatingFilterMode = RatingFilterMode.Exact;
+        }
+        ApplyFilter();
+    }
+
+    private void RefreshFilterBuckets()
+    {
+        OnPropertyChanged(nameof(Rating5Count));
+        OnPropertyChanged(nameof(Rating4Count));
+        OnPropertyChanged(nameof(Rating3Count));
+        OnPropertyChanged(nameof(Rating2Count));
+        OnPropertyChanged(nameof(Rating1Count));
+        OnPropertyChanged(nameof(RatingUnratedCount));
+        OnPropertyChanged(nameof(LabelRedCount));
+        OnPropertyChanged(nameof(LabelYellowCount));
+        OnPropertyChanged(nameof(LabelGreenCount));
+        OnPropertyChanged(nameof(LabelBlueCount));
+        OnPropertyChanged(nameof(LabelPurpleCount));
+
+        OnPropertyChanged(nameof(IsRating5Active));
+        OnPropertyChanged(nameof(IsRating4Active));
+        OnPropertyChanged(nameof(IsRating3Active));
+        OnPropertyChanged(nameof(IsRating2Active));
+        OnPropertyChanged(nameof(IsRating1Active));
+        OnPropertyChanged(nameof(IsRatingUnratedActive));
+        OnPropertyChanged(nameof(IsLabelRedActive));
+        OnPropertyChanged(nameof(IsLabelYellowActive));
+        OnPropertyChanged(nameof(IsLabelGreenActive));
+        OnPropertyChanged(nameof(IsLabelBlueActive));
+        OnPropertyChanged(nameof(IsLabelPurpleActive));
     }
 
     public void Dispose()
