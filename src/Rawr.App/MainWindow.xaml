@@ -1759,199 +1759,192 @@
             <!-- Metadata panel -->
             <Border Grid.Column="3"
                     Width="280"
-                    Background="{StaticResource BgPanelBrush}"
+                    Background="{StaticResource BgBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="140" MinHeight="80" />
-                        <RowDefinition Height="4" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,6,10">
+                    <StackPanel>
 
-                    <!-- Histogram + channel toggle -->
-                    <Grid Grid.Row="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <controls:HistogramControl Grid.Row="0"
-                                                   Data="{Binding HistogramData}"
-                                                   Mode="{Binding HistogramMode}" />
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,4"
-                                    Visibility="{Binding HistogramData, Converter={StaticResource NullToVisibility}}">
-                            <ToggleButton Content="RGB" Command="{Binding SetHistogramModeCommand}"
-                                          CommandParameter="{x:Static controls:HistogramMode.Rgb}"
-                                          FontSize="10" Padding="8,2" Margin="0,0,2,0">
-                                <ToggleButton.Style>
-                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
-                                        <Setter Property="IsChecked" Value="False" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.Rgb}">
-                                                <Setter Property="IsChecked" Value="True" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ToggleButton.Style>
-                            </ToggleButton>
-                            <ToggleButton Content="All" Command="{Binding SetHistogramModeCommand}"
-                                          CommandParameter="{x:Static controls:HistogramMode.Combined}"
-                                          FontSize="10" Padding="8,2" Margin="0,0,2,0">
-                                <ToggleButton.Style>
-                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
-                                        <Setter Property="IsChecked" Value="False" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.Combined}">
-                                                <Setter Property="IsChecked" Value="True" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ToggleButton.Style>
-                            </ToggleButton>
-                            <ToggleButton Content="R" Command="{Binding SetHistogramModeCommand}"
-                                          CommandParameter="{x:Static controls:HistogramMode.R}"
-                                          FontSize="10" Padding="8,2" Margin="0,0,2,0" Foreground="#FF5050">
-                                <ToggleButton.Style>
-                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
-                                        <Setter Property="IsChecked" Value="False" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.R}">
-                                                <Setter Property="IsChecked" Value="True" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ToggleButton.Style>
-                            </ToggleButton>
-                            <ToggleButton Content="G" Command="{Binding SetHistogramModeCommand}"
-                                          CommandParameter="{x:Static controls:HistogramMode.G}"
-                                          FontSize="10" Padding="8,2" Margin="0,0,2,0" Foreground="#50DC50">
-                                <ToggleButton.Style>
-                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
-                                        <Setter Property="IsChecked" Value="False" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.G}">
-                                                <Setter Property="IsChecked" Value="True" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ToggleButton.Style>
-                            </ToggleButton>
-                            <ToggleButton Content="B" Command="{Binding SetHistogramModeCommand}"
-                                          CommandParameter="{x:Static controls:HistogramMode.B}"
-                                          FontSize="10" Padding="8,2" Foreground="#5082FF">
-                                <ToggleButton.Style>
-                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
-                                        <Setter Property="IsChecked" Value="False" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.B}">
-                                                <Setter Property="IsChecked" Value="True" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ToggleButton.Style>
-                            </ToggleButton>
-                        </StackPanel>
-                    </Grid>
+                        <!-- Histogram card -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="HISTOGRAM" Style="{StaticResource SectionCardHeader}" />
+                                <controls:HistogramControl Height="120"
+                                                           Data="{Binding HistogramData}"
+                                                           Mode="{Binding HistogramMode}" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                            Visibility="{Binding HistogramData, Converter={StaticResource NullToVisibility}}">
+                                    <ToggleButton Content="RGB" Command="{Binding SetHistogramModeCommand}"
+                                                  CommandParameter="{x:Static controls:HistogramMode.Rgb}"
+                                                  FontSize="10" Padding="8,2" Margin="0,0,2,0">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                                <Setter Property="IsChecked" Value="False" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.Rgb}">
+                                                        <Setter Property="IsChecked" Value="True" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <ToggleButton Content="All" Command="{Binding SetHistogramModeCommand}"
+                                                  CommandParameter="{x:Static controls:HistogramMode.Combined}"
+                                                  FontSize="10" Padding="8,2" Margin="0,0,2,0">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                                <Setter Property="IsChecked" Value="False" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.Combined}">
+                                                        <Setter Property="IsChecked" Value="True" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <ToggleButton Content="R" Command="{Binding SetHistogramModeCommand}"
+                                                  CommandParameter="{x:Static controls:HistogramMode.R}"
+                                                  FontSize="10" Padding="8,2" Margin="0,0,2,0" Foreground="#FF5050">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                                <Setter Property="IsChecked" Value="False" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.R}">
+                                                        <Setter Property="IsChecked" Value="True" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <ToggleButton Content="G" Command="{Binding SetHistogramModeCommand}"
+                                                  CommandParameter="{x:Static controls:HistogramMode.G}"
+                                                  FontSize="10" Padding="8,2" Margin="0,0,2,0" Foreground="#50DC50">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                                <Setter Property="IsChecked" Value="False" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.G}">
+                                                        <Setter Property="IsChecked" Value="True" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <ToggleButton Content="B" Command="{Binding SetHistogramModeCommand}"
+                                                  CommandParameter="{x:Static controls:HistogramMode.B}"
+                                                  FontSize="10" Padding="8,2" Foreground="#5082FF">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                                <Setter Property="IsChecked" Value="False" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HistogramMode}" Value="{x:Static controls:HistogramMode.B}">
+                                                        <Setter Property="IsChecked" Value="True" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
 
-                    <!-- Resize handle -->
-                    <GridSplitter Grid.Row="1"
-                                  HorizontalAlignment="Stretch"
-                                  VerticalAlignment="Stretch"
-                                  Background="{StaticResource BorderBrush}"
-                                  Cursor="SizeNS" />
+                        <!-- Metadata card -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="PHOTO" Style="{StaticResource SectionCardHeader}" />
+                                <TextBlock Text="{Binding SelectedPhoto.FileName, FallbackValue='(no selection)'}"
+                                           FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" />
 
-                    <!-- Metadata scroll area -->
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12">
-                        <TextBlock Text="PHOTO" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding SelectedPhoto.FileName, FallbackValue='(no selection)'}"
-                                   FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" />
+                                <!-- Flags / labels -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                    <Border Width="14" Height="14" CornerRadius="2"
+                                            Background="{Binding SelectedPhoto.Flag, Converter={StaticResource FlagToBrush}}"
+                                            Margin="0,0,8,0" />
+                                    <TextBlock Text="{Binding SelectedPhoto.Flag, FallbackValue=''}" Margin="0,0,12,0" />
+                                    <Ellipse Width="10" Height="10"
+                                             Fill="{Binding SelectedPhoto.ColorLabel, Converter={StaticResource LabelToBrush}}"
+                                             Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding SelectedPhoto.ColorLabel, FallbackValue=''}" />
+                                </StackPanel>
 
-                        <!-- Flags / labels -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                            <Border Width="14" Height="14" CornerRadius="2"
-                                    Background="{Binding SelectedPhoto.Flag, Converter={StaticResource FlagToBrush}}"
-                                    Margin="0,0,8,0" />
-                            <TextBlock Text="{Binding SelectedPhoto.Flag, FallbackValue=''}" Margin="0,0,12,0" />
-                            <Ellipse Width="10" Height="10"
-                                     Fill="{Binding SelectedPhoto.ColorLabel, Converter={StaticResource LabelToBrush}}"
-                                     Margin="0,0,6,0" />
-                            <TextBlock Text="{Binding SelectedPhoto.ColorLabel, FallbackValue=''}" />
-                        </StackPanel>
+                                <TextBlock Text="CAMERA" Style="{StaticResource SectionCardHeader}" />
+                                <TextBlock Text="{Binding SelectedPhoto.Metadata.CameraFormatted, FallbackValue='—'}" Margin="0,0,0,2" />
+                                <TextBlock Text="{Binding SelectedPhoto.Metadata.LensModel,       FallbackValue=''}"
+                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,12" />
 
-                        <TextBlock Text="CAMERA" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding SelectedPhoto.Metadata.CameraFormatted, FallbackValue='—'}" Margin="0,0,0,2" />
-                        <TextBlock Text="{Binding SelectedPhoto.Metadata.LensModel,       FallbackValue=''}"
-                                   Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,12" />
+                                <TextBlock Text="EXPOSURE" Style="{StaticResource SectionCardHeader}" />
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="ISO " Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ISOFormatted, FallbackValue='—'}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Aperture " Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ApertureFormatted, FallbackValue='—'}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Shutter " Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ShutterSpeedFormatted, FallbackValue='—'}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Focal " Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.FocalLengthFormatted, FallbackValue='—'}" />
+                                </Grid>
 
-                        <TextBlock Text="EXPOSURE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="ISO " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ISOFormatted, FallbackValue='—'}" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Aperture " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ApertureFormatted, FallbackValue='—'}" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Shutter " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.ShutterSpeedFormatted, FallbackValue='—'}" />
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Focal " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.FocalLengthFormatted, FallbackValue='—'}" />
-                        </Grid>
+                                <TextBlock Text="BURST" Style="{StaticResource SectionCardHeader}"
+                                           Visibility="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
+                                <TextBlock Text="{Binding SelectedPhoto.BurstBadge, FallbackValue=''}" Margin="0,0,0,12"
+                                           Visibility="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
 
-                        <TextBlock Text="BURST" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6"
-                                   Visibility="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
-                        <TextBlock Text="{Binding SelectedPhoto.BurstBadge, FallbackValue=''}" Margin="0,0,0,12"
-                                   Visibility="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
+                                <TextBlock Text="DATE" Style="{StaticResource SectionCardHeader}" />
+                                <TextBlock Text="{Binding SelectedPhotoCaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
 
-                        <TextBlock Text="DATE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding SelectedPhotoCaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
+                                <TextBlock Text="FILE" Style="{StaticResource SectionCardHeader}" />
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Type "       Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPhoto.Extension, FallbackValue=''}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Dimensions " Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.DimensionsFormatted, FallbackValue='—'}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Size "       Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.FileSizeFormatted, FallbackValue='—'}" />
+                                </Grid>
+                                <TextBlock Text="{Binding SelectedPhoto.FilePath, FallbackValue=''}"
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           TextWrapping="Wrap" FontSize="10" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
 
-                        <TextBlock Text="FILE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Type "       Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPhoto.Extension, FallbackValue=''}" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Dimensions " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.DimensionsFormatted, FallbackValue='—'}" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Size "       Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.FileSizeFormatted, FallbackValue='—'}" />
-                        </Grid>
-                        <TextBlock Text="{Binding SelectedPhoto.FilePath, FallbackValue=''}"
-                                   Foreground="{StaticResource TextDimBrush}"
-                                   TextWrapping="Wrap" FontSize="10" Margin="0,4,0,0" />
+                        <!-- Shortcuts card -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="SHORTCUTS" Style="{StaticResource SectionCardHeader}" />
+                                <TextBlock Text="←/→  Navigate" Margin="0,1" />
+                                <TextBlock Text="Ctrl+←/→  Jump burst" Margin="0,1" />
+                                <TextBlock Text="0–5  Rating" Margin="0,1" />
+                                <TextBlock Text="6–9  Color label" Margin="0,1" />
+                                <TextBlock Text="P / X  Pick / Reject" Margin="0,1" />
+                                <TextBlock Text="⇧+P / ⇧+X  Flag &amp; advance" Margin="0,1" />
+                                <TextBlock Text="U  Unflag" Margin="0,1" />
+                                <TextBlock Text="⇧+1–0  Assign tag" Margin="0,1" />
+                                <TextBlock Text="Ctrl+O  Open folder" Margin="0,1" />
+                                <TextBlock Text="Ctrl+C  Copy picks" Margin="0,1" />
+                            </StackPanel>
+                        </Border>
 
-                        <Separator Margin="0,16" />
-
-                        <TextBlock Text="SHORTCUTS" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="←/→  Navigate" Margin="0,1" />
-                        <TextBlock Text="Ctrl+←/→  Jump burst" Margin="0,1" />
-                        <TextBlock Text="0–5  Rating" Margin="0,1" />
-                        <TextBlock Text="6–9  Color label" Margin="0,1" />
-                        <TextBlock Text="P / X  Pick / Reject" Margin="0,1" />
-                        <TextBlock Text="⇧+P / ⇧+X  Flag &amp; advance" Margin="0,1" />
-                        <TextBlock Text="U  Unflag" Margin="0,1" />
-                        <TextBlock Text="⇧+1–0  Assign tag" Margin="0,1" />
-                        <TextBlock Text="Ctrl+O  Open folder" Margin="0,1" />
-                        <TextBlock Text="Ctrl+C  Copy picks" Margin="0,1" />
                     </StackPanel>
-                    </ScrollViewer>
-                </Grid>
+                </ScrollViewer>
             </Border>
         </Grid>
         </Grid>

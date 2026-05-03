@@ -913,6 +913,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _baseRawImage = raw;
             IsLinearRawReady = true;
             ExposureSourceLabel = "EV (RAW)";
+            // Replace the JPEG-based histogram (already shown) with one computed from
+            // the linear sensor data — the JPEG histogram understates highlight clip.
+            _ = ComputeHistogramAsync(photo, ct);
             // Re-render the current preview through the linear pipeline so the user
             // sees the more accurate rendition even at EV=0, and so subsequent slider
             // moves operate on real sensor data.
@@ -939,6 +942,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task ComputeHistogramAsync(PhotoItem photo, CancellationToken ct)
     {
+        // Prefer the linear-RAW histogram when sensor data is in hand: the JPEG
+        // path bakes in the camera's tone curve and lies about clipping headroom.
+        var raw = _baseRawImage;
+        if (raw != null)
+        {
+            var rawHist = await Task.Run(() => HistogramComputer.Compute(raw), ct);
+            if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+                HistogramData = rawHist;
+            return;
+        }
+
         var jpeg = photo.FullJpeg ?? photo.PreviewJpeg;
         if (jpeg == null) return;
         var histData = await Task.Run(() => HistogramComputer.Compute(jpeg), ct);

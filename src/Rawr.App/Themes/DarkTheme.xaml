@@ -50,6 +50,23 @@
     <!-- Shape tokens -->
     <CornerRadius x:Key="ThumbnailCornerRadius">5</CornerRadius>
     <CornerRadius x:Key="BadgeCornerRadius">3</CornerRadius>
+    <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
+
+    <!-- Card-style section container used by the right sidepanel -->
+    <Style TargetType="{x:Type Border}" x:Key="SectionCard">
+        <Setter Property="Background" Value="{StaticResource BgPanelBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
+        <Setter Property="Padding" Value="14" />
+        <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+
+    <Style TargetType="{x:Type TextBlock}" x:Key="SectionCardHeader">
+        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
 
     <!-- Window default -->
     <Style TargetType="{x:Type Window}">
