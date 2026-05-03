@@ -1151,6 +1151,71 @@
                             </controls:SidebarBucketButton>
                         </StackPanel>
 
+                        <!-- Flagged subsection -->
+                        <TextBlock Text="Flagged" Style="{StaticResource SidebarSubsectionHeader}" />
+                        <StackPanel Margin="6,0,6,4">
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetSidebarFlagCommand}" CommandParameter="{x:Static models:CullFlag.Pick}"
+                                    IsActive="{Binding IsFlagPickActive}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Path Grid.Column="0" Width="10" Height="12"
+                                          Data="M 1,1 L 9,1 L 7,3 L 9,5 L 2,5 L 2,11 L 1,11 Z"
+                                          Fill="{StaticResource PickBrush}"
+                                          Margin="0,0,8,0"
+                                          VerticalAlignment="Center"
+                                          SnapsToDevicePixels="True" />
+                                    <TextBlock Grid.Column="1" Text="Picks" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding FlagPickCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetSidebarFlagCommand}" CommandParameter="{x:Static models:CullFlag.Reject}"
+                                    IsActive="{Binding IsFlagRejectActive}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Path Grid.Column="0" Width="10" Height="12"
+                                          Data="M 1,1 L 9,1 L 7,3 L 9,5 L 2,5 L 2,11 L 1,11 Z"
+                                          Fill="{StaticResource RejectBrush}"
+                                          Margin="0,0,8,0"
+                                          VerticalAlignment="Center"
+                                          SnapsToDevicePixels="True" />
+                                    <TextBlock Grid.Column="1" Text="Rejected" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding FlagRejectCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetSidebarFlagCommand}" CommandParameter="{x:Static models:CullFlag.Unflagged}"
+                                    IsActive="{Binding IsFlagUnflaggedActive}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Path Grid.Column="0" Width="10" Height="12"
+                                          Data="M 1,1 L 9,1 L 7,3 L 9,5 L 2,5 L 2,11 L 1,11 Z"
+                                          Stroke="{StaticResource TextDimBrush}"
+                                          StrokeThickness="1"
+                                          StrokeLineJoin="Round"
+                                          Fill="Transparent"
+                                          Margin="0,0,8,0"
+                                          VerticalAlignment="Center"
+                                          SnapsToDevicePixels="True" />
+                                    <TextBlock Grid.Column="1" Text="Unflagged" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding FlagUnflaggedCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </controls:SidebarBucketButton>
+                        </StackPanel>
+
                         <!-- ── TAGS section ── -->
                         <TextBlock Text="TAGS" Style="{StaticResource SidebarSectionHeader}" />
                         <ItemsControl x:Name="SidebarTagsList" ItemsSource="{Binding Tags}" Margin="6,0,6,4">
@@ -1166,7 +1231,14 @@
                                             </MultiBinding>
                                         </controls:SidebarBucketButton.IsActive>
                                         <controls:SidebarBucketButton.Content>
-                                            <TextBlock Text="{Binding Name}" FontSize="11" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                            </Grid>
                                         </controls:SidebarBucketButton.Content>
                                     </controls:SidebarBucketButton>
                                 </DataTemplate>

@@ -1254,7 +1254,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetRating(int rating)
     {
         if (SelectedPhoto == null) return;
-        SelectedPhoto.Rating = Math.Clamp(rating, 0, 5);
+        var clamped = Math.Clamp(rating, 0, 5);
+        // Toggle: pressing the same star already on the photo clears the rating.
+        SelectedPhoto.Rating = SelectedPhoto.Rating == clamped ? 0 : clamped;
         SavePhoto(SelectedPhoto);
     }
 
@@ -2059,6 +2061,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public int LabelBlueCount   => AllPhotos.Count(p => p.ColorLabel == ColorLabel.Blue);
     public int LabelPurpleCount => AllPhotos.Count(p => p.ColorLabel == ColorLabel.Purple);
 
+    public int FlagPickCount      => AllPhotos.Count(p => p.Flag == CullFlag.Pick);
+    public int FlagRejectCount    => AllPhotos.Count(p => p.Flag == CullFlag.Reject);
+    public int FlagUnflaggedCount => AllPhotos.Count(p => p.Flag == CullFlag.Unflagged);
+
     public bool IsRating5Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 5;
     public bool IsRating4Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 4;
     public bool IsRating3Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 3;
@@ -2071,6 +2077,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool IsLabelGreenActive  => ColorLabelFilter == ColorLabel.Green;
     public bool IsLabelBlueActive   => ColorLabelFilter == ColorLabel.Blue;
     public bool IsLabelPurpleActive => ColorLabelFilter == ColorLabel.Purple;
+
+    public bool IsFlagPickActive      => FlagFilter == CullFlag.Pick;
+    public bool IsFlagRejectActive    => FlagFilter == CullFlag.Reject;
+    public bool IsFlagUnflaggedActive => FlagFilter == CullFlag.Unflagged;
 
     [RelayCommand]
     private void SetRatingBucket(int rating)
@@ -2108,7 +2118,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
 
-    private enum SidebarFilterKind { Rating, Color, Tag }
+    [RelayCommand]
+    private void SetSidebarFlag(CullFlag flag)
+    {
+        var isSame = FlagFilter == flag;
+        ClearOtherSidebarFilters(SidebarFilterKind.Flag);
+        FlagFilter = isSame ? null : flag;
+        ApplyFilter();
+    }
+
+    private enum SidebarFilterKind { Rating, Color, Tag, Flag }
 
     private void ClearOtherSidebarFilters(SidebarFilterKind keep)
     {
@@ -2125,7 +2144,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             TagFilter = null;
         }
-        FlagFilter = null;
+        if (keep != SidebarFilterKind.Flag)
+        {
+            FlagFilter = null;
+        }
         BurstFilter = BurstFilterMode.Any;
         ImageTypeFilter = ImageTypeFilterMode.Any;
     }
@@ -2143,6 +2165,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(LabelGreenCount));
         OnPropertyChanged(nameof(LabelBlueCount));
         OnPropertyChanged(nameof(LabelPurpleCount));
+        OnPropertyChanged(nameof(FlagPickCount));
+        OnPropertyChanged(nameof(FlagRejectCount));
+        OnPropertyChanged(nameof(FlagUnflaggedCount));
 
         OnPropertyChanged(nameof(IsRating5Active));
         OnPropertyChanged(nameof(IsRating4Active));
@@ -2155,6 +2180,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsLabelGreenActive));
         OnPropertyChanged(nameof(IsLabelBlueActive));
         OnPropertyChanged(nameof(IsLabelPurpleActive));
+        OnPropertyChanged(nameof(IsFlagPickActive));
+        OnPropertyChanged(nameof(IsFlagRejectActive));
+        OnPropertyChanged(nameof(IsFlagUnflaggedActive));
+
+        // Tag counts are stored on the PhotoTag itself so each row can bind directly.
+        // Single pass over all photos beats Count(...) per tag when there are many of either.
+        if (Tags.Count > 0)
+        {
+            var tagCounts = new Dictionary<int, int>(Tags.Count);
+            foreach (var tag in Tags) tagCounts[tag.Id] = 0;
+            foreach (var photo in AllPhotos)
+                foreach (var id in photo.TagIds)
+                    if (tagCounts.ContainsKey(id)) tagCounts[id]++;
+            foreach (var tag in Tags)
+                tag.Count = tagCounts[tag.Id];
+        }
     }
 
     public void Dispose()
