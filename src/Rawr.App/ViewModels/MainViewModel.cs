@@ -1514,7 +1514,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         VisibleCount = FilteredPhotos.Count;
         UpdateFilterDescription();
 
-        // Try to restore selection
+        RestoreSelection(previousSelection);
+        RefreshFilterBuckets();
+    }
+
+    private void RestoreSelection(PhotoItem? previousSelection)
+    {
         if (previousSelection != null)
         {
             var idx = FilteredPhotos.IndexOf(previousSelection);
@@ -1538,7 +1543,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
         }
 
-        // Fall back to first item
         if (FilteredPhotos.Count > 0)
         {
             SelectedIndex = 0;
@@ -1550,8 +1554,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             PreviewImage = null;
             VideoSourceUri = null;
         }
-
-        RefreshFilterBuckets();
     }
 
     private void UpdateFilterDescription()

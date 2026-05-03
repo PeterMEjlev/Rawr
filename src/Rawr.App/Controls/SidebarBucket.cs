@@ -1,16 +1,20 @@
 using System.Windows;
+using System.Windows.Controls;
 
 namespace Rawr.App.Controls;
 
-public static class SidebarBucket
+public class SidebarBucketButton : Button
 {
     public static readonly DependencyProperty IsActiveProperty =
-        DependencyProperty.RegisterAttached(
-            "IsActive",
+        DependencyProperty.Register(
+            nameof(IsActive),
             typeof(bool),
-            typeof(SidebarBucket),
-            new PropertyMetadata(false));
+            typeof(SidebarBucketButton),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static bool GetIsActive(DependencyObject obj) => (bool)obj.GetValue(IsActiveProperty);
-    public static void SetIsActive(DependencyObject obj, bool value) => obj.SetValue(IsActiveProperty, value);
+    public bool IsActive
+    {
+        get => (bool)GetValue(IsActiveProperty);
+        set => SetValue(IsActiveProperty, value);
+    }
 }

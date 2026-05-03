@@ -935,10 +935,10 @@
                         <!-- Rated subsection -->
                         <TextBlock Text="Rated" Style="{StaticResource SidebarSubsectionHeader}" />
                         <StackPanel Margin="6,0,6,4">
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    controls:SidebarBucket.IsActive="{Binding IsRating5Active}">
-                                <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
+                                    IsActive="{Binding IsRating5Active}">
+                                <controls:SidebarBucketButton.CommandParameter><sys:Int32>5</sys:Int32></controls:SidebarBucketButton.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -947,11 +947,11 @@
                                     <TextBlock Grid.Column="0" Text="★★★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
                                     <TextBlock Grid.Column="1" Text="{Binding Rating5Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    controls:SidebarBucket.IsActive="{Binding IsRating4Active}">
-                                <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
+                                    IsActive="{Binding IsRating4Active}">
+                                <controls:SidebarBucketButton.CommandParameter><sys:Int32>4</sys:Int32></controls:SidebarBucketButton.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -960,11 +960,11 @@
                                     <TextBlock Grid.Column="0" Text="★★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
                                     <TextBlock Grid.Column="1" Text="{Binding Rating4Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    controls:SidebarBucket.IsActive="{Binding IsRating3Active}">
-                                <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
+                                    IsActive="{Binding IsRating3Active}">
+                                <controls:SidebarBucketButton.CommandParameter><sys:Int32>3</sys:Int32></controls:SidebarBucketButton.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -973,11 +973,11 @@
                                     <TextBlock Grid.Column="0" Text="★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
                                     <TextBlock Grid.Column="1" Text="{Binding Rating3Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    controls:SidebarBucket.IsActive="{Binding IsRating2Active}">
-                                <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
+                                    IsActive="{Binding IsRating2Active}">
+                                <controls:SidebarBucketButton.CommandParameter><sys:Int32>2</sys:Int32></controls:SidebarBucketButton.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -986,11 +986,11 @@
                                     <TextBlock Grid.Column="0" Text="★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
                                     <TextBlock Grid.Column="1" Text="{Binding Rating2Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    controls:SidebarBucket.IsActive="{Binding IsRating1Active}">
-                                <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
+                                    IsActive="{Binding IsRating1Active}">
+                                <controls:SidebarBucketButton.CommandParameter><sys:Int32>1</sys:Int32></controls:SidebarBucketButton.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -999,11 +999,11 @@
                                     <TextBlock Grid.Column="0" Text="★" Foreground="{StaticResource StarBrush}" FontSize="11" />
                                     <TextBlock Grid.Column="1" Text="{Binding Rating1Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
-                                    controls:SidebarBucket.IsActive="{Binding IsRatingUnratedActive}">
-                                <Button.CommandParameter><sys:Int32>0</sys:Int32></Button.CommandParameter>
+                                    IsActive="{Binding IsRatingUnratedActive}">
+                                <controls:SidebarBucketButton.CommandParameter><sys:Int32>0</sys:Int32></controls:SidebarBucketButton.CommandParameter>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1012,15 +1012,15 @@
                                     <TextBlock Grid.Column="0" Text="Unrated" Foreground="{StaticResource TextBrush}" FontSize="11" />
                                     <TextBlock Grid.Column="1" Text="{Binding RatingUnratedCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
+                            </controls:SidebarBucketButton>
                         </StackPanel>
 
                         <!-- Labelled subsection -->
                         <TextBlock Text="Labelled" Style="{StaticResource SidebarSubsectionHeader}" />
                         <StackPanel Margin="6,0,6,4">
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Red}"
-                                    controls:SidebarBucket.IsActive="{Binding IsLabelRedActive}">
+                                    IsActive="{Binding IsLabelRedActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1031,10 +1031,10 @@
                                     <TextBlock Grid.Column="1" Text="Red" FontSize="11" />
                                     <TextBlock Grid.Column="2" Text="{Binding LabelRedCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Yellow}"
-                                    controls:SidebarBucket.IsActive="{Binding IsLabelYellowActive}">
+                                    IsActive="{Binding IsLabelYellowActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1045,10 +1045,10 @@
                                     <TextBlock Grid.Column="1" Text="Yellow" FontSize="11" />
                                     <TextBlock Grid.Column="2" Text="{Binding LabelYellowCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Green}"
-                                    controls:SidebarBucket.IsActive="{Binding IsLabelGreenActive}">
+                                    IsActive="{Binding IsLabelGreenActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1059,10 +1059,10 @@
                                     <TextBlock Grid.Column="1" Text="Green" FontSize="11" />
                                     <TextBlock Grid.Column="2" Text="{Binding LabelGreenCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Blue}"
-                                    controls:SidebarBucket.IsActive="{Binding IsLabelBlueActive}">
+                                    IsActive="{Binding IsLabelBlueActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1073,10 +1073,10 @@
                                     <TextBlock Grid.Column="1" Text="Blue" FontSize="11" />
                                     <TextBlock Grid.Column="2" Text="{Binding LabelBlueCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
-                            <Button Style="{StaticResource SidebarBucketStyle}"
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Purple}"
-                                    controls:SidebarBucket.IsActive="{Binding IsLabelPurpleActive}">
+                                    IsActive="{Binding IsLabelPurpleActive}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -1087,7 +1087,7 @@
                                     <TextBlock Grid.Column="1" Text="Purple" FontSize="11" />
                                     <TextBlock Grid.Column="2" Text="{Binding LabelPurpleCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
-                            </Button>
+                            </controls:SidebarBucketButton>
                         </StackPanel>
 
                         <!-- ── TAGS section ── -->
@@ -1095,19 +1095,19 @@
                         <ItemsControl x:Name="SidebarTagsList" ItemsSource="{Binding Tags}" Margin="6,0,6,4">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Style="{StaticResource SidebarBucketStyle}"
+                                    <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                             Command="{Binding DataContext.SetSidebarTagCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}">
-                                        <controls:SidebarBucket.IsActive>
+                                        <controls:SidebarBucketButton.IsActive>
                                             <MultiBinding Converter="{StaticResource Equality}">
                                                 <Binding Path="DataContext.TagFilter" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
                                                 <Binding />
                                             </MultiBinding>
-                                        </controls:SidebarBucket.IsActive>
-                                        <Button.Content>
+                                        </controls:SidebarBucketButton.IsActive>
+                                        <controls:SidebarBucketButton.Content>
                                             <TextBlock Text="{Binding Name}" FontSize="11" />
-                                        </Button.Content>
-                                    </Button>
+                                        </controls:SidebarBucketButton.Content>
+                                    </controls:SidebarBucketButton>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

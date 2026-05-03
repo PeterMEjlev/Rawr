@@ -56,7 +56,9 @@ public sealed partial class FolderNode : ObservableObject
 
         try
         {
-            foreach (var dir in Directory.EnumerateDirectories(FullPath).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+            foreach (var dir in Directory.EnumerateDirectories(FullPath)
+                .Where(d => !IsHiddenFromTree(d))
+                .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
             {
                 Children.Add(new FolderNode(Path.GetFileName(dir), dir));
             }
@@ -69,11 +71,16 @@ public sealed partial class FolderNode : ObservableObject
     {
         try
         {
-            return Directory.EnumerateDirectories(path).Any();
+            return Directory.EnumerateDirectories(path).Any(d => !IsHiddenFromTree(d));
         }
         catch
         {
             return false;
         }
     }
+
+    // RAWR's per-folder metadata directory (.rawr) is internal bookkeeping; users
+    // should never see or navigate into it from the folder tree.
+    private static bool IsHiddenFromTree(string directoryPath) =>
+        string.Equals(Path.GetFileName(directoryPath), ".rawr", StringComparison.OrdinalIgnoreCase);
 }
