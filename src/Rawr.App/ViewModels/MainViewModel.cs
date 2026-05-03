@@ -273,6 +273,274 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         root.IsExpanded = true; // lazy-loads children synchronously
     }
 
+    [RelayCommand]
+    private void CreateNewFolder(FolderNode? target)
+    {
+        // From the tree's "+" header button no node is supplied, so fall back to
+        // CurrentFolder. From the per-row context menu we get the right-clicked node.
+        var parent = target?.FullPath ?? CurrentFolder;
+        if (string.IsNullOrEmpty(parent) || !Directory.Exists(parent))
+        {
+            MessageBox.Show(
+                "Open a folder first to create a new subfolder.",
+                "No folder open",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var name = InputDialog.Show(Application.Current.MainWindow, "New Folder", "Folder name:");
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            MessageBox.Show(
+                "Folder name contains invalid characters.",
+                "Invalid name",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        var newPath = Path.Combine(parent, name);
+        if (Directory.Exists(newPath))
+        {
+            MessageBox.Show(
+                $"A folder named \"{name}\" already exists here.",
+                "Already exists",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(newPath);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Could not create folder:\n{ex.Message}",
+                "Create folder failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var parentNode = FindNodeByPath(parent);
+        parentNode?.RefreshChildren();
+    }
+
+    [RelayCommand]
+    private async Task RenameFolderAsync(FolderNode? node)
+    {
+        if (node == null || node.IsPlaceholder || string.IsNullOrEmpty(node.FullPath)) return;
+        if (!Directory.Exists(node.FullPath))
+        {
+            MessageBox.Show("Folder no longer exists.", "Rename failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var newName = InputDialog.Show(Application.Current.MainWindow, "Rename Folder", "New name:", node.Name);
+        if (string.IsNullOrWhiteSpace(newName) || newName == node.Name) return;
+
+        if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            MessageBox.Show("Folder name contains invalid characters.", "Invalid name", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var parentPath = Path.GetDirectoryName(node.FullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrEmpty(parentPath))
+        {
+            MessageBox.Show("Cannot rename a drive root.", "Rename failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var newPath = Path.Combine(parentPath, newName);
+        if (Directory.Exists(newPath))
+        {
+            MessageBox.Show($"A folder named \"{newName}\" already exists here.", "Already exists", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // If the renamed folder (or one of its ancestors) holds the active DB / cache,
+        // close it first or Directory.Move will fail with "in use".
+        var renamingActive = IsSameOrAncestorOfCurrent(node.FullPath);
+        if (renamingActive)
+        {
+            _db?.Dispose();
+            _db = null;
+            _cache = null;
+        }
+
+        try
+        {
+            Directory.Move(node.FullPath, newPath);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not rename folder:\n{ex.Message}", "Rename failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            // Best effort: if we closed the DB but the move failed, reopen it on the original path.
+            if (renamingActive && Directory.Exists(node.FullPath))
+                await LoadFolderAsync(node.FullPath);
+            return;
+        }
+
+        // Rebuild the tree from the (possibly renamed) root and reopen if needed.
+        var rootPath = FolderTreeRoots.Count > 0 ? FolderTreeRoots[0].FullPath : null;
+        if (rootPath != null && IsSameOrAncestor(node.FullPath, rootPath))
+        {
+            // Renamed the tree root itself — its FullPath changed.
+            rootPath = newPath;
+        }
+
+        if (renamingActive)
+        {
+            // Map the old current path into the new namespace.
+            var newCurrent = newPath + CurrentFolder.Substring(node.FullPath.Length);
+            await OpenRootFolderAsync(rootPath ?? newCurrent);
+            if (!string.Equals(newCurrent, rootPath, StringComparison.OrdinalIgnoreCase))
+                await LoadFolderAsync(newCurrent);
+        }
+        else if (rootPath != null)
+        {
+            // Just refresh the parent in the tree so the rename is reflected.
+            FindNodeByPath(parentPath)?.RefreshChildren();
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteFolderAsync(FolderNode? node)
+    {
+        if (node == null || node.IsPlaceholder || string.IsNullOrEmpty(node.FullPath)) return;
+        if (!Directory.Exists(node.FullPath))
+        {
+            // Already gone — just clean up the tree.
+            FindNodeByPath(Path.GetDirectoryName(node.FullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "")?.RefreshChildren();
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            $"Move \"{node.Name}\" to the Recycle Bin?\n\n{node.FullPath}",
+            "Delete Folder",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.OK) return;
+
+        var deletingActive = IsSameOrAncestorOfCurrent(node.FullPath);
+        if (deletingActive)
+        {
+            _db?.Dispose();
+            _db = null;
+            _cache = null;
+            AllPhotos.Clear();
+            FilteredPhotos.Clear();
+            Tags.Clear();
+            PreviewImage = null;
+            VideoSourceUri = null;
+            SelectedPhoto = null;
+            SelectedIndex = -1;
+            CurrentFolder = "";
+        }
+
+        try
+        {
+            FileSystem.DeleteDirectory(node.FullPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not delete folder:\n{ex.Message}", "Delete failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            // Reopen the active folder if we closed it preemptively.
+            if (deletingActive && Directory.Exists(node.FullPath))
+                await LoadFolderAsync(node.FullPath);
+            return;
+        }
+
+        var parentPath = Path.GetDirectoryName(node.FullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        var rootPath = FolderTreeRoots.Count > 0 ? FolderTreeRoots[0].FullPath : null;
+
+        if (rootPath != null && IsSameOrAncestor(node.FullPath, rootPath))
+        {
+            // The tree root itself was deleted. Drop the tree; user must Ctrl+O again.
+            FolderTreeRoots.Clear();
+            StatusText = "Folder deleted. Open a folder to begin (Ctrl+O)";
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(parentPath))
+            FindNodeByPath(parentPath)?.RefreshChildren();
+    }
+
+    [RelayCommand]
+    private void CopyFolderPath(FolderNode? node)
+    {
+        if (node == null || node.IsPlaceholder || string.IsNullOrEmpty(node.FullPath)) return;
+        try { Clipboard.SetText(node.FullPath); }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not copy to clipboard:\n{ex.Message}", "Copy failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenFolderInExplorer(FolderNode? node)
+    {
+        if (node == null || node.IsPlaceholder || string.IsNullOrEmpty(node.FullPath)) return;
+        if (!Directory.Exists(node.FullPath))
+        {
+            MessageBox.Show("Folder no longer exists.", "Open failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = node.FullPath,
+                UseShellExecute = true,
+                Verb = "open"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not open folder:\n{ex.Message}", "Open failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private bool IsSameOrAncestorOfCurrent(string path) =>
+        !string.IsNullOrEmpty(CurrentFolder) && IsSameOrAncestor(path, CurrentFolder);
+
+    private static bool IsSameOrAncestor(string ancestor, string descendant)
+    {
+        var a = ancestor.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var d = descendant.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.Equals(a, d, StringComparison.OrdinalIgnoreCase)) return true;
+        return d.StartsWith(a + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private FolderNode? FindNodeByPath(string path)
+    {
+        foreach (var root in FolderTreeRoots)
+        {
+            var hit = FindNode(root, path);
+            if (hit != null) return hit;
+        }
+        return null;
+
+        static FolderNode? FindNode(FolderNode node, string path)
+        {
+            if (string.Equals(node.FullPath, path, StringComparison.OrdinalIgnoreCase)) return node;
+            foreach (var child in node.Children)
+            {
+                if (child.IsPlaceholder) continue;
+                var hit = FindNode(child, path);
+                if (hit != null) return hit;
+            }
+            return null;
+        }
+    }
+
     public async Task LoadFolderAsync(string folderPath)
     {
         // Cancel any in-progress indexing

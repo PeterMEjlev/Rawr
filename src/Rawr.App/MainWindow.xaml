@@ -899,30 +899,91 @@
                     <StackPanel Margin="0,4,0,12">
 
                         <!-- ── FOLDERS section ── -->
-                        <TextBlock Text="FOLDERS" Style="{StaticResource SidebarSectionHeader}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="FOLDERS" Style="{StaticResource SidebarSectionHeader}" />
+                            <Button Grid.Column="1"
+                                    Content="+"
+                                    Command="{Binding CreateNewFolderCommand}"
+                                    ToolTip="Create new folder"
+                                    Width="20" Height="20"
+                                    Padding="0" Margin="0,12,8,0"
+                                    FontSize="14"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Foreground="{StaticResource TextDimBrush}" />
+                        </Grid>
                         <TreeView x:Name="FolderTreeView"
                                   ItemsSource="{Binding FolderTreeRoots}"
                                   Margin="6,0,6,4"
                                   Padding="2,2,2,2"
                                   MaxHeight="320"
-                                  SelectedItemChanged="FolderTreeView_SelectedItemChanged">
+                                  SelectedItemChanged="FolderTreeView_SelectedItemChanged"
+                                  PreviewMouseRightButtonDown="FolderTreeView_PreviewMouseRightButtonDown">
                             <TreeView.ItemTemplate>
                                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                                    <Grid>
+                                    <Grid Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <Grid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="New Folder"
+                                                          Command="{Binding PlacementTarget.Tag.CreateNewFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <MenuItem Header="Rename"
+                                                          Command="{Binding PlacementTarget.Tag.RenameFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <MenuItem Header="Delete"
+                                                          Command="{Binding PlacementTarget.Tag.DeleteFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <Separator />
+                                                <MenuItem Header="Copy Path"
+                                                          Command="{Binding PlacementTarget.Tag.CopyFolderPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <MenuItem Header="Open in File Explorer"
+                                                          Command="{Binding PlacementTarget.Tag.OpenFolderInExplorerCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            </ContextMenu>
+                                        </Grid.ContextMenu>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
+                                        <Path Grid.Column="0"
+                                              Data="M 1.5,1 L 4.5,1 A 1,1 0 0 1 5.5,2 L 6.5,3 L 12.5,3 A 1,1 0 0 1 13.5,4 L 13.5,9 A 1,1 0 0 1 12.5,10 L 1.5,10 A 1,1 0 0 1 0.5,9 L 0.5,2 A 1,1 0 0 1 1.5,1 Z"
+                                              StrokeThickness="1"
+                                              StrokeLineJoin="Round"
+                                              Width="14" Height="11"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,6,0"
+                                              SnapsToDevicePixels="True">
+                                            <Path.Style>
+                                                <Style TargetType="Path">
+                                                    <Setter Property="Stroke" Value="{StaticResource TextDimBrush}" />
+                                                    <Setter Property="Fill" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Stroke" Value="{StaticResource AccentBrush}" />
+                                                            <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Path.Style>
+                                        </Path>
+                                        <TextBlock Grid.Column="1"
                                                    Text="{Binding Name}"
                                                    FontSize="11"
                                                    Foreground="{StaticResource TextBrush}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="1"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2"
                                                    Text="{Binding MediaFileCount}"
                                                    FontSize="11"
                                                    Foreground="{StaticResource TextDimBrush}"
                                                    Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
                                                    Visibility="{Binding MediaFileCount, Converter={StaticResource NullToVisibility}}" />
                                     </Grid>
                                 </HierarchicalDataTemplate>

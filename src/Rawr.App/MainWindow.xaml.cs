@@ -243,6 +243,17 @@ public partial class MainWindow : Window
         await vm.LoadFolderAsync(node.FullPath);
     }
 
+    // Right-click on a tree row should focus that row before its context menu opens
+    // — otherwise the menu's commands would target whatever was previously selected.
+    private void FolderTreeView_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var hit = e.OriginalSource as DependencyObject;
+        while (hit != null && hit is not TreeViewItem)
+            hit = VisualTreeHelper.GetParent(hit);
+        if (hit is TreeViewItem item)
+            item.IsSelected = true;
+    }
+
     // ── Filmstrip: size tracks height so items shrink when strip is made smaller ──
 
     private void Filmstrip_SizeChanged(object sender, SizeChangedEventArgs e) => RecalcFilmstripItemWidth();

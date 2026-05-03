@@ -48,6 +48,17 @@ public sealed partial class FolderNode : ObservableObject
             LoadChildren();
     }
 
+    /// <summary>
+    /// Re-enumerates this folder's children from disk and expands the node so
+    /// the refreshed list is visible. Call after creating/deleting subfolders.
+    /// </summary>
+    public void RefreshChildren()
+    {
+        if (string.IsNullOrEmpty(FullPath)) return;
+        LoadChildren();
+        IsExpanded = true;
+    }
+
     private void LoadChildren()
     {
         _hasLoadedChildren = true;
