@@ -34,4 +34,40 @@ public sealed class PhotoMetadata
 
     public string ISOFormatted =>
         ISO > 0 ? $"ISO {ISO:F0}" : "";
+
+    /// <summary>
+    /// Make + Model with the brand prefix de-duplicated. Canon writes Make="Canon"
+    /// and Model="EOS R5", but some cameras embed the brand in Model already.
+    /// </summary>
+    public string CameraFormatted
+    {
+        get
+        {
+            var make  = CameraMake.Trim();
+            var model = CameraModel.Trim();
+            if (string.IsNullOrEmpty(make))  return model;
+            if (string.IsNullOrEmpty(model)) return make;
+            if (model.StartsWith(make, StringComparison.OrdinalIgnoreCase)) return model;
+            return $"{make} {model}";
+        }
+    }
+
+    public string DimensionsFormatted =>
+        WidthPx > 0 && HeightPx > 0 ? $"{WidthPx} × {HeightPx}" : "";
+
+    public string FileSizeFormatted
+    {
+        get
+        {
+            if (FileSizeBytes <= 0) return "";
+            const double KB = 1024, MB = KB * 1024, GB = MB * 1024;
+            return FileSizeBytes switch
+            {
+                >= (long)GB => $"{FileSizeBytes / GB:F2} GB",
+                >= (long)MB => $"{FileSizeBytes / MB:F1} MB",
+                >= (long)KB => $"{FileSizeBytes / KB:F0} KB",
+                _           => $"{FileSizeBytes} B",
+            };
+        }
+    }
 }

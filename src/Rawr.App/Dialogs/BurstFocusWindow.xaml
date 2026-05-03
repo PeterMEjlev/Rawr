@@ -155,8 +155,8 @@
                         </StackPanel>
 
                         <TextBlock Text="CAMERA" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding CurrentPhoto.Metadata.CameraModel, FallbackValue='—'}" Margin="0,0,0,2" />
-                        <TextBlock Text="{Binding CurrentPhoto.Metadata.LensModel, FallbackValue=''}"
+                        <TextBlock Text="{Binding CurrentPhoto.Metadata.CameraFormatted, FallbackValue='—'}" Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding CurrentPhoto.Metadata.LensModel,       FallbackValue=''}"
                                    Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,12" />
 
                         <TextBlock Text="EXPOSURE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
@@ -190,7 +190,23 @@
                         <TextBlock Text="{Binding CurrentPhoto.Metadata.CaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
 
                         <TextBlock Text="FILE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding CurrentPhoto.Extension, FallbackValue=''}" />
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Type "       Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CurrentPhoto.Extension, FallbackValue=''}" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Dimensions " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CurrentPhoto.Metadata.DimensionsFormatted, FallbackValue='—'}" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Size "       Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding CurrentPhoto.Metadata.FileSizeFormatted, FallbackValue='—'}" />
+                        </Grid>
                         <TextBlock Text="{Binding CurrentPhoto.FilePath, FallbackValue=''}"
                                    Foreground="{StaticResource TextDimBrush}"
                                    TextWrapping="Wrap" FontSize="10" Margin="0,4,0,0" />

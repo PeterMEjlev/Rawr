@@ -12,8 +12,8 @@ internal static class ExifHelper
         {
             using var ms = new MemoryStream(jpeg);
             var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-            var meta = decoder.Frames[0].Metadata as BitmapMetadata;
-            return Build(meta, fileSizeBytes);
+            var frame = decoder.Frames[0];
+            return Build(frame.Metadata as BitmapMetadata, frame.PixelWidth, frame.PixelHeight, fileSizeBytes);
         }
         catch
         {
@@ -26,8 +26,8 @@ internal static class ExifHelper
         try
         {
             var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-            var meta = decoder.Frames[0].Metadata as BitmapMetadata;
-            return Build(meta, fileSizeBytes);
+            var frame = decoder.Frames[0];
+            return Build(frame.Metadata as BitmapMetadata, frame.PixelWidth, frame.PixelHeight, fileSizeBytes);
         }
         catch
         {
@@ -35,7 +35,7 @@ internal static class ExifHelper
         }
     }
 
-    private static PhotoMetadata Build(BitmapMetadata? meta, long fileSizeBytes)
+    private static PhotoMetadata Build(BitmapMetadata? meta, int widthPx, int heightPx, long fileSizeBytes)
     {
         DateTime? captureTime = null;
         try
@@ -57,6 +57,8 @@ internal static class ExifHelper
             Aperture     = FltOr(meta, "/app1/ifd/exif/{ushort=33437}", "/ifd/exif/{ushort=33437}"),
             ShutterSpeed = FltOr(meta, "/app1/ifd/exif/{ushort=33434}", "/ifd/exif/{ushort=33434}"),
             FocalLength  = FltOr(meta, "/app1/ifd/exif/{ushort=37386}", "/ifd/exif/{ushort=37386}"),
+            WidthPx      = widthPx,
+            HeightPx     = heightPx,
             FileSizeBytes = fileSizeBytes,
             CaptureTime  = captureTime,
         };
