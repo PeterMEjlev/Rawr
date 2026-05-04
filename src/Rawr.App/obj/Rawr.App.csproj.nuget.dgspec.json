@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj": {}
+    "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj": {}
   },
   "projects": {
-    "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj": {
+    "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
+        "projectUniqueName": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
         "projectName": "RAWR",
-        "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
-        "packagesPath": "C:\\Users\\pejlev\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\obj\\",
+        "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
+        "packagesPath": "C:\\Users\\Torsten\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.App\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\pejlev\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\Torsten\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0-windows"
@@ -26,11 +26,11 @@
           "net9.0-windows7.0": {
             "targetAlias": "net9.0-windows",
             "projectReferences": {
-              "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
-                "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
+              "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
+                "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
               },
-              "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj": {
-                "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj"
+              "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj": {
+                "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj"
               }
             }
           }
@@ -45,7 +45,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net9.0-windows7.0": {
@@ -67,24 +67,6 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Host.win-x64",
-              "version": "[9.0.15, 9.0.15]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            },
-            {
-              "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
@@ -93,21 +75,21 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.300/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
+    "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj",
+        "projectUniqueName": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj",
         "projectName": "Rawr.Core",
-        "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj",
-        "packagesPath": "C:\\Users\\pejlev\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\obj\\",
+        "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj",
+        "packagesPath": "C:\\Users\\Torsten\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\pejlev\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\Torsten\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
@@ -131,7 +113,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net9.0": {
@@ -157,40 +139,26 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            },
-            {
-              "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.300/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj": {
+    "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj",
+        "projectUniqueName": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj",
         "projectName": "Rawr.Raw",
-        "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj",
-        "packagesPath": "C:\\Users\\pejlev\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Raw\\obj\\",
+        "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj",
+        "packagesPath": "C:\\Users\\Torsten\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Raw\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\pejlev\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\Torsten\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0-windows"
@@ -202,8 +170,8 @@
           "net9.0-windows7.0": {
             "targetAlias": "net9.0-windows",
             "projectReferences": {
-              "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
-                "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
+              "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
+                "projectPath": "C:\\Users\\Torsten\\Desktop\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
               }
             }
           }
@@ -218,7 +186,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net9.0-windows7.0": {
@@ -234,20 +202,6 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            },
-            {
-              "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[9.0.15, 9.0.15]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
@@ -256,7 +210,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.300/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

@@ -41,6 +41,12 @@ public partial class MainWindow : Window
     // slider while playing; the suppress flag prevents the timer-driven slider update
     // from being interpreted as a user scrub.
     private readonly DispatcherTimer _videoTick = new() { Interval = TimeSpan.FromMilliseconds(250) };
+
+    // Debounces the high-res preview load triggered by the zoom wheel. Swapping in a
+    // full-resolution bitmap mid-scroll stalls the render thread when WPF uploads the
+    // texture; deferring the load until the user pauses keeps rapid zoom smooth.
+    private readonly DispatcherTimer _hiResZoomTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
+
     private bool _videoIsPlaying;
     private bool _videoSliderIsDragging;
     private bool _videoSuppressSliderEvent;
@@ -100,6 +106,13 @@ public partial class MainWindow : Window
         }
 
         _videoTick.Tick += VideoTick_OnTick;
+
+        _hiResZoomTimer.Tick += (_, _) =>
+        {
+            _hiResZoomTimer.Stop();
+            if (PreviewScale.ScaleX > MinZoom + 1e-3 && DataContext is MainViewModel vm)
+                _ = vm.LoadHighResPreviewAsync();
+        };
 
         Closing += (_, _) => SaveLayoutSettings();
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
@@ -363,9 +376,16 @@ public partial class MainWindow : Window
         PreviewScale.ScaleX = PreviewScale.ScaleY = newScale;
         UpdateZoomIndicator(newScale);
 
-        // First time the user zooms in, upgrade to full-resolution source.
-        if (newScale > MinZoom + 1e-3 && DataContext is MainViewModel vm)
-            _ = vm.LoadHighResPreviewAsync();
+        // Defer the full-resolution upgrade until the wheel stops — see _hiResZoomTimer.
+        if (newScale > MinZoom + 1e-3)
+        {
+            _hiResZoomTimer.Stop();
+            _hiResZoomTimer.Start();
+        }
+        else
+        {
+            _hiResZoomTimer.Stop();
+        }
 
         e.Handled = true;
     }
@@ -426,6 +446,7 @@ public partial class MainWindow : Window
 
     private void ResetPreviewZoom()
     {
+        _hiResZoomTimer.Stop();
         PreviewScale.ScaleX = PreviewScale.ScaleY = 1.0;
         PreviewTranslate.X = 0;
         PreviewTranslate.Y = 0;
