@@ -828,12 +828,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetBasePreview(BitmapSource bitmap)
     {
         _basePreviewImage = bitmap;
-        // Once the linear RAW preview is in hand, never let a JPEG bitmap overwrite
-        // it on the screen — the JPEG is 8-bit and banded at extreme EV; RAW isn't.
-        // We still cache _basePreviewImage above so a later RAW failure can fall
-        // back to it.
-        if (_baseRawImage != null) return;
+        // The linear RAW path is the only one that doesn't band under ±EV, so it
+        // wins on screen by default. But the cached RAW is downsampled to
+        // LinearRawPreviewWidth — when a higher-resolution JPEG bitmap arrives (zoom
+        // time, after ExtractFullJpeg pulls the sensor-sized embedded preview) and
+        // the user isn't applying EV, prefer it so pixel-peeping shows real detail.
+        if (_baseRawImage != null && !PreferJpegOverRaw(bitmap)) return;
         PreviewImage = ExposureCompensation == 0.0 ? bitmap : ExposureProcessor.Apply(bitmap, ExposureCompensation);
+    }
+
+    private bool PreferJpegOverRaw(BitmapSource jpegBitmap)
+    {
+        var raw = _baseRawImage;
+        if (raw == null) return true;
+        if (ExposureCompensation != 0.0) return false;
+        return jpegBitmap.PixelWidth > raw.Width;
     }
 
     [RelayCommand] private void IncreaseExposure() =>
@@ -855,8 +864,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task ApplyExposureAsync(PhotoItem photo, double ev, CancellationToken ct)
     {
-        // Prefer the linear RAW path when it's been decoded — that's the only path
-        // that reflects true sensor highlights/shadows.
+        // At EV=0 we pay no precision cost going through the JPEG, so if a higher-res
+        // JPEG bitmap is cached (typical after zoom-time ExtractFullJpeg), use it
+        // directly — the RAW path's cached buffer is downsampled to LinearRawPreviewWidth.
+        if (ev == 0.0 && _basePreviewImage != null
+            && (_baseRawImage == null || _basePreviewImage.PixelWidth > _baseRawImage.Width))
+        {
+            if (SelectedPhoto == photo) PreviewImage = _basePreviewImage;
+            return;
+        }
+
+        // Otherwise prefer the linear RAW path — that's the only one that reflects
+        // true sensor highlights/shadows under non-zero EV.
         var raw = _baseRawImage;
         if (raw != null)
         {
@@ -918,10 +937,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _ = ComputeHistogramAsync(photo, ct);
             // Re-render the current preview through the linear pipeline so the user
             // sees the more accurate rendition even at EV=0, and so subsequent slider
-            // moves operate on real sensor data.
+            // moves operate on real sensor data. Skip the swap if a higher-res JPEG
+            // is already on screen at EV=0 — clobbering it would visibly drop detail
+            // for someone pixel-peeping at zoom.
             var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ExposureCompensation, ct), ct);
             if (!ct.IsCancellationRequested && SelectedPhoto == photo)
-                PreviewImage = rendered;
+            {
+                bool keepJpeg = ExposureCompensation == 0.0
+                    && _basePreviewImage != null
+                    && _basePreviewImage.PixelWidth > raw.Width;
+                if (!keepJpeg) PreviewImage = rendered;
+            }
         }
         catch (OperationCanceledException) { /* selection moved on */ }
         catch

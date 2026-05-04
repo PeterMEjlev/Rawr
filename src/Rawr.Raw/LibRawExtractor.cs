@@ -38,7 +38,12 @@ public sealed class LibRawExtractor : IPreviewExtractor
 
     public byte[]? ExtractPreview(string filePath) => ExtractDefaultThumb(filePath);
 
-    public byte[]? ExtractFullJpeg(string filePath) => ExtractDefaultThumb(filePath);
+    // For zoom-time inspection we need the sensor-sized JPEG. On CR3 the default
+    // unpack_thumb often returns the medium ~1620×1080 PRVW preview rather than the
+    // full-res JPEG in track 1, so we probe the indexed thumbs_list and pick the
+    // largest. Falls back to ExtractDefaultThumb on older LibRaw builds without
+    // unpack_thumb_ex (LibRaw 0.21+).
+    public byte[]? ExtractFullJpeg(string filePath) => ExtractLargestThumb(filePath);
 
     /// <summary>
     /// Decode the RAW sensor data into a 16-bit linear RGB image (camera WB applied,
@@ -170,7 +175,6 @@ public sealed class LibRawExtractor : IPreviewExtractor
         if (!_isAvailable) return null;
 
         nint handle = 0;
-        nint thumbImage = 0;
         try
         {
             handle = LibRawInterop.Init(0);
@@ -182,31 +186,7 @@ public sealed class LibRawExtractor : IPreviewExtractor
             ret = LibRawInterop.UnpackThumb(handle);
             if (ret != 0) return null;
 
-            thumbImage = LibRawInterop.MakeMemThumb(handle, out int errCode);
-            if (thumbImage == 0 || errCode != 0) return null;
-
-            // libraw_processed_image_t layout:
-            //   ushort type       (offset 0)  — LIBRAW_IMAGE_JPEG=1 or LIBRAW_IMAGE_BITMAP=2
-            //   ushort height     (offset 2)
-            //   ushort width      (offset 4)
-            //   ushort colors     (offset 6)
-            //   ushort bits       (offset 8)
-            //   int    data_size  (offset 12, accounting for alignment)
-            //   byte[] data       (offset 16)
-            //
-            // NOTE: These offsets may vary by platform/alignment. Validate with your LibRaw build.
-            // TODO: Consider using a C wrapper for reliable struct access.
-
-            var type = Marshal.ReadInt16(thumbImage, 0);
-            var dataSize = Marshal.ReadInt32(thumbImage, 12);
-
-            if (dataSize <= 0 || dataSize > 50_000_000) // sanity check: max 50MB
-                return null;
-
-            var data = new byte[dataSize];
-            Marshal.Copy(thumbImage + 16, data, 0, dataSize);
-
-            return data;
+            return ReadCurrentThumb(handle, out _);
         }
         catch
         {
@@ -214,12 +194,108 @@ public sealed class LibRawExtractor : IPreviewExtractor
         }
         finally
         {
-            if (thumbImage != 0) LibRawInterop.ClearMem(thumbImage);
             if (handle != 0)
             {
                 LibRawInterop.Recycle(handle);
                 LibRawInterop.Close(handle);
             }
+        }
+    }
+
+    // Probe the indexed thumbs_list and return the largest preview by pixel count.
+    // CR3 carries up to three previews (THMB ~320×214, PRVW ~1620×1080, full-sensor in
+    // track 1); only the indexed variant reliably reaches track 1. Iterates a small
+    // bounded range and picks the largest successfully decoded thumb.
+    private byte[]? ExtractLargestThumb(string filePath)
+    {
+        if (!_isAvailable) return null;
+
+        nint handle = 0;
+        try
+        {
+            handle = LibRawInterop.Init(0);
+            if (handle == 0) return null;
+
+            int ret = LibRawInterop.OpenFile(handle, filePath);
+            if (ret != 0) return null;
+
+            byte[]? best = null;
+            int bestPixels = 0;
+            bool exAvailable = true;
+
+            for (int idx = 0; idx < 4 && exAvailable; idx++)
+            {
+                try
+                {
+                    if (LibRawInterop.UnpackThumbEx(handle, idx) != 0)
+                        break; // index out of range or decode failure — done
+                }
+                catch (EntryPointNotFoundException)
+                {
+                    exAvailable = false;
+                    break;
+                }
+
+                var data = ReadCurrentThumb(handle, out int pixels);
+                if (data != null && pixels > bestPixels)
+                {
+                    best = data;
+                    bestPixels = pixels;
+                }
+            }
+
+            if (best != null) return best;
+
+            // Fallback: older LibRaw without unpack_thumb_ex.
+            if (LibRawInterop.UnpackThumb(handle) != 0) return null;
+            return ReadCurrentThumb(handle, out _);
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (handle != 0)
+            {
+                LibRawInterop.Recycle(handle);
+                LibRawInterop.Close(handle);
+            }
+        }
+    }
+
+    // Reads the most recently unpacked thumb out of LibRaw's processed-image struct.
+    // libraw_processed_image_t layout (validated against MSVC/Windows alignment):
+    //   int    type       (0)   — LIBRAW_IMAGE_JPEG=1, LIBRAW_IMAGE_BITMAP=2
+    //   ushort height     (4)
+    //   ushort width      (6)
+    //   ushort colors     (8)
+    //   ushort bits       (10)
+    //   int    data_size  (12)
+    //   byte[] data       (16)
+    private static byte[]? ReadCurrentThumb(nint handle, out int pixels)
+    {
+        pixels = 0;
+        nint thumbImage = LibRawInterop.MakeMemThumb(handle, out int errCode);
+        if (thumbImage == 0 || errCode != 0) return null;
+
+        try
+        {
+            ushort height = (ushort)Marshal.ReadInt16(thumbImage, 4);
+            ushort width = (ushort)Marshal.ReadInt16(thumbImage, 6);
+            int dataSize = Marshal.ReadInt32(thumbImage, 12);
+
+            if (dataSize <= 0 || dataSize > 100_000_000) // sanity: cap at 100MB
+                return null;
+
+            var data = new byte[dataSize];
+            Marshal.Copy(thumbImage + 16, data, 0, dataSize);
+            pixels = width * height;
+            return data;
+        }
+        finally
+        {
+            LibRawInterop.ClearMem(thumbImage);
         }
     }
 

@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Rawr.App.Dialogs;
@@ -107,11 +108,16 @@ public partial class MainWindow : Window
 
         _videoTick.Tick += VideoTick_OnTick;
 
-        _hiResZoomTimer.Tick += (_, _) =>
+        _hiResZoomTimer.Tick += async (_, _) =>
         {
             _hiResZoomTimer.Stop();
             if (PreviewScale.ScaleX > MinZoom + 1e-3 && DataContext is MainViewModel vm)
-                _ = vm.LoadHighResPreviewAsync();
+            {
+                await vm.LoadHighResPreviewAsync();
+                // Source dimensions just changed — re-evaluate the scaling mode
+                // now that the full-res bitmap is in place.
+                UpdatePreviewScalingMode(PreviewScale.ScaleX);
+            }
         };
 
         Closing += (_, _) => SaveLayoutSettings();
@@ -375,6 +381,7 @@ public partial class MainWindow : Window
 
         PreviewScale.ScaleX = PreviewScale.ScaleY = newScale;
         UpdateZoomIndicator(newScale);
+        UpdatePreviewScalingMode(newScale);
 
         // Defer the full-resolution upgrade until the wheel stops — see _hiResZoomTimer.
         if (newScale > MinZoom + 1e-3)
@@ -409,8 +416,13 @@ public partial class MainWindow : Window
                 PreviewTranslate.Y = pt.Y * (1 - ratio) + PreviewTranslate.Y * ratio;
                 PreviewScale.ScaleX = PreviewScale.ScaleY = DoubleClickZoom;
                 UpdateZoomIndicator(DoubleClickZoom);
+                UpdatePreviewScalingMode(DoubleClickZoom);
                 if (DataContext is MainViewModel vm)
-                    _ = vm.LoadHighResPreviewAsync();
+                {
+                    _ = vm.LoadHighResPreviewAsync().ContinueWith(
+                        _ => UpdatePreviewScalingMode(PreviewScale.ScaleX),
+                        TaskScheduler.FromCurrentSynchronizationContext());
+                }
             }
             e.Handled = true;
             return;
@@ -451,6 +463,27 @@ public partial class MainWindow : Window
         PreviewTranslate.X = 0;
         PreviewTranslate.Y = 0;
         ZoomIndicator.Visibility = Visibility.Collapsed;
+        UpdatePreviewScalingMode(1.0);
+    }
+
+    // Pick a scaling filter based on whether each source pixel will end up smaller
+    // (downscale → Linear smooths nicely) or larger (upscale → NearestNeighbor shows
+    // actual sensor pixels instead of bilinear smudge). Compared against the source
+    // PixelWidth so the threshold is correct regardless of whether we're showing the
+    // screen-size preview or the full-resolution bitmap.
+    private void UpdatePreviewScalingMode(double scale)
+    {
+        var mode = BitmapScalingMode.Linear;
+        if (PreviewImageElement.Source is BitmapSource src && src.PixelWidth > 0)
+        {
+            double displayedWidth = PreviewImageElement.ActualWidth * scale;
+            if (displayedWidth > src.PixelWidth)
+                mode = BitmapScalingMode.NearestNeighbor;
+        }
+
+        RenderOptions.SetBitmapScalingMode(PreviewImageElement, mode);
+        if (FocusPeakingOverlayImage != null)
+            RenderOptions.SetBitmapScalingMode(FocusPeakingOverlayImage, mode);
     }
 
     private void UpdateZoomIndicator(double scale)

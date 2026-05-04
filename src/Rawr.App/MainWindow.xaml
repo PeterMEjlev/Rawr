@@ -1569,7 +1569,8 @@
                                       Visibility="{Binding VideoSourceUri, Converter={StaticResource NullToVisibility}}" />
 
                         <!-- Focus Peaking overlay — shares transforms with PreviewImageElement via binding -->
-                        <Image Source="{Binding FocusPeakingOverlay}"
+                        <Image x:Name="FocusPeakingOverlayImage"
+                               Source="{Binding FocusPeakingOverlay}"
                                Stretch="Uniform"
                                SnapsToDevicePixels="True"
                                RenderOptions.BitmapScalingMode="Linear"
