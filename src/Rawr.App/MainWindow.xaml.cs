@@ -21,7 +21,6 @@ public partial class MainWindow : Window
     private const double MinZoom = 1.0;
     private const double MaxZoom = 64.0;
     private const double ZoomStep = 1.2;
-    private const double DoubleClickZoom = 3.0;
 
     private static readonly string SettingsDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR");
@@ -410,13 +409,14 @@ public partial class MainWindow : Window
             }
             else
             {
+                var dblClickZoom = AppSettings.Current.DoubleClickZoom;
                 var pt = e.GetPosition(PreviewImageElement);
-                var ratio = DoubleClickZoom / PreviewScale.ScaleX;
+                var ratio = dblClickZoom / PreviewScale.ScaleX;
                 PreviewTranslate.X = pt.X * (1 - ratio) + PreviewTranslate.X * ratio;
                 PreviewTranslate.Y = pt.Y * (1 - ratio) + PreviewTranslate.Y * ratio;
-                PreviewScale.ScaleX = PreviewScale.ScaleY = DoubleClickZoom;
-                UpdateZoomIndicator(DoubleClickZoom);
-                UpdatePreviewScalingMode(DoubleClickZoom);
+                PreviewScale.ScaleX = PreviewScale.ScaleY = dblClickZoom;
+                UpdateZoomIndicator(dblClickZoom);
+                UpdatePreviewScalingMode(dblClickZoom);
                 if (DataContext is MainViewModel vm)
                 {
                     _ = vm.LoadHighResPreviewAsync().ContinueWith(

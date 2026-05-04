@@ -31,7 +31,6 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     private const double MinZoom = 1.0;
     private const double MaxZoom = 64.0;
     private const double ZoomStep = 1.2;
-    private const double DoubleClickZoom = 3.0;
 
     private readonly MainViewModel _vm;
     private readonly List<PhotoItem> _photos;
@@ -233,12 +232,13 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             }
             else
             {
+                var dblClickZoom = AppSettings.Current.DoubleClickZoom;
                 var pt = e.GetPosition(PreviewImageElement);
-                var ratio = DoubleClickZoom / PreviewScale.ScaleX;
+                var ratio = dblClickZoom / PreviewScale.ScaleX;
                 PreviewTranslate.X = pt.X * (1 - ratio) + PreviewTranslate.X * ratio;
                 PreviewTranslate.Y = pt.Y * (1 - ratio) + PreviewTranslate.Y * ratio;
-                PreviewScale.ScaleX = PreviewScale.ScaleY = DoubleClickZoom;
-                UpdateZoomIndicator(DoubleClickZoom);
+                PreviewScale.ScaleX = PreviewScale.ScaleY = dblClickZoom;
+                UpdateZoomIndicator(dblClickZoom);
                 _ = LoadFullJpegIfNeededAsync();
             }
             e.Handled = true;

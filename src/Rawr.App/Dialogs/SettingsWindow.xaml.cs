@@ -56,6 +56,7 @@ public partial class SettingsWindow : Window
         ThumbFirstChronological.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.FirstChronological;
         CollapseOnOpen.IsChecked = current.CollapseBurstsOnOpen;
         DateFormatBox.Text = current.DateFormat;
+        DoubleClickZoomSlider.Value = Math.Clamp(current.DoubleClickZoom, 1.5, 16.0);
 
         var sortIdx = Array.FindIndex(SortOptions, o => o.Value == current.DefaultSortField);
         SortFieldBox.SelectedIndex = sortIdx >= 0 ? sortIdx : 0;
@@ -278,6 +279,7 @@ public partial class SettingsWindow : Window
                                 : ClippingModeBoth.IsChecked    == true ? ClippingMode.Both
                                 : ClippingMode.Highlights,
             ClippingThreshold   = (byte)ClippingThresholdSlider.Value,
+            DoubleClickZoom     = DoubleClickZoomSlider.Value,
             KeyBindings         = new Dictionary<string, string>(_editedBindings),
         };
         DialogResult = true;

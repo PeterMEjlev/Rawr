@@ -52,6 +52,31 @@
                                    TextWrapping="Wrap"
                                    Margin="0,4,0,20" />
 
+                        <!-- Zoom -->
+                        <Separator Margin="0,0,0,16" />
+                        <TextBlock Text="ZOOM"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="0,0,0,10" />
+                        <TextBlock Text="Double-click zoom level" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="DoubleClickZoomSlider"
+                                    Minimum="1.5" Maximum="16"
+                                    SmallChange="0.5" LargeChange="1"
+                                    TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                    Width="280"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=DoubleClickZoomSlider, Path=Value, StringFormat={}{0:F1}}" />
+                                <Run Text="×" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Zoom level applied when double-clicking a photo in the preview."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,20" />
+
                         <!-- Sorting -->
                         <Separator Margin="0,0,0,16" />
                         <TextBlock Text="SORTING"

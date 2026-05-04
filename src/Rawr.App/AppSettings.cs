@@ -33,6 +33,8 @@ public sealed class AppSettings
     // 99 means strictly near-saturated; lower values are more permissive.
     public byte ClippingThreshold { get; set; } = 99;
 
+    public double DoubleClickZoom { get; set; } = 3.0;
+
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
     public Dictionary<string, string> KeyBindings { get; set; } = new();
@@ -74,6 +76,7 @@ public sealed class AppSettings
         FocusPeakingThreshold = FocusPeakingThreshold,
         ClippingMode = ClippingMode,
         ClippingThreshold = ClippingThreshold,
+        DoubleClickZoom = DoubleClickZoom,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
     };
 
