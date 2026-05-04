@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
         Height="640"
-        Width="520"
-        MinHeight="400"
-        MinWidth="460"
+        Width="560"
+        MinHeight="440"
+        MinWidth="500"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
         Background="#FF1E1E1E"
@@ -13,169 +13,202 @@
         FontFamily="Segoe UI"
         FontSize="12">
 
-    <ScrollViewer x:Name="RootScrollViewer"
-                  VerticalScrollBarVisibility="Auto"
-                  Background="#FF1E1E1E"
-                  PreviewMouseWheel="RootScrollViewer_PreviewMouseWheel">
-        <StackPanel Margin="20,16">
+    <Grid Background="#FF1E1E1E">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-            <!-- ── BURSTS ── -->
-            <TextBlock Text="BURSTS"
-                       FontSize="10"
-                       Foreground="{StaticResource TextDimBrush}"
-                       Margin="0,0,0,10" />
+        <TabControl Grid.Row="0" Margin="12,12,12,0">
 
-            <!-- Max gap -->
-            <TextBlock Text="Max gap between shots" Margin="0,0,0,4" />
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <Slider x:Name="GapSlider"
-                        Minimum="1" Maximum="30"
-                        SmallChange="1" LargeChange="5"
-                        TickFrequency="1" IsSnapToTickEnabled="True"
-                        Width="280"
-                        VerticalAlignment="Center" />
-                <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                    <Run Text="{Binding ElementName=GapSlider, Path=Value, StringFormat={}{0:F0}}" />
-                    <Run Text=" s" Foreground="{StaticResource TextDimBrush}" />
-                </TextBlock>
-            </StackPanel>
-            <TextBlock Text="Photos taken within this interval on the same camera are grouped into a burst."
-                       Foreground="{StaticResource TextDimBrush}"
-                       FontSize="10"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,14" />
+            <!-- ── GENERAL TAB ── -->
+            <TabItem Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              PreviewMouseWheel="TabScroll_PreviewMouseWheel">
+                    <StackPanel Margin="16,14">
 
-            <!-- Visual similarity strictness -->
-            <TextBlock Text="Visual similarity" Margin="0,0,0,4" />
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <Slider x:Name="SimilaritySlider"
-                        Minimum="0" Maximum="100"
-                        SmallChange="5" LargeChange="10"
-                        TickFrequency="5" IsSnapToTickEnabled="True"
-                        Width="280"
-                        VerticalAlignment="Center" />
-                <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                    <Run Text="{Binding ElementName=SimilaritySlider, Path=Value, StringFormat={}{0:F0}}" />
-                </TextBlock>
-            </StackPanel>
-            <TextBlock Text="How visually similar two shots must be to join the same burst. Lower groups looser scenes; higher only groups near-identical frames."
-                       Foreground="{StaticResource TextDimBrush}"
-                       FontSize="10"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,14" />
+                        <!-- Date format -->
+                        <TextBlock Text="DISPLAY"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="0,0,0,10" />
+                        <TextBlock Text="Date format" Margin="0,0,0,4" />
+                        <TextBox x:Name="DateFormatBox"
+                                 TextChanged="DateFormatBox_TextChanged"
+                                 Margin="0,0,0,6" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Preview: " Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="DatePreview" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                            <TextBlock Text="Presets:" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <Button Content="dd-MM-yyyy" Tag="dd-MM-yyyy  HH:mm:ss" Click="Preset_Click" Margin="0,0,4,0" Padding="6,3" />
+                            <Button Content="MM/dd/yyyy" Tag="MM/dd/yyyy  HH:mm:ss" Click="Preset_Click" Margin="0,0,4,0" Padding="6,3" />
+                            <Button Content="yyyy-MM-dd" Tag="yyyy-MM-dd  HH:mm:ss" Click="Preset_Click" Padding="6,3" />
+                        </StackPanel>
+                        <TextBlock Text="Uses .NET date format strings (e.g. dd-MM-yyyy HH:mm:ss)."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,20" />
 
-            <!-- Burst thumbnail -->
-            <TextBlock Text="Group thumbnail" Margin="0,0,0,6" />
-            <RadioButton x:Name="ThumbHighestRated"
-                         Content="Highest rated  (falls back to first chronological)"
-                         GroupName="BurstThumb"
-                         Margin="0,0,0,4" />
-            <RadioButton x:Name="ThumbFirstChronological"
-                         Content="First chronological"
-                         GroupName="BurstThumb"
-                         Margin="0,0,0,14" />
+                        <!-- Sorting -->
+                        <Separator Margin="0,0,0,16" />
+                        <TextBlock Text="SORTING"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="0,0,0,10" />
+                        <TextBlock Text="Default sort when opening a folder" Margin="0,0,0,6" />
+                        <ComboBox x:Name="SortFieldBox" HorizontalAlignment="Left" MinWidth="160" Margin="0,0,0,8" />
 
-            <!-- Collapse on open -->
-            <CheckBox x:Name="CollapseOnOpen"
-                      Content="Collapse bursts when opening a folder"
-                      Margin="0,0,0,4" />
-            <TextBlock Text="When enabled, each burst shows as a single stacked tile on folder load."
-                       Foreground="{StaticResource TextDimBrush}"
-                       FontSize="10"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,20" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-            <!-- ── DISPLAY ── -->
-            <Separator Margin="0,0,0,16" />
-            <TextBlock Text="DISPLAY"
-                       FontSize="10"
-                       Foreground="{StaticResource TextDimBrush}"
-                       Margin="0,0,0,10" />
+            <!-- ── BURSTS TAB ── -->
+            <TabItem Header="Bursts">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              PreviewMouseWheel="TabScroll_PreviewMouseWheel">
+                    <StackPanel Margin="16,14">
 
-            <!-- Date format -->
-            <TextBlock Text="Date format" Margin="0,0,0,4" />
-            <TextBox x:Name="DateFormatBox"
-                     TextChanged="DateFormatBox_TextChanged"
-                     Margin="0,0,0,6" />
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <TextBlock Text="Preview: " Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
-                <TextBlock x:Name="DatePreview" VerticalAlignment="Center" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
-                <TextBlock Text="Presets:" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <Button Content="dd-MM-yyyy" Tag="dd-MM-yyyy  HH:mm:ss" Click="Preset_Click" Margin="0,0,4,0" Padding="6,3" />
-                <Button Content="MM/dd/yyyy" Tag="MM/dd/yyyy  HH:mm:ss" Click="Preset_Click" Margin="0,0,4,0" Padding="6,3" />
-                <Button Content="yyyy-MM-dd" Tag="yyyy-MM-dd  HH:mm:ss" Click="Preset_Click" Padding="6,3" />
-            </StackPanel>
-            <TextBlock Text="Uses .NET date format strings (e.g. dd-MM-yyyy HH:mm:ss)."
-                       Foreground="{StaticResource TextDimBrush}"
-                       FontSize="10"
-                       TextWrapping="Wrap"
-                       Margin="0,4,0,20" />
+                        <!-- Max gap -->
+                        <TextBlock Text="Max gap between shots" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="GapSlider"
+                                    Minimum="1" Maximum="30"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="280"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=GapSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text=" s" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Photos taken within this interval on the same camera are grouped into a burst."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
 
-            <!-- ── SORTING ── -->
-            <Separator Margin="0,0,0,16" />
-            <TextBlock Text="SORTING"
-                       FontSize="10"
-                       Foreground="{StaticResource TextDimBrush}"
-                       Margin="0,0,0,10" />
+                        <!-- Visual similarity strictness -->
+                        <TextBlock Text="Visual similarity" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="SimilaritySlider"
+                                    Minimum="0" Maximum="100"
+                                    SmallChange="5" LargeChange="10"
+                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Width="280"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=SimilaritySlider, Path=Value, StringFormat={}{0:F0}}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="How visually similar two shots must be to join the same burst. Lower groups looser scenes; higher only groups near-identical frames."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
 
-            <TextBlock Text="Default sort when opening a folder" Margin="0,0,0,6" />
-            <ComboBox x:Name="SortFieldBox" HorizontalAlignment="Left" MinWidth="160" Margin="0,0,0,20" />
+                        <!-- Burst thumbnail -->
+                        <TextBlock Text="Group thumbnail" Margin="0,0,0,6" />
+                        <RadioButton x:Name="ThumbHighestRated"
+                                     Content="Highest rated  (falls back to first chronological)"
+                                     GroupName="BurstThumb"
+                                     Margin="0,0,0,4" />
+                        <RadioButton x:Name="ThumbFirstChronological"
+                                     Content="First chronological"
+                                     GroupName="BurstThumb"
+                                     Margin="0,0,0,14" />
 
-            <!-- ── FOCUS PEAKING ── -->
-            <Separator Margin="0,0,0,16" />
-            <TextBlock Text="FOCUS PEAKING"
-                       FontSize="10"
-                       Foreground="{StaticResource TextDimBrush}"
-                       Margin="0,0,0,10" />
+                        <!-- Collapse on open -->
+                        <CheckBox x:Name="CollapseOnOpen"
+                                  Content="Collapse bursts when opening a folder"
+                                  Margin="0,0,0,4" />
+                        <TextBlock Text="When enabled, each burst shows as a single stacked tile on folder load."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8" />
 
-            <!-- Strictness -->
-            <TextBlock Text="Strictness" Margin="0,0,0,4" />
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <Slider x:Name="FocusPeakingStrictnessSlider"
-                        Minimum="10" Maximum="100"
-                        SmallChange="5" LargeChange="10"
-                        TickFrequency="5" IsSnapToTickEnabled="True"
-                        Width="280"
-                        VerticalAlignment="Center" />
-                <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                    <Run Text="{Binding ElementName=FocusPeakingStrictnessSlider, Path=Value, StringFormat={}{0:F0}}" />
-                </TextBlock>
-            </StackPanel>
-            <TextBlock Text="Higher values highlight only very sharp in-focus edges. Lower values also include softer transitions."
-                       Foreground="{StaticResource TextDimBrush}"
-                       FontSize="10"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,20" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-            <!-- ── KEYBOARD SHORTCUTS ── -->
-            <Separator Margin="0,0,0,16" />
-            <DockPanel Margin="0,0,0,10">
-                <TextBlock Text="KEYBOARD SHORTCUTS"
-                           FontSize="10"
-                           Foreground="{StaticResource TextDimBrush}"
-                           VerticalAlignment="Center" />
-                <Button DockPanel.Dock="Right"
-                        Content="Reset all"
-                        Click="ResetAllShortcuts_Click"
-                        Padding="6,3"
-                        ToolTip="Restore every shortcut to its default" />
-            </DockPanel>
-            <TextBlock Text="Click a binding to record a new key. Esc cancels, Backspace clears the binding."
-                       Foreground="{StaticResource TextDimBrush}"
-                       FontSize="10"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,10" />
-            <StackPanel x:Name="ShortcutsHost" Margin="0,0,0,20" />
+            <!-- ── FOCUS TAB ── -->
+            <TabItem Header="Focus Peaking">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              PreviewMouseWheel="TabScroll_PreviewMouseWheel">
+                    <StackPanel Margin="16,14">
 
-            <!-- ── Buttons ── -->
-            <Separator Margin="0,0,0,16" />
+                        <TextBlock Text="Strictness" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="FocusPeakingStrictnessSlider"
+                                    Minimum="10" Maximum="100"
+                                    SmallChange="5" LargeChange="10"
+                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Width="280"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=FocusPeakingStrictnessSlider, Path=Value, StringFormat={}{0:F0}}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Higher values highlight only very sharp in-focus edges. Lower values also include softer transitions."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ── SHORTCUTS TAB ── -->
+            <TabItem Header="Shortcuts">
+                <Grid Margin="16,14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                        <TextBlock Text="KEYBOARD SHORTCUTS"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center" />
+                        <Button DockPanel.Dock="Right"
+                                Content="Reset all"
+                                Click="ResetAllShortcuts_Click"
+                                Padding="6,3"
+                                ToolTip="Restore every shortcut to its default" />
+                    </DockPanel>
+                    <TextBlock Grid.Row="1"
+                               Text="Click a binding to record a new key. Esc cancels, Backspace clears the binding."
+                               Foreground="{StaticResource TextDimBrush}"
+                               FontSize="10"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,10" />
+                    <ScrollViewer Grid.Row="2"
+                                  VerticalScrollBarVisibility="Auto"
+                                  PreviewMouseWheel="TabScroll_PreviewMouseWheel">
+                        <StackPanel x:Name="ShortcutsHost" />
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- ── Buttons ── -->
+        <Border Grid.Row="1"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,10"
+                Margin="0,8,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Save" IsDefault="True" Click="Save_Click" MinWidth="72" Margin="0,0,8,0" />
                 <Button Content="Cancel" IsCancel="True" Click="Cancel_Click" MinWidth="72" />
             </StackPanel>
-
-        </StackPanel>
-    </ScrollViewer>
+        </Border>
+    </Grid>
 </Window>

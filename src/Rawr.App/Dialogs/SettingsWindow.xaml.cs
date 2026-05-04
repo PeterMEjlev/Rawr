@@ -277,12 +277,13 @@ public partial class SettingsWindow : Window
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
 
-    private void RootScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private void TabScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        if (sender is not ScrollViewer sv) return;
         // WPF forwards trackpad scroll events at full native delta which feels too fast.
         // Scale it down to ~25 % of the raw delta (still responds to large swipes).
         const double scale = 0.25;
-        RootScrollViewer.ScrollToVerticalOffset(RootScrollViewer.VerticalOffset - e.Delta * scale);
+        sv.ScrollToVerticalOffset(sv.VerticalOffset - e.Delta * scale);
         e.Handled = true;
     }
 }
