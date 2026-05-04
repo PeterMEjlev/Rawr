@@ -48,6 +48,10 @@ public partial class SettingsWindow : Window
         GapSlider.Value = Math.Clamp(current.BurstMaxGapSeconds, 1, 30);
         SimilaritySlider.Value = Math.Clamp(current.BurstSimilarityStrictness, 0, 100);
         FocusPeakingStrictnessSlider.Value = Math.Clamp(current.FocusPeakingThreshold, (byte)10, (byte)100);
+        ClippingThresholdSlider.Value = Math.Clamp(current.ClippingThreshold, (byte)90, (byte)100);
+        ClippingModeHighlights.IsChecked = current.ClippingMode == ClippingMode.Highlights;
+        ClippingModeShadows.IsChecked = current.ClippingMode == ClippingMode.Shadows;
+        ClippingModeBoth.IsChecked = current.ClippingMode == ClippingMode.Both;
         ThumbHighestRated.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.HighestRated;
         ThumbFirstChronological.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.FirstChronological;
         CollapseOnOpen.IsChecked = current.CollapseBurstsOnOpen;
@@ -270,6 +274,10 @@ public partial class SettingsWindow : Window
             CollapseBurstsOnOpen = CollapseOnOpen.IsChecked == true,
             DefaultSortField    = SortOptions[sortIdx].Value,
             FocusPeakingThreshold = (byte)FocusPeakingStrictnessSlider.Value,
+            ClippingMode        = ClippingModeShadows.IsChecked == true ? ClippingMode.Shadows
+                                : ClippingModeBoth.IsChecked    == true ? ClippingMode.Both
+                                : ClippingMode.Highlights,
+            ClippingThreshold   = (byte)ClippingThresholdSlider.Value,
             KeyBindings         = new Dictionary<string, string>(_editedBindings),
         };
         DialogResult = true;

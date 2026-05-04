@@ -1587,6 +1587,26 @@
                                 </TransformGroup>
                             </Image.RenderTransform>
                         </Image>
+
+                        <!-- Clipping warning overlay — red highlights / blue shadows on the linear RAW -->
+                        <Image x:Name="ClippingOverlayImage"
+                               Source="{Binding ClippingOverlay}"
+                               Stretch="Uniform"
+                               SnapsToDevicePixels="True"
+                               RenderOptions.BitmapScalingMode="Linear"
+                               Margin="8"
+                               RenderTransformOrigin="0,0"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding ClippingEnabled, Converter={StaticResource NullToVisibility}}">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="{Binding ScaleX, ElementName=PreviewScale}"
+                                                    ScaleY="{Binding ScaleY, ElementName=PreviewScale}" />
+                                    <TranslateTransform X="{Binding X, ElementName=PreviewTranslate}"
+                                                        Y="{Binding Y, ElementName=PreviewTranslate}" />
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
                     </Grid>
                 </Border>
 
@@ -1647,6 +1667,22 @@
                         IsHitTestVisible="False"
                         Visibility="{Binding FocusPeakingEnabled, Converter={StaticResource NullToVisibility}}">
                     <TextBlock Text="FOCUS PEAK"
+                               Foreground="White"
+                               FontSize="11"
+                               FontWeight="Bold" />
+                </Border>
+
+                <!-- Clipping indicator (bottom-left) -->
+                <Border Grid.Row="0"
+                        Background="#CC991B1B"
+                        Padding="6,2"
+                        CornerRadius="3"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Margin="16,0,0,16"
+                        IsHitTestVisible="False"
+                        Visibility="{Binding ClippingEnabled, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Text="CLIPPING"
                                Foreground="White"
                                FontSize="11"
                                FontWeight="Bold" />

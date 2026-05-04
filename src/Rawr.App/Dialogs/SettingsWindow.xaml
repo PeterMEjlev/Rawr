@@ -135,6 +135,49 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ── HIGHLIGHTS / SHADOWS TAB ── -->
+            <TabItem Header="Highlights">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              PreviewMouseWheel="TabScroll_PreviewMouseWheel">
+                    <StackPanel Margin="16,14">
+
+                        <TextBlock Text="What to flag" Margin="0,0,0,4" />
+                        <RadioButton x:Name="ClippingModeHighlights"
+                                     Content="Clipped highlights only"
+                                     GroupName="ClippingMode"
+                                     Margin="0,0,0,4" />
+                        <RadioButton x:Name="ClippingModeShadows"
+                                     Content="Crushed shadows only"
+                                     GroupName="ClippingMode"
+                                     Margin="0,0,0,4" />
+                        <RadioButton x:Name="ClippingModeBoth"
+                                     Content="Both highlights and shadows"
+                                     GroupName="ClippingMode"
+                                     Margin="0,0,0,14" />
+
+                        <TextBlock Text="Threshold (%)" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="ClippingThresholdSlider"
+                                    Minimum="90" Maximum="100"
+                                    SmallChange="1" LargeChange="1"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="280"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=ClippingThresholdSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text="%" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Highlights are flagged when any channel reaches this percentage of sensor max. Shadows are flagged when every channel is within (100 − threshold)% of sensor black. Lower values are more permissive."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ── FOCUS TAB ── -->
             <TabItem Header="Focus Peaking">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"

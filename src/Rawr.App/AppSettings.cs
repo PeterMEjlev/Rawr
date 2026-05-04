@@ -6,6 +6,8 @@ namespace Rawr.App;
 
 public enum BurstThumbnailMode { HighestRated, FirstChronological }
 
+public enum ClippingMode { Highlights, Shadows, Both }
+
 public sealed class AppSettings
 {
     public static AppSettings Current { get; set; } = new();
@@ -22,6 +24,14 @@ public sealed class AppSettings
     public SortField DefaultSortField { get; set; } = SortField.FileName;
 
     public byte FocusPeakingThreshold { get; set; } = 60;
+
+    public ClippingMode ClippingMode { get; set; } = ClippingMode.Highlights;
+
+    // Threshold defines what counts as "rail-clipped" on the linear sensor scale:
+    // a highlight pixel is flagged when any channel ≥ ClippingThreshold% of max,
+    // a shadow when every channel is within (100 − ClippingThreshold)% of black.
+    // 99 means strictly near-saturated; lower values are more permissive.
+    public byte ClippingThreshold { get; set; } = 99;
 
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
@@ -62,6 +72,8 @@ public sealed class AppSettings
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,
         DefaultSortField = DefaultSortField,
         FocusPeakingThreshold = FocusPeakingThreshold,
+        ClippingMode = ClippingMode,
+        ClippingThreshold = ClippingThreshold,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
     };
 

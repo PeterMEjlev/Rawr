@@ -65,7 +65,9 @@ public static class ShortcutRegistry
             new("DeletePhoto", "Delete photo", CatEdit, Key.Delete, ModifierKeys.None, Vm(vm => vm.DeletePhotoCommand)),
 
             // View
-            new("ToggleFocusPeaking", "Toggle focus peaking", CatView, Key.F, ModifierKeys.None, Vm(vm => vm.ToggleFocusPeakingCommand)),
+            new("ToggleFocusPeaking", "Toggle focus peaking",    CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ToggleFocusPeakingCommand)),
+            new("ToggleClipping",     "Toggle clipping warning", CatView, Key.O,    ModifierKeys.None, Vm(vm => vm.ToggleClippingCommand)),
+            new("CycleOverlay",       "Cycle preview overlay (off → focus peaking → clipping)", CatView, Key.None, ModifierKeys.None, Vm(vm => vm.CycleOverlayCommand)),
             new("ToggleBurstCollapse","Toggle burst collapse",CatView, Key.G, ModifierKeys.None, Vm(vm => vm.ToggleBurstCollapseCommand)),
             new("OpenTags",           "Open tags panel",      CatView, Key.T, ModifierKeys.None, w => w.OpenTagsCommand),
 

@@ -484,6 +484,8 @@ public partial class MainWindow : Window
         RenderOptions.SetBitmapScalingMode(PreviewImageElement, mode);
         if (FocusPeakingOverlayImage != null)
             RenderOptions.SetBitmapScalingMode(FocusPeakingOverlayImage, mode);
+        if (ClippingOverlayImage != null)
+            RenderOptions.SetBitmapScalingMode(ClippingOverlayImage, mode);
     }
 
     private void UpdateZoomIndicator(double scale)
@@ -566,6 +568,10 @@ public partial class MainWindow : Window
 
         if (prev.FocusPeakingThreshold != AppSettings.Current.FocusPeakingThreshold)
             vm.RefreshFocusPeaking();
+
+        if (prev.ClippingMode != AppSettings.Current.ClippingMode
+            || prev.ClippingThreshold != AppSettings.Current.ClippingThreshold)
+            vm.RefreshClipping();
     }
 
     // ── Context menu: select item on right-click so ToggleGroupForSelected works on the right photo ──

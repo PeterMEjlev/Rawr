@@ -73,6 +73,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private HistogramMode _histogramMode = HistogramMode.Rgb;
     [ObservableProperty] private bool _focusPeakingEnabled;
     [ObservableProperty] private BitmapSource? _focusPeakingOverlay;
+    [ObservableProperty] private bool _clippingEnabled;
+    [ObservableProperty] private BitmapSource? _clippingOverlay;
     [ObservableProperty] private double _exposureCompensation = 0.0;
     [ObservableProperty] private bool _isLinearRawReady;
     [ObservableProperty] private string _exposureSourceLabel = "EV";
@@ -767,6 +769,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         HistogramData = null;
         FocusPeakingOverlay = null;
+        ClippingOverlay = null;
         EvictFarPhotos(value);
         _ = LoadPreviewForSelectedAsync(ct);
         _ = PrefetchNeighborsAsync(value, ct);
@@ -804,16 +807,63 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ToggleFocusPeaking()
     {
-        FocusPeakingEnabled = !FocusPeakingEnabled;
-        if (!FocusPeakingEnabled)
+        if (FocusPeakingEnabled) DisableOverlays();
+        else EnableFocusPeaking();
+    }
+
+    [RelayCommand]
+    private void ToggleClipping()
+    {
+        if (ClippingEnabled) DisableOverlays();
+        else EnableClipping();
+    }
+
+    // Cycles the preview overlay through Off → Focus Peaking → Clipping → Off.
+    // Bound to 'O' by default.
+    [RelayCommand]
+    private void CycleOverlay()
+    {
+        if (FocusPeakingEnabled) EnableClipping();
+        else if (ClippingEnabled) DisableOverlays();
+        else EnableFocusPeaking();
+    }
+
+    private void EnableFocusPeaking()
+    {
+        if (ClippingEnabled)
         {
-            FocusPeakingOverlay = null;
-            return;
+            ClippingEnabled = false;
+            ClippingOverlay = null;
         }
+        FocusPeakingEnabled = true;
         var photo = SelectedPhoto;
         if (photo == null) return;
         var ct = _previewCts?.Token ?? CancellationToken.None;
         _ = ComputeFocusPeakingAsync(photo, ct);
+    }
+
+    private void EnableClipping()
+    {
+        if (FocusPeakingEnabled)
+        {
+            FocusPeakingEnabled = false;
+            FocusPeakingOverlay = null;
+        }
+        ClippingEnabled = true;
+        var photo = SelectedPhoto;
+        if (photo == null) return;
+        var raw = _baseRawImage;
+        if (raw == null) return; // RAW decode not ready yet — overlay paints when LoadLinearRawAsync finishes.
+        var ct = _previewCts?.Token ?? CancellationToken.None;
+        _ = ComputeClippingAsync(photo, raw, ct);
+    }
+
+    private void DisableOverlays()
+    {
+        FocusPeakingEnabled = false;
+        FocusPeakingOverlay = null;
+        ClippingEnabled = false;
+        ClippingOverlay = null;
     }
 
     public void RefreshFocusPeaking()
@@ -932,6 +982,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _baseRawImage = raw;
             IsLinearRawReady = true;
             ExposureSourceLabel = "EV (RAW)";
+            // Clipping detection runs on the linear RAW; if the user already toggled it
+            // on while we were decoding, paint the overlay now that sensor data is here.
+            if (ClippingEnabled) _ = ComputeClippingAsync(photo, raw, ct);
             // Replace the JPEG-based histogram (already shown) with one computed from
             // the linear sensor data — the JPEG histogram understates highlight clip.
             _ = ComputeHistogramAsync(photo, ct);
@@ -964,6 +1017,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var overlay = await Task.Run(() => FocusPeakingComputer.Compute(jpeg, threshold), ct);
         if (!ct.IsCancellationRequested && SelectedPhoto == photo && FocusPeakingEnabled)
             FocusPeakingOverlay = overlay;
+    }
+
+    private async Task ComputeClippingAsync(PhotoItem photo, LinearRawImage raw, CancellationToken ct)
+    {
+        var mode = AppSettings.Current.ClippingMode;
+        var threshold = AppSettings.Current.ClippingThreshold;
+        var overlay = await Task.Run(() => ClippingComputer.Compute(raw, mode, threshold), ct);
+        if (!ct.IsCancellationRequested && SelectedPhoto == photo && ClippingEnabled)
+            ClippingOverlay = overlay;
+    }
+
+    public void RefreshClipping()
+    {
+        if (!ClippingEnabled) return;
+        var photo = SelectedPhoto;
+        if (photo == null) return;
+        var raw = _baseRawImage;
+        if (raw == null) return;
+        var ct = _previewCts?.Token ?? CancellationToken.None;
+        _ = ComputeClippingAsync(photo, raw, ct);
     }
 
     private async Task ComputeHistogramAsync(PhotoItem photo, CancellationToken ct)
