@@ -111,6 +111,16 @@ internal static partial class LibRawInterop
     internal static partial void SetDemosaic(nint handle, int value);
 
     /// <summary>
+    /// Sets <c>params.half_size</c>. When non-zero, dcraw_process averages each
+    /// 2×2 Bayer cell into one RGB pixel — output is half-width / half-height
+    /// (1/4 area), demosaic stage runs ~4× faster, and the managed-copy step
+    /// shrinks by 4×. Quality at preview resolution is essentially unchanged
+    /// because we already box-average down to LinearRawPreviewWidth.
+    /// </summary>
+    [LibraryImport(LibName, EntryPoint = "libraw_set_half_size")]
+    internal static partial void SetHalfSize(nint handle, int value);
+
+    /// <summary>
     /// Read a single channel of the camera-recorded white balance multiplier (0=R, 1=G, 2=B, 3=G2).
     /// Populated after libraw_unpack().
     /// </summary>

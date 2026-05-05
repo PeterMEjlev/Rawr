@@ -1007,15 +1007,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (_libRaw == null || !photo.IsRaw || photo.IsVideo) return;
         try
         {
-            var raw = await Task.Run(() =>
-            {
-                var full = _libRaw.ExtractLinearRgb(photo.FilePath);
-                // Box-average down to ~preview resolution. Dither needs to live at
-                // roughly display pixel density to survive WPF's scaling — at full
-                // sensor res the per-pixel noise gets averaged out during the
-                // ~3x downscale and banding reappears. Also slashes memory/CPU.
-                return full?.Downsample(LinearRawPreviewWidth);
-            }, ct);
+            var raw = await Task.Run(() => LoadOrDecodeLinearRaw(photo, ct), ct);
             if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
             if (raw == null)
             {
@@ -1052,6 +1044,41 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             ExposureSourceLabel = "EV (JPG — RAW decode failed)";
         }
+    }
+
+    /// <summary>
+    /// Disk-cache-aware linear RAW load. The decode itself is the slow part
+    /// (~1-3s for cRAW unpack + dcraw_process); the downsampled buffer is ~50MB
+    /// at LinearRawPreviewWidth and reads back from disk in ~30ms. So once a
+    /// photo has been visited once, subsequent loads (re-selecting, app restart,
+    /// neighbour prefetch) skip LibRaw entirely.
+    /// </summary>
+    private LinearRawImage? LoadOrDecodeLinearRaw(PhotoItem photo, CancellationToken ct)
+    {
+        var cache = _cache;
+        if (cache != null)
+        {
+            var hit = cache.LoadLinearRaw(photo.FileName, photo.FilePath);
+            if (hit != null)
+                return new LinearRawImage(hit.Width, hit.Height, hit.Pixels);
+        }
+
+        ct.ThrowIfCancellationRequested();
+        var full = _libRaw!.ExtractLinearRgb(photo.FilePath);
+        if (full == null) return null;
+
+        // Box-average down to ~preview resolution. Dither needs to live at roughly
+        // display pixel density to survive WPF's scaling — at full sensor res the
+        // per-pixel noise gets averaged out during the ~3x downscale and banding
+        // reappears. Also slashes memory/CPU.
+        var down = full.Downsample(LinearRawPreviewWidth);
+        if (down == null) return null;
+
+        // Persist for future loads. Failures are silently ignored — losing the
+        // cache means the next visit re-decodes, not that anything is broken.
+        try { cache?.SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels); }
+        catch { }
+        return down;
     }
 
     private async Task ComputeFocusPeakingAsync(PhotoItem photo, CancellationToken ct)
@@ -1177,6 +1204,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
+            // Fast path: a previous decode already wrote the linear-RAW buffer to
+            // disk, so we can skip the JPEG-first paint entirely. Reading + sRGB-
+            // encoding the cached buffer is fast enough (~30-80ms) that we don't
+            // need a placeholder at all — leaving the previous photo's RAW render
+            // on screen for that interval looks far smoother than flashing the
+            // small thumbnail or a black gap. PreviewImage is only replaced once
+            // LoadLinearRawAsync finishes rendering the new buffer.
+            if (photo.IsRaw && _libRaw != null && _cache != null
+                && _cache.HasLinearRaw(photo.FileName))
+            {
+                StartRawDecode(photo);
+                _ = LoadPreviewJpegInBackgroundAsync(photo, ct);
+                return;
+            }
+
             // Already-resident bytes (set by an earlier prefetch) — skip the disk read.
             var cached = photo.PreviewJpeg ?? _cache?.LoadPreview(photo.FileName);
             if (cached != null)
@@ -1234,6 +1276,46 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ = LoadLinearRawAsync(photo, _rawDecodeCts.Token);
     }
 
+    /// <summary>
+    /// On the linear-RAW fast path we skip the JPG-first display, but we still
+    /// want PreviewJpeg cached on the PhotoItem so focus-peaking, the JPEG-fallback
+    /// histogram path, and zoom-to-FullJpeg don't have to wait. Just populates
+    /// the bytes — never touches PreviewImage, so the RAW render on screen stays
+    /// untouched.
+    /// </summary>
+    private async Task LoadPreviewJpegInBackgroundAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (photo.IsVideo || photo.PreviewJpeg != null) return;
+        try
+        {
+            var cached = _cache?.LoadPreview(photo.FileName);
+            if (cached != null)
+            {
+                photo.PreviewJpeg = cached;
+            }
+            else
+            {
+                var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractPreview(photo.FilePath), ct);
+                if (ct.IsCancellationRequested || jpeg == null) return;
+                var processed = await Task.Run(() => ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg, ct);
+                if (ct.IsCancellationRequested) return;
+                _cache?.SavePreview(photo.FileName, processed);
+                photo.PreviewJpeg = processed;
+            }
+
+            // Now that PreviewJpeg bytes exist, fire the work that was deferred
+            // when we took the fast path — but only if the user actually needs
+            // it (focus peaking on, or no histogram yet from the RAW path).
+            if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+            {
+                if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
+                _ = PreloadFullJpegAsync(photo, ct);
+            }
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+        catch { /* JPEG fallback isn't critical — RAW is already on screen */ }
+    }
+
     public async Task LoadHighResPreviewAsync()
     {
         if (_highResPreviewLoaded) return;
@@ -1283,41 +1365,187 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Warm the disk/memory preview cache for photos adjacent to the current selection
-    /// so Next/Previous feels instant.
+    /// so Next/Previous feels instant. Two layers:
+    ///   1. JPEG preview — cached in memory on PhotoItem so the swap is instant.
+    ///   2. Linear RAW — written to disk only; the buffer is ~50MB so we don't hold
+    ///      it in RAM, but persisting it means the next selection skips LibRaw.
+    ///
+    /// Each photo's RAW decode takes ~1-3s and is single-threaded inside LibRaw,
+    /// but multiple LibRaw handles run independently — so we fan out across cores
+    /// rather than serialising. ProcessorCount/2 leaves headroom for the UI thread,
+    /// the active-photo decode, and the JPEG codec.
     /// </summary>
     private async Task PrefetchNeighborsAsync(int currentIndex, CancellationToken ct)
     {
         // Process in alternating order so the immediate neighbours land first.
         var offsets = new[] { 1, -1, 2, -2 };
+        var targets = new List<PhotoItem>(offsets.Length);
         foreach (var offset in offsets)
         {
-            if (ct.IsCancellationRequested) return;
             var i = currentIndex + offset;
             if (i < 0 || i >= FilteredPhotos.Count) continue;
+            var p = FilteredPhotos[i];
+            if (!p.IsVideo) targets.Add(p);
+        }
+        if (targets.Count == 0) return;
 
-            var photo = FilteredPhotos[i];
-            if (photo.IsVideo || photo.PreviewJpeg != null) continue;
+        int parallelism = Math.Max(1, Math.Min(targets.Count, Math.Max(2, Environment.ProcessorCount / 2)));
+        using var gate = new SemaphoreSlim(parallelism);
 
+        var tasks = new List<Task>(targets.Count);
+        foreach (var photo in targets)
+        {
+            await gate.WaitAsync(ct).ConfigureAwait(false);
+            tasks.Add(Task.Run(() =>
+            {
+                try { PrefetchPhoto(photo, ct); }
+                catch (OperationCanceledException) { /* selection moved on */ }
+                catch { /* one neighbour failing should not block the others */ }
+                finally { gate.Release(); }
+            }, ct));
+        }
+
+        try { await Task.WhenAll(tasks).ConfigureAwait(false); }
+        catch (OperationCanceledException) { /* selection moved on */ }
+    }
+
+    /// <summary>
+    /// Warm both the JPEG preview cache and the linear-RAW disk cache for a single
+    /// photo. Safe to call concurrently for different photos. Synchronous — caller
+    /// wraps in Task.Run so multiple photos can decode in parallel.
+    /// </summary>
+    private void PrefetchPhoto(PhotoItem photo, CancellationToken ct)
+    {
+        if (photo.PreviewJpeg == null)
+        {
+            var cached = _cache?.LoadPreview(photo.FileName);
+            if (cached != null)
+            {
+                photo.PreviewJpeg = cached;
+            }
+            else
+            {
+                var jpeg = ExtractorFor(photo).ExtractPreview(photo.FilePath);
+                ct.ThrowIfCancellationRequested();
+                if (jpeg != null)
+                {
+                    var processed = ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg;
+                    ct.ThrowIfCancellationRequested();
+                    _cache?.SavePreview(photo.FileName, processed);
+                    photo.PreviewJpeg = processed;
+                }
+            }
+        }
+
+        // Warm the linear-RAW disk cache so the slow unpack+process runs while
+        // the user is looking at the current photo, not when they hit Next. Skip
+        // if a valid cache file already exists.
+        if (_libRaw != null && photo.IsRaw && _cache != null
+            && _cache.LoadLinearRaw(photo.FileName, photo.FilePath) == null)
+        {
+            ct.ThrowIfCancellationRequested();
             try
             {
-                var cached = _cache?.LoadPreview(photo.FileName);
-                if (cached != null)
-                {
-                    photo.PreviewJpeg = cached;
-                    continue;
-                }
-
-                var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractPreview(photo.FilePath), ct);
-                if (ct.IsCancellationRequested || jpeg == null) continue;
-
-                var processed = await Task.Run(() => ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg, ct);
-                if (ct.IsCancellationRequested) continue;
-
-                _cache?.SavePreview(photo.FileName, processed);
-                photo.PreviewJpeg = processed;
+                var full = _libRaw.ExtractLinearRgb(photo.FilePath);
+                var down = full?.Downsample(LinearRawPreviewWidth);
+                if (down != null)
+                    _cache.SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels);
             }
-            catch (OperationCanceledException) { return; }
-            catch { /* one neighbour failing should not block the others */ }
+            catch { /* prefetch is best-effort; the on-demand path will retry */ }
+        }
+    }
+
+    [ObservableProperty] private bool _isCachingAllRaws;
+    [ObservableProperty] private int _cacheAllProgress;
+    [ObservableProperty] private int _cacheAllTotal;
+    private CancellationTokenSource? _cacheAllCts;
+
+    public string CacheAllButtonLabel => IsCachingAllRaws
+        ? $"⏹ Cancel  ({CacheAllProgress}/{CacheAllTotal})"
+        : "⚡ Cache RAWs";
+
+    partial void OnIsCachingAllRawsChanged(bool value) => OnPropertyChanged(nameof(CacheAllButtonLabel));
+    partial void OnCacheAllProgressChanged(int value) => OnPropertyChanged(nameof(CacheAllButtonLabel));
+    partial void OnCacheAllTotalChanged(int value) => OnPropertyChanged(nameof(CacheAllButtonLabel));
+
+    /// <summary>
+    /// User-triggered: walk every RAW in the current folder and write its
+    /// downsampled linear RGB buffer to the disk cache, fanned out across cores.
+    /// After this completes, every selection in the folder skips the slow
+    /// libraw_unpack + dcraw_process and reads ~30ms from disk instead. Safe to
+    /// re-run — already-cached files are skipped.
+    /// </summary>
+    [RelayCommand]
+    private async Task CacheAllRawsAsync()
+    {
+        if (IsCachingAllRaws)
+        {
+            _cacheAllCts?.Cancel();
+            return;
+        }
+
+        if (_libRaw == null || _cache == null || AllPhotos.Count == 0) return;
+
+        var todo = AllPhotos.Where(p => p.IsRaw && !p.IsVideo).ToList();
+        if (todo.Count == 0) return;
+
+        _cacheAllCts = new CancellationTokenSource();
+        var ct = _cacheAllCts.Token;
+        IsCachingAllRaws = true;
+        CacheAllTotal = todo.Count;
+        CacheAllProgress = 0;
+        StatusText = $"Caching RAWs… 0/{todo.Count}";
+
+        // One less than ProcessorCount so the UI thread + on-demand decode stay
+        // responsive while the bulk job runs.
+        int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount - 1));
+
+        try
+        {
+            int done = 0;
+            await Task.Run(() =>
+            {
+                var po = new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = parallelism };
+                Parallel.ForEach(todo, po, photo =>
+                {
+                    if (ct.IsCancellationRequested) return;
+                    try
+                    {
+                        if (_cache.LoadLinearRaw(photo.FileName, photo.FilePath) == null)
+                        {
+                            var full = _libRaw.ExtractLinearRgb(photo.FilePath);
+                            var down = full?.Downsample(LinearRawPreviewWidth);
+                            if (down != null)
+                                _cache.SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels);
+                        }
+                    }
+                    catch { /* one file failing should not block the rest */ }
+                    finally
+                    {
+                        int n = Interlocked.Increment(ref done);
+                        // Throttle UI updates — touching CacheAllProgress every
+                        // photo on a 1000-file folder swamps the dispatcher.
+                        if (n % 4 == 0 || n == todo.Count)
+                        {
+                            Application.Current?.Dispatcher.InvokeAsync(() =>
+                            {
+                                CacheAllProgress = n;
+                                StatusText = $"Caching RAWs… {n}/{todo.Count}";
+                            });
+                        }
+                    }
+                });
+            }, ct);
+        }
+        catch (OperationCanceledException) { /* user cancelled */ }
+        finally
+        {
+            IsCachingAllRaws = false;
+            StatusText = ct.IsCancellationRequested
+                ? $"Cache cancelled at {CacheAllProgress}/{CacheAllTotal}."
+                : $"Cached {CacheAllProgress} RAW previews.";
+            _cacheAllCts?.Dispose();
+            _cacheAllCts = null;
         }
     }
 

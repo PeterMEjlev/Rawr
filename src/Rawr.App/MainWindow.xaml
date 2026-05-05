@@ -938,6 +938,15 @@
                         Margin="0,0,4,0"
                         ToolTip="Settings" />
 
+                <!-- Bulk linear-RAW cache: pre-decodes every RAW in the folder so
+                     subsequent selections skip the ~1-3s libraw_unpack and read
+                     from the disk cache instead. Click again to cancel. -->
+                <Button DockPanel.Dock="Right"
+                        Content="{Binding CacheAllButtonLabel}"
+                        Command="{Binding CacheAllRawsCommand}"
+                        Margin="0,0,4,0"
+                        ToolTip="Pre-decode every RAW in this folder so navigation is instant. Runs in the background; click again to cancel." />
+
                 <!-- Extractor indicator -->
                 <Border DockPanel.Dock="Right"
                         Background="#33FFFFFF"
