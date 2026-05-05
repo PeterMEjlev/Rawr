@@ -49,6 +49,7 @@ public partial class SettingsWindow : Window
         SimilaritySlider.Value = Math.Clamp(current.BurstSimilarityStrictness, 0, 100);
         FocusPeakingStrictnessSlider.Value = Math.Clamp(current.FocusPeakingThreshold, (byte)10, (byte)100);
         ClippingThresholdSlider.Value = Math.Clamp(current.ClippingThreshold, (byte)90, (byte)100);
+        ClippedAreaThresholdSlider.Value = Math.Clamp(current.ClippedAreaThreshold, (byte)1, (byte)50);
         ClippingModeHighlights.IsChecked = current.ClippingMode == ClippingMode.Highlights;
         ClippingModeShadows.IsChecked = current.ClippingMode == ClippingMode.Shadows;
         ClippingModeBoth.IsChecked = current.ClippingMode == ClippingMode.Both;
@@ -279,6 +280,7 @@ public partial class SettingsWindow : Window
                                 : ClippingModeBoth.IsChecked    == true ? ClippingMode.Both
                                 : ClippingMode.Highlights,
             ClippingThreshold   = (byte)ClippingThresholdSlider.Value,
+            ClippedAreaThreshold = (byte)ClippedAreaThresholdSlider.Value,
             DoubleClickZoom     = DoubleClickZoomSlider.Value,
             KeyBindings         = new Dictionary<string, string>(_editedBindings),
         };

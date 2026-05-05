@@ -67,6 +67,20 @@ public sealed class CullingDatabase : IDisposable
             alter.CommandText = "ALTER TABLE photos ADD COLUMN phash INTEGER NOT NULL DEFAULT 0";
             alter.ExecuteNonQuery();
         }
+
+        // Clipping percentages — stored as REAL with NULL meaning "not yet computed".
+        if (!ColumnExists("photos", "highlight_clipped_pct"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN highlight_clipped_pct REAL";
+            alter.ExecuteNonQuery();
+        }
+        if (!ColumnExists("photos", "shadow_clipped_pct"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN shadow_clipped_pct REAL";
+            alter.ExecuteNonQuery();
+        }
     }
 
     private bool ColumnExists(string table, string column)
@@ -91,7 +105,7 @@ public sealed class CullingDatabase : IDisposable
         var result = new Dictionary<string, PhotoState>(StringComparer.OrdinalIgnoreCase);
 
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash FROM photos";
+        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct FROM photos";
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -99,6 +113,9 @@ public sealed class CullingDatabase : IDisposable
             // SQLite stores INTEGER as signed 64-bit; reinterpret to ulong for the unsigned dHash.
             long rawHash = reader.GetInt64(6);
             ulong? phash = rawHash == 0 ? null : unchecked((ulong)rawHash);
+
+            float? highlightPct = reader.IsDBNull(7) ? null : (float)reader.GetDouble(7);
+            float? shadowPct = reader.IsDBNull(8) ? null : (float)reader.GetDouble(8);
 
             result[reader.GetString(0)] = new PhotoState
             {
@@ -108,6 +125,8 @@ public sealed class CullingDatabase : IDisposable
                 GroupId = reader.GetInt32(4),
                 IsBestInGroup = reader.GetInt32(5) != 0,
                 Phash = phash,
+                HighlightClippedPct = highlightPct,
+                ShadowClippedPct = shadowPct,
             };
         }
 
@@ -118,15 +137,17 @@ public sealed class CullingDatabase : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash)
-            VALUES ($name, $rating, $flag, $color, $group, $best, $phash)
+            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct)
+            VALUES ($name, $rating, $flag, $color, $group, $best, $phash, $hi, $lo)
             ON CONFLICT(file_name) DO UPDATE SET
                 rating = $rating,
                 flag = $flag,
                 color_label = $color,
                 group_id = $group,
                 is_best = $best,
-                phash = $phash
+                phash = $phash,
+                highlight_clipped_pct = $hi,
+                shadow_clipped_pct = $lo
             """;
         cmd.Parameters.AddWithValue("$name", photo.FileName);
         cmd.Parameters.AddWithValue("$rating", photo.Rating);
@@ -135,6 +156,8 @@ public sealed class CullingDatabase : IDisposable
         cmd.Parameters.AddWithValue("$group", photo.GroupId);
         cmd.Parameters.AddWithValue("$best", photo.IsBestInGroup ? 1 : 0);
         cmd.Parameters.AddWithValue("$phash", photo.Phash.HasValue ? unchecked((long)photo.Phash.Value) : 0L);
+        cmd.Parameters.AddWithValue("$hi", (object?)photo.HighlightClippedPct ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$lo", (object?)photo.ShadowClippedPct ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
@@ -254,4 +277,6 @@ public record PhotoState
     public int GroupId { get; init; }
     public bool IsBestInGroup { get; init; }
     public ulong? Phash { get; init; }
+    public float? HighlightClippedPct { get; init; }
+    public float? ShadowClippedPct { get; init; }
 }

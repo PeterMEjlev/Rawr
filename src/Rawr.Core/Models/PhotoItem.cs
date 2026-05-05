@@ -38,6 +38,12 @@ public sealed partial class PhotoItem : ObservableObject
     // grouping on visual similarity. Null until computed; persisted in culling.db.
     public ulong? Phash { get; set; }
 
+    // Share of thumbnail pixels (0-100) classified as clipped highlights or
+    // crushed shadows respectively. Computed once from the cached thumbnail JPEG
+    // and persisted; null means "not yet computed for this photo".
+    public float? HighlightClippedPct { get; set; }
+    public float? ShadowClippedPct { get; set; }
+
     // Full sensor-resolution JPEG bytes (~3-5 MB). Pre-extracted in the background
     // for the active selection so zoom-in is instant. Cleared by eviction when the
     // user navigates far enough away. Not observable — never bound to UI.

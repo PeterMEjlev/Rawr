@@ -572,6 +572,15 @@ public partial class MainWindow : Window
         if (prev.ClippingMode != AppSettings.Current.ClippingMode
             || prev.ClippingThreshold != AppSettings.Current.ClippingThreshold)
             vm.RefreshClipping();
+
+        // The per-pixel threshold also feeds the sidebar Exposure buckets — when it
+        // changes, the cached percentages on each photo were computed against the old
+        // value and need a re-scan. The area threshold is just a gate on those values,
+        // so a plain ApplyFilter is enough to redraw the buckets without recomputing.
+        if (prev.ClippingThreshold != AppSettings.Current.ClippingThreshold)
+            _ = vm.RecomputeClippingStatsAsync();
+        else if (prev.ClippedAreaThreshold != AppSettings.Current.ClippedAreaThreshold)
+            vm.ApplyFilter();
     }
 
     // ── Context menu: select item on right-click so ToggleGroupForSelected works on the right photo ──

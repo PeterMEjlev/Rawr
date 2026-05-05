@@ -161,7 +161,7 @@
             </TabItem>
 
             <!-- ── HIGHLIGHTS / SHADOWS TAB ── -->
-            <TabItem Header="Highlights">
+            <TabItem Header="Clipping">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               PreviewMouseWheel="TabScroll_PreviewMouseWheel">
                     <StackPanel Margin="16,14">
@@ -194,6 +194,25 @@
                             </TextBlock>
                         </StackPanel>
                         <TextBlock Text="Highlights are flagged when any channel reaches this percentage of sensor max. Shadows are flagged when every channel is within (100 − threshold)% of sensor black. Lower values are more permissive."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
+
+                        <TextBlock Text="Sidebar bucket sensitivity (% of pixels)" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="ClippedAreaThresholdSlider"
+                                    Minimum="1" Maximum="50"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="280"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=ClippedAreaThresholdSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text="%" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Minimum share of pixels that must be clipped for a photo to appear in the sidebar's Clipped Highlights / Crushed Shadows buckets."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"

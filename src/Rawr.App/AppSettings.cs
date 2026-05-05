@@ -33,6 +33,11 @@ public sealed class AppSettings
     // 99 means strictly near-saturated; lower values are more permissive.
     public byte ClippingThreshold { get; set; } = 99;
 
+    // Gates the sidebar "Clipped Highlights" / "Crushed Shadows" buckets: a photo
+    // shows up only when the share of its (thumbnail) pixels flagged at the
+    // per-pixel threshold above meets or exceeds this percentage.
+    public byte ClippedAreaThreshold { get; set; } = 5;
+
     public double DoubleClickZoom { get; set; } = 3.0;
 
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
@@ -76,6 +81,7 @@ public sealed class AppSettings
         FocusPeakingThreshold = FocusPeakingThreshold,
         ClippingMode = ClippingMode,
         ClippingThreshold = ClippingThreshold,
+        ClippedAreaThreshold = ClippedAreaThreshold,
         DoubleClickZoom = DoubleClickZoom,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
     };

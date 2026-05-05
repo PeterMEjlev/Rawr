@@ -21,6 +21,7 @@ public enum SortField { FileName, Rating, CaptureDate, ColorLabel, Flag, Burst, 
 public enum RatingFilterMode { Any, Exact, AtLeast, LessThan }
 public enum BurstFilterMode { Any, OnlyInBursts, OnlySingles }
 public enum ImageTypeFilterMode { Any, RawOnly, JpegOnly, VideoOnly }
+public enum ExposureFilterMode { Any, ClippedHighlights, CrushedShadows }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -127,7 +128,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     private ImageTypeFilterMode _imageTypeFilter = ImageTypeFilterMode.Any;
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private ExposureFilterMode _exposureFilter = ExposureFilterMode.Any;
+
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any;
 
     [ObservableProperty] private int _burstCount;
 
@@ -601,6 +606,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 photo.GroupId = state.GroupId;
                 photo.IsBestInGroup = state.IsBestInGroup;
                 photo.Phash = state.Phash;
+                photo.HighlightClippedPct = state.HighlightClippedPct;
+                photo.ShadowClippedPct = state.ShadowClippedPct;
             }
 
             AllPhotos.Add(photo);
@@ -703,6 +710,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     if (photo.Phash == null && thumbBytes != null)
                         photo.Phash = Rawr.App.Services.PerceptualHash.Compute(thumbBytes);
 
+                    // Same lifecycle for clipping percentages — feeds the sidebar Exposure
+                    // buckets. Recompute when the per-pixel threshold changes between sessions.
+                    if (thumbBytes != null && (photo.HighlightClippedPct == null || photo.ShadowClippedPct == null))
+                    {
+                        try
+                        {
+                            var stats = Rawr.App.Services.ClippingStatsComputer.Compute(thumbBytes, AppSettings.Current.ClippingThreshold);
+                            photo.HighlightClippedPct = stats.HighlightPct;
+                            photo.ShadowClippedPct = stats.ShadowPct;
+                        }
+                        catch { /* malformed thumbnail; leave nulls — bucket will skip this photo */ }
+                    }
+
                     var d = Interlocked.Increment(ref done);
                     if (d % 10 == 0)
                     {
@@ -739,6 +759,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (BurstFilter != BurstFilterMode.Any || SortField == SortField.Burst)
             ApplyFilter();
+        else
+            // The parallel pass populated clipping percentages and tag counts that
+            // weren't known when ApplyFilter ran at folder-open time. Refresh just
+            // the sidebar bucket counts so they tick up to match without rebuilding
+            // the (potentially large) filtered list.
+            await Application.Current.Dispatcher.InvokeAsync(RefreshFilterBuckets);
     }
 
     // ── Navigation ──
@@ -1037,6 +1063,46 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (raw == null) return;
         var ct = _previewCts?.Token ?? CancellationToken.None;
         _ = ComputeClippingAsync(photo, raw, ct);
+    }
+
+    /// <summary>
+    /// Re-scans every photo's cached thumbnail to refresh the highlight/shadow
+    /// percentages used by the sidebar Exposure buckets. Call after the per-pixel
+    /// ClippingThreshold changes — the cached values were computed against the
+    /// old threshold and would otherwise misclassify photos.
+    /// </summary>
+    public async Task RecomputeClippingStatsAsync()
+    {
+        if (AllPhotos.Count == 0) return;
+
+        var threshold = AppSettings.Current.ClippingThreshold;
+        var snapshot = AllPhotos.Where(p => p.ThumbnailJpeg != null).ToList();
+        int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2));
+
+        await Task.Run(() =>
+        {
+            var po = new ParallelOptions { MaxDegreeOfParallelism = parallelism };
+            Parallel.ForEach(snapshot, po, photo =>
+            {
+                var bytes = photo.ThumbnailJpeg;
+                if (bytes == null) return;
+                try
+                {
+                    var stats = Services.ClippingStatsComputer.Compute(bytes, threshold);
+                    photo.HighlightClippedPct = stats.HighlightPct;
+                    photo.ShadowClippedPct = stats.ShadowPct;
+                }
+                catch { /* leave stale value rather than null out a previously valid one */ }
+            });
+        });
+
+        if (_db != null)
+        {
+            try { await Task.Run(() => _db.SaveBatch(AllPhotos)); } catch { }
+        }
+
+        // The active filter may now include/exclude a different set of photos.
+        ApplyFilter();
     }
 
     private async Task ComputeHistogramAsync(PhotoItem photo, CancellationToken ct)
@@ -1852,6 +1918,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             BurstFilterMode.OnlySingles  => visible.Where(p => p.GroupId == 0),
             _                            => visible
         };
+        if (ExposureFilter != ExposureFilterMode.Any)
+        {
+            float gate = AppSettings.Current.ClippedAreaThreshold;
+            visible = ExposureFilter == ExposureFilterMode.ClippedHighlights
+                ? visible.Where(p => p.HighlightClippedPct.HasValue && p.HighlightClippedPct.Value >= gate)
+                : visible.Where(p => p.ShadowClippedPct.HasValue    && p.ShadowClippedPct.Value    >= gate);
+        }
 
         var sorted = ApplySorting(visible).ToList();
 
@@ -1962,6 +2035,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (ImageTypeFilter == ImageTypeFilterMode.RawOnly) parts.Add("RAW");
         else if (ImageTypeFilter == ImageTypeFilterMode.JpegOnly) parts.Add("JPG");
         else if (ImageTypeFilter == ImageTypeFilterMode.VideoOnly) parts.Add("Video");
+        if (ExposureFilter == ExposureFilterMode.ClippedHighlights) parts.Add("Clipped highlights");
+        else if (ExposureFilter == ExposureFilterMode.CrushedShadows) parts.Add("Crushed shadows");
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }
@@ -2178,6 +2253,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public int FlagRejectCount    => AllPhotos.Count(p => p.Flag == CullFlag.Reject);
     public int FlagUnflaggedCount => AllPhotos.Count(p => p.Flag == CullFlag.Unflagged);
 
+    public int ClippedHighlightsCount => AllPhotos.Count(p => p.HighlightClippedPct.HasValue && p.HighlightClippedPct.Value >= AppSettings.Current.ClippedAreaThreshold);
+    public int CrushedShadowsCount    => AllPhotos.Count(p => p.ShadowClippedPct.HasValue    && p.ShadowClippedPct.Value    >= AppSettings.Current.ClippedAreaThreshold);
+
     public bool IsRating5Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 5;
     public bool IsRating4Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 4;
     public bool IsRating3Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 3;
@@ -2194,6 +2272,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool IsFlagPickActive      => FlagFilter == CullFlag.Pick;
     public bool IsFlagRejectActive    => FlagFilter == CullFlag.Reject;
     public bool IsFlagUnflaggedActive => FlagFilter == CullFlag.Unflagged;
+
+    public bool IsExposureClippedHighlightsActive => ExposureFilter == ExposureFilterMode.ClippedHighlights;
+    public bool IsExposureCrushedShadowsActive    => ExposureFilter == ExposureFilterMode.CrushedShadows;
 
     [RelayCommand]
     private void SetRatingBucket(int rating)
@@ -2240,7 +2321,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
 
-    private enum SidebarFilterKind { Rating, Color, Tag, Flag }
+    [RelayCommand]
+    private void SetSidebarExposure(ExposureFilterMode mode)
+    {
+        var isSame = ExposureFilter == mode;
+        ClearOtherSidebarFilters(SidebarFilterKind.Exposure);
+        ExposureFilter = isSame ? ExposureFilterMode.Any : mode;
+        ApplyFilter();
+    }
+
+    private enum SidebarFilterKind { Rating, Color, Tag, Flag, Exposure }
 
     private void ClearOtherSidebarFilters(SidebarFilterKind keep)
     {
@@ -2260,6 +2350,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (keep != SidebarFilterKind.Flag)
         {
             FlagFilter = null;
+        }
+        if (keep != SidebarFilterKind.Exposure)
+        {
+            ExposureFilter = ExposureFilterMode.Any;
         }
         BurstFilter = BurstFilterMode.Any;
         ImageTypeFilter = ImageTypeFilterMode.Any;
@@ -2281,6 +2375,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(FlagPickCount));
         OnPropertyChanged(nameof(FlagRejectCount));
         OnPropertyChanged(nameof(FlagUnflaggedCount));
+        OnPropertyChanged(nameof(ClippedHighlightsCount));
+        OnPropertyChanged(nameof(CrushedShadowsCount));
 
         OnPropertyChanged(nameof(IsRating5Active));
         OnPropertyChanged(nameof(IsRating4Active));
@@ -2296,6 +2392,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsFlagPickActive));
         OnPropertyChanged(nameof(IsFlagRejectActive));
         OnPropertyChanged(nameof(IsFlagUnflaggedActive));
+        OnPropertyChanged(nameof(IsExposureClippedHighlightsActive));
+        OnPropertyChanged(nameof(IsExposureCrushedShadowsActive));
 
         // Tag counts are stored on the PhotoTag itself so each row can bind directly.
         // Single pass over all photos beats Count(...) per tag when there are many of either.
