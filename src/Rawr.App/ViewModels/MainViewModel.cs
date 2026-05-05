@@ -2089,6 +2089,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             SelectedPhoto = null;
             PreviewImage = null;
             VideoSourceUri = null;
+            // SelectedIndex = -1 short-circuits its setter, so the per-photo
+            // cleanup that normally clears these doesn't run — wipe them here
+            // so a leftover overlay isn't painted over an empty preview.
+            ClippingOverlay = null;
+            FocusPeakingOverlay = null;
+            HistogramData = null;
         }
     }
 

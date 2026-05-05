@@ -78,6 +78,12 @@ public partial class MainWindow : Window
                    new KeyboardFocusChangedEventHandler(OnAnyGotKeyboardFocus),
                    handledEventsToo: true);
 
+        // Arrow keys must always navigate between photos, regardless of which
+        // panel currently has focus (sidebar buttons, folder tree, etc.).
+        // Without this, container ScrollViewers consume arrow keys for scrolling
+        // before the window-level KeyBindings see them.
+        PreviewKeyDown += OnWindowPreviewKeyDown;
+
         ShortcutBinder.ApplyTo(this, AppSettings.Current);
 
         if (DataContext is INotifyPropertyChanged inpc)
@@ -299,6 +305,28 @@ public partial class MainWindow : Window
     {
         if (sender is not ListBox lb || lb.SelectedItem is null) return;
         lb.ScrollIntoView(lb.SelectedItem);
+    }
+
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Handled) return;
+        if (Keyboard.Modifiers != ModifierKeys.None) return;
+        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down)) return;
+
+        // Let text-input controls keep arrow keys for caret movement / selection.
+        if (Keyboard.FocusedElement is TextBox or PasswordBox or RichTextBox or ComboBox) return;
+
+        // Don't hijack arrow keys while a menu is open — let it navigate items.
+        if (Keyboard.FocusedElement is MenuItem) return;
+
+        if (DataContext is not MainViewModel vm) return;
+        if (vm.FilteredPhotos.Count == 0) return;
+
+        if (e.Key is Key.Right or Key.Down)
+            vm.NextPhotoCommand.Execute(null);
+        else
+            vm.PreviousPhotoCommand.Execute(null);
+        e.Handled = true;
     }
 
     private List<InputBinding>? _suspendedInputBindings;
