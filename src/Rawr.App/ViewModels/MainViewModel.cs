@@ -22,6 +22,7 @@ public enum RatingFilterMode { Any, Exact, AtLeast, LessThan }
 public enum BurstFilterMode { Any, OnlyInBursts, OnlySingles }
 public enum ImageTypeFilterMode { Any, RawOnly, JpegOnly, VideoOnly }
 public enum ExposureFilterMode { Any, ClippedHighlights, CrushedShadows }
+public enum FaceFilterMode { Any, ClosedEyes }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -132,6 +133,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     private ExposureFilterMode _exposureFilter = ExposureFilterMode.Any;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private FaceFilterMode _faceFilter = FaceFilterMode.Any;
+
     // Per-criterion polarity. When true, the criterion's predicate is negated
     // (e.g. "NOT Rejected" instead of "Rejected"). Has no effect when the
     // associated filter is in its "Any" state.
@@ -142,6 +147,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _burstFilterExclude;
     [ObservableProperty] private bool _imageTypeFilterExclude;
     [ObservableProperty] private bool _exposureFilterExclude;
+    [ObservableProperty] private bool _faceFilterExclude;
 
     partial void OnRatingFilterExcludeChanged(bool value)     { if (RatingFilterMode != RatingFilterMode.Any) ApplyFilter(); }
     partial void OnFlagFilterExcludeChanged(bool value)       { if (FlagFilter.HasValue)                     ApplyFilter(); }
@@ -150,8 +156,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnBurstFilterExcludeChanged(bool value)      { if (BurstFilter != BurstFilterMode.Any)      ApplyFilter(); }
     partial void OnImageTypeFilterExcludeChanged(bool value)  { if (ImageTypeFilter != ImageTypeFilterMode.Any) ApplyFilter(); }
     partial void OnExposureFilterExcludeChanged(bool value)   { if (ExposureFilter != ExposureFilterMode.Any) ApplyFilter(); }
+    partial void OnFaceFilterExcludeChanged(bool value)       { if (FaceFilter != FaceFilterMode.Any)        ApplyFilter(); }
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any;
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any;
 
     [ObservableProperty] private int _burstCount;
 
@@ -627,6 +634,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 photo.Phash = state.Phash;
                 photo.HighlightClippedPct = state.HighlightClippedPct;
                 photo.ShadowClippedPct = state.ShadowClippedPct;
+                photo.FaceCount = state.FaceCount;
+                photo.ClosedEyeCount = state.ClosedEyeCount;
+                photo.MinEyeOpenScore = state.MinEyeOpenScore;
             }
 
             AllPhotos.Add(photo);
@@ -1549,6 +1559,138 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    // ── Face / closed-eye analysis ──
+
+    [ObservableProperty] private bool _isAnalyzingFaces;
+    [ObservableProperty] private int _analyzeFacesProgress;
+    [ObservableProperty] private int _analyzeFacesTotal;
+    private CancellationTokenSource? _analyzeFacesCts;
+    private FaceAnalyzer? _faceAnalyzer;
+
+    public string AnalyzeFacesButtonLabel => IsAnalyzingFaces
+        ? $"⏹ Cancel  ({AnalyzeFacesProgress}/{AnalyzeFacesTotal})"
+        : "👁 Detect Closed Eyes";
+
+    partial void OnIsAnalyzingFacesChanged(bool value) => OnPropertyChanged(nameof(AnalyzeFacesButtonLabel));
+    partial void OnAnalyzeFacesProgressChanged(int value) => OnPropertyChanged(nameof(AnalyzeFacesButtonLabel));
+    partial void OnAnalyzeFacesTotalChanged(int value) => OnPropertyChanged(nameof(AnalyzeFacesButtonLabel));
+
+    /// <summary>
+    /// User-triggered: walk every photo without prior face/eye analysis and run
+    /// the ONNX face detector + eye-state classifier on its cached preview JPEG.
+    /// Click again to cancel. Already-analysed photos are skipped (clear the
+    /// SQLite columns to force re-analysis). The pipeline reads the same
+    /// _preview.jpg the main viewer uses, so this never re-decodes RAWs.
+    /// </summary>
+    [RelayCommand]
+    private async Task AnalyzeFacesAsync()
+    {
+        if (IsAnalyzingFaces)
+        {
+            _analyzeFacesCts?.Cancel();
+            return;
+        }
+
+        if (_cache == null || AllPhotos.Count == 0) return;
+
+        _faceAnalyzer ??= new FaceAnalyzer();
+        _faceAnalyzer.Initialize();
+        if (!_faceAnalyzer.IsAvailable)
+        {
+            StatusText = $"Face analysis unavailable: {_faceAnalyzer.UnavailableReason}";
+            return;
+        }
+
+        // Skip-already-done: only analyse photos with a missing FaceCount. Clear
+        // the SQLite columns to force re-analysis from scratch.
+        var todo = AllPhotos.Where(p => !p.IsVideo && p.FaceCount == null).ToList();
+        if (todo.Count == 0)
+        {
+            StatusText = "All photos already analysed.";
+            return;
+        }
+
+        _analyzeFacesCts = new CancellationTokenSource();
+        var ct = _analyzeFacesCts.Token;
+        IsAnalyzingFaces = true;
+        AnalyzeFacesTotal = todo.Count;
+        AnalyzeFacesProgress = 0;
+        StatusText = $"Analysing faces… 0/{todo.Count}";
+
+        // Convert the user-facing 0–100 threshold into a 0–1 probability in one
+        // place; ONNX session is reentrant so we can fan out across cores.
+        float threshold = AppSettings.Current.ClosedEyeThreshold / 100f;
+        int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount - 1));
+
+        try
+        {
+            int done = 0;
+            await Task.Run(() =>
+            {
+                var po = new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = parallelism };
+                Parallel.ForEach(todo, po, photo =>
+                {
+                    if (ct.IsCancellationRequested) return;
+                    try
+                    {
+                        // Prefer the cached preview JPEG (fast, on-disk). Fall
+                        // back to the in-memory thumbnail if the preview hasn't
+                        // been extracted yet — the analyser handles either size.
+                        byte[]? jpeg = _cache.LoadPreview(photo.FileName)
+                                    ?? _cache.LoadThumbnail(photo.FileName)
+                                    ?? photo.ThumbnailJpeg;
+                        if (jpeg == null) return;
+
+                        var result = _faceAnalyzer.Analyze(jpeg, threshold);
+                        if (result == null) return;
+
+                        Application.Current?.Dispatcher.Invoke(() =>
+                        {
+                            photo.FaceCount = result.FaceCount;
+                            photo.ClosedEyeCount = result.ClosedEyeCount;
+                            photo.MinEyeOpenScore = result.MinEyeOpenScore;
+                        });
+                    }
+                    catch { /* one bad photo shouldn't block the rest */ }
+                    finally
+                    {
+                        int n = Interlocked.Increment(ref done);
+                        if (n % 4 == 0 || n == todo.Count)
+                        {
+                            Application.Current?.Dispatcher.InvokeAsync(() =>
+                            {
+                                AnalyzeFacesProgress = n;
+                                StatusText = $"Analysing faces… {n}/{todo.Count}";
+                            });
+                        }
+                    }
+                });
+            }, ct);
+        }
+        catch (OperationCanceledException) { /* user cancelled */ }
+        finally
+        {
+            // Persist results so a re-open of the folder reuses them.
+            if (_db != null)
+            {
+                try { await Task.Run(() => _db.SaveBatch(AllPhotos)); }
+                catch { /* persistence is best-effort; results live in memory */ }
+            }
+
+            IsAnalyzingFaces = false;
+            StatusText = ct.IsCancellationRequested
+                ? $"Face analysis cancelled at {AnalyzeFacesProgress}/{AnalyzeFacesTotal}."
+                : $"Analysed {AnalyzeFacesProgress} photos.";
+            _analyzeFacesCts?.Dispose();
+            _analyzeFacesCts = null;
+
+            // Bucket count + chip state may have changed for many photos.
+            await Application.Current.Dispatcher.InvokeAsync(RefreshFilterBuckets);
+            if (FaceFilter == FaceFilterMode.ClosedEyes)
+                await Application.Current.Dispatcher.InvokeAsync(ApplyFilter);
+        }
+    }
+
     /// <summary>
     /// Drop PreviewJpeg/FullJpeg bytes for photos far from the current selection so
     /// memory stays bounded as the user browses. ThumbnailJpeg is kept (small, drives the grid).
@@ -2234,6 +2376,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             visible = ExposureFilterExclude ? visible.Where(p => !exposurePred(p)) : visible.Where(exposurePred);
         }
 
+        if (FaceFilter == FaceFilterMode.ClosedEyes)
+        {
+            // Same convention as Exposure: only photos where the analysis has run
+            // (ClosedEyeCount has a value) are eligible. Photos that haven't been
+            // analysed yet stay out of both sides of the include/exclude split so
+            // the filter doesn't lie about them.
+            Func<PhotoItem, bool> facePred = p => p.ClosedEyeCount.HasValue && p.ClosedEyeCount.Value > 0;
+            Func<PhotoItem, bool> analysed = p => p.ClosedEyeCount.HasValue;
+            visible = FaceFilterExclude
+                ? visible.Where(p => analysed(p) && !facePred(p))
+                : visible.Where(facePred);
+        }
+
         var sorted = ApplySorting(visible).ToList();
 
         // Reset any prior collapse markers — collapse is purely a presentation
@@ -2352,6 +2507,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         else if (ImageTypeFilter == ImageTypeFilterMode.VideoOnly) parts.Add(Tag(ImageTypeFilterExclude, "Video"));
         if (ExposureFilter == ExposureFilterMode.ClippedHighlights) parts.Add(Tag(ExposureFilterExclude, "Clipped highlights"));
         else if (ExposureFilter == ExposureFilterMode.CrushedShadows) parts.Add(Tag(ExposureFilterExclude, "Crushed shadows"));
+        if (FaceFilter == FaceFilterMode.ClosedEyes) parts.Add(Tag(FaceFilterExclude, "Closed eyes"));
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }
@@ -2571,6 +2727,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public int ClippedHighlightsCount => AllPhotos.Count(p => p.HighlightClippedPct.HasValue && p.HighlightClippedPct.Value >= AppSettings.Current.ClippedAreaThreshold);
     public int CrushedShadowsCount    => AllPhotos.Count(p => p.ShadowClippedPct.HasValue    && p.ShadowClippedPct.Value    >= AppSettings.Current.ClippedAreaThreshold);
 
+    // Counts photos where the analysis pass detected at least one closed eye.
+    // Photos that haven't been analysed yet (ClosedEyeCount == null) are not
+    // counted, mirroring the Exposure buckets — the chip only shows what we
+    // actually know about.
+    public int ClosedEyesCount => AllPhotos.Count(p => p.ClosedEyeCount.HasValue && p.ClosedEyeCount.Value > 0);
+
     public bool IsRating5Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 5;
     public bool IsRating4Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 4;
     public bool IsRating3Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 3;
@@ -2590,6 +2752,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsExposureClippedHighlightsActive => ExposureFilter == ExposureFilterMode.ClippedHighlights;
     public bool IsExposureCrushedShadowsActive    => ExposureFilter == ExposureFilterMode.CrushedShadows;
+
+    public bool IsFaceClosedEyesActive => FaceFilter == FaceFilterMode.ClosedEyes;
 
     [RelayCommand]
     private void SetRatingBucket(int rating)
@@ -2650,7 +2814,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
 
-    private enum SidebarFilterKind { Rating, Color, Tag, Flag, Exposure }
+    [RelayCommand]
+    private void SetSidebarFace(FaceFilterMode mode)
+    {
+        var isSame = FaceFilter == mode;
+        ClearOtherSidebarFilters(SidebarFilterKind.Face);
+        FaceFilter = isSame ? FaceFilterMode.Any : mode;
+        if (FaceFilter == FaceFilterMode.Any) FaceFilterExclude = false;
+        ApplyFilter();
+    }
+
+    private enum SidebarFilterKind { Rating, Color, Tag, Flag, Exposure, Face }
 
     private void ClearOtherSidebarFilters(SidebarFilterKind keep)
     {
@@ -2680,6 +2854,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ExposureFilter = ExposureFilterMode.Any;
             ExposureFilterExclude = false;
         }
+        if (keep != SidebarFilterKind.Face)
+        {
+            FaceFilter = FaceFilterMode.Any;
+            FaceFilterExclude = false;
+        }
         BurstFilter = BurstFilterMode.Any;
         BurstFilterExclude = false;
         ImageTypeFilter = ImageTypeFilterMode.Any;
@@ -2704,6 +2883,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(FlagUnflaggedCount));
         OnPropertyChanged(nameof(ClippedHighlightsCount));
         OnPropertyChanged(nameof(CrushedShadowsCount));
+        OnPropertyChanged(nameof(ClosedEyesCount));
 
         OnPropertyChanged(nameof(IsRating5Active));
         OnPropertyChanged(nameof(IsRating4Active));
@@ -2721,6 +2901,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsFlagUnflaggedActive));
         OnPropertyChanged(nameof(IsExposureClippedHighlightsActive));
         OnPropertyChanged(nameof(IsExposureCrushedShadowsActive));
+        OnPropertyChanged(nameof(IsFaceClosedEyesActive));
 
         // Tag counts are stored on the PhotoTag itself so each row can bind directly.
         // Single pass over all photos beats Count(...) per tag when there are many of either.
@@ -2742,6 +2923,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _indexCts?.Dispose();
         _previewCts?.Cancel();
         _previewCts?.Dispose();
+        _analyzeFacesCts?.Cancel();
+        _analyzeFacesCts?.Dispose();
+        _faceAnalyzer?.Dispose();
         _db?.Dispose();
     }
 }

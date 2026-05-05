@@ -81,6 +81,27 @@ public sealed class CullingDatabase : IDisposable
             alter.CommandText = "ALTER TABLE photos ADD COLUMN shadow_clipped_pct REAL";
             alter.ExecuteNonQuery();
         }
+
+        // Face / closed-eye analysis results — populated by the user-triggered
+        // "Detect closed eyes" pass. NULL means "not yet analysed".
+        if (!ColumnExists("photos", "face_count"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN face_count INTEGER";
+            alter.ExecuteNonQuery();
+        }
+        if (!ColumnExists("photos", "closed_eye_count"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN closed_eye_count INTEGER";
+            alter.ExecuteNonQuery();
+        }
+        if (!ColumnExists("photos", "min_eye_open_score"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN min_eye_open_score REAL";
+            alter.ExecuteNonQuery();
+        }
     }
 
     private bool ColumnExists(string table, string column)
@@ -105,7 +126,7 @@ public sealed class CullingDatabase : IDisposable
         var result = new Dictionary<string, PhotoState>(StringComparer.OrdinalIgnoreCase);
 
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct FROM photos";
+        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score FROM photos";
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -116,6 +137,9 @@ public sealed class CullingDatabase : IDisposable
 
             float? highlightPct = reader.IsDBNull(7) ? null : (float)reader.GetDouble(7);
             float? shadowPct = reader.IsDBNull(8) ? null : (float)reader.GetDouble(8);
+            int? faceCount = reader.IsDBNull(9) ? null : reader.GetInt32(9);
+            int? closedEyeCount = reader.IsDBNull(10) ? null : reader.GetInt32(10);
+            float? minEyeOpenScore = reader.IsDBNull(11) ? null : (float)reader.GetDouble(11);
 
             result[reader.GetString(0)] = new PhotoState
             {
@@ -127,6 +151,9 @@ public sealed class CullingDatabase : IDisposable
                 Phash = phash,
                 HighlightClippedPct = highlightPct,
                 ShadowClippedPct = shadowPct,
+                FaceCount = faceCount,
+                ClosedEyeCount = closedEyeCount,
+                MinEyeOpenScore = minEyeOpenScore,
             };
         }
 
@@ -137,8 +164,8 @@ public sealed class CullingDatabase : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct)
-            VALUES ($name, $rating, $flag, $color, $group, $best, $phash, $hi, $lo)
+            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score)
+            VALUES ($name, $rating, $flag, $color, $group, $best, $phash, $hi, $lo, $faces, $closedEyes, $minOpen)
             ON CONFLICT(file_name) DO UPDATE SET
                 rating = $rating,
                 flag = $flag,
@@ -147,7 +174,10 @@ public sealed class CullingDatabase : IDisposable
                 is_best = $best,
                 phash = $phash,
                 highlight_clipped_pct = $hi,
-                shadow_clipped_pct = $lo
+                shadow_clipped_pct = $lo,
+                face_count = $faces,
+                closed_eye_count = $closedEyes,
+                min_eye_open_score = $minOpen
             """;
         cmd.Parameters.AddWithValue("$name", photo.FileName);
         cmd.Parameters.AddWithValue("$rating", photo.Rating);
@@ -158,6 +188,9 @@ public sealed class CullingDatabase : IDisposable
         cmd.Parameters.AddWithValue("$phash", photo.Phash.HasValue ? unchecked((long)photo.Phash.Value) : 0L);
         cmd.Parameters.AddWithValue("$hi", (object?)photo.HighlightClippedPct ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$lo", (object?)photo.ShadowClippedPct ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$faces", (object?)photo.FaceCount ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$closedEyes", (object?)photo.ClosedEyeCount ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$minOpen", (object?)photo.MinEyeOpenScore ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
@@ -279,4 +312,7 @@ public record PhotoState
     public ulong? Phash { get; init; }
     public float? HighlightClippedPct { get; init; }
     public float? ShadowClippedPct { get; init; }
+    public int? FaceCount { get; init; }
+    public int? ClosedEyeCount { get; init; }
+    public float? MinEyeOpenScore { get; init; }
 }

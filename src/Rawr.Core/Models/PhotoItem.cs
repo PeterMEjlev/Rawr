@@ -44,6 +44,18 @@ public sealed partial class PhotoItem : ObservableObject
     public float? HighlightClippedPct { get; set; }
     public float? ShadowClippedPct { get; set; }
 
+    // Results of the user-triggered face / closed-eye analysis pass.
+    // Null on any of these means "not yet analysed for this photo".
+    // FaceCount = number of faces detected in the cached preview JPEG.
+    // ClosedEyeCount = how many of those faces had at least one eye classified
+    // as closed (above the user's confidence threshold at analysis time).
+    // MinEyeOpenScore = the worst (lowest) "open" probability seen across all
+    // eyes in all faces — closer to 0 means at least one eye is confidently
+    // closed. Used by the sidebar bucket gate.
+    public int? FaceCount { get; set; }
+    public int? ClosedEyeCount { get; set; }
+    public float? MinEyeOpenScore { get; set; }
+
     // Full sensor-resolution JPEG bytes (~3-5 MB). Pre-extracted in the background
     // for the active selection so zoom-in is instant. Cleared by eviction when the
     // user navigates far enough away. Not observable — never bound to UI.

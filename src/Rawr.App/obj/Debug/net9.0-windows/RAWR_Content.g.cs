@@ -14,5 +14,7 @@
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("native/raw_r.dll")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("native/turbojpeg.dll")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("native/z.dll")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("models/face_detection_yunet_2023mar.onnx")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("models/ocec_p.onnx")]
 
 

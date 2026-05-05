@@ -54,6 +54,10 @@
             "CommunityToolkit.Mvvm": {
               "target": "Package",
               "version": "[8.*, )"
+            },
+            "Microsoft.ML.OnnxRuntime": {
+              "target": "Package",
+              "version": "[1.20.*, )"
             }
           },
           "imports": [

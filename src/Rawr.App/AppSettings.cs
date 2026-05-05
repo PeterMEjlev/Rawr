@@ -38,6 +38,12 @@ public sealed class AppSettings
     // per-pixel threshold above meets or exceeds this percentage.
     public byte ClippedAreaThreshold { get; set; } = 5;
 
+    // Gate for the sidebar "Closed eyes" bucket and filter chip. An eye is
+    // considered closed when the classifier's "open" probability falls below
+    // this threshold (range 0–100 == 0.0–1.0). Higher = stricter (fewer photos
+    // pass); 50 ≈ "the model thinks it's more likely closed than open".
+    public byte ClosedEyeThreshold { get; set; } = 50;
+
     public double DoubleClickZoom { get; set; } = 3.0;
 
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
@@ -82,6 +88,7 @@ public sealed class AppSettings
         ClippingMode = ClippingMode,
         ClippingThreshold = ClippingThreshold,
         ClippedAreaThreshold = ClippedAreaThreshold,
+        ClosedEyeThreshold = ClosedEyeThreshold,
         DoubleClickZoom = DoubleClickZoom,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
     };

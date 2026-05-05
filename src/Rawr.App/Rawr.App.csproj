@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.*" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,6 +21,12 @@
 
     <!-- LibRaw native DLLs and their dependencies. Place all DLLs in src/Rawr.App/native/ -->
     <Content Include="native\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+
+    <!-- ONNX models for face / closed-eye detection. Optional — feature degrades
+         gracefully if the files are absent. See models/README.md for sources. -->
+    <Content Include="models\*.onnx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

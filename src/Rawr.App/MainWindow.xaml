@@ -947,6 +947,15 @@
                         Margin="0,0,4,0"
                         ToolTip="Pre-decode every RAW in this folder so navigation is instant. Runs in the background; click again to cancel." />
 
+                <!-- Closed-eye detection: walks every photo's cached preview JPEG,
+                     runs face detection + eye-state classification, persists the
+                     result. Skips photos already analysed. Click again to cancel. -->
+                <Button DockPanel.Dock="Right"
+                        Content="{Binding AnalyzeFacesButtonLabel}"
+                        Command="{Binding AnalyzeFacesCommand}"
+                        Margin="0,0,4,0"
+                        ToolTip="Detect closed eyes in faces across this folder. Skips photos already analysed; click again to cancel. Threshold in Settings → Faces." />
+
                 <!-- Extractor indicator -->
                 <Border DockPanel.Dock="Right"
                         Background="#33FFFFFF"
@@ -1277,6 +1286,34 @@
                                           SnapsToDevicePixels="True" />
                                     <TextBlock Grid.Column="1" Text="Crushed shadows" FontSize="11" />
                                     <TextBlock Grid.Column="2" Text="{Binding CrushedShadowsCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </controls:SidebarBucketButton>
+                        </StackPanel>
+
+                        <!-- Faces subsection — populated by the toolbar 👁 button.
+                             Threshold lives in Settings → Faces. Photos that
+                             haven't been analysed yet don't appear in either side
+                             of the chip's include/exclude split. -->
+                        <TextBlock Text="Faces" Style="{StaticResource SidebarSubsectionHeader}" />
+                        <StackPanel Margin="6,0,6,4">
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetSidebarFaceCommand}"
+                                    CommandParameter="{x:Static vm:FaceFilterMode.ClosedEyes}"
+                                    IsActive="{Binding IsFaceClosedEyesActive}"
+                                    ToolTip="Photos where face / closed-eye analysis flagged at least one closed eye">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="👁"
+                                               FontSize="11"
+                                               Margin="0,0,8,0"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Closed eyes" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ClosedEyesCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
