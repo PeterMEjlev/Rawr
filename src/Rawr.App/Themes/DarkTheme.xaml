@@ -35,6 +35,82 @@
     <SolidColorBrush x:Key="RejectBrush" Color="{StaticResource RejectColor}" />
     <SolidColorBrush x:Key="StarBrush" Color="{StaticResource StarColor}" />
 
+    <!-- Filter polarity (Include/Exclude) badge brushes —
+         derived from PickColor / RejectColor with reduced alpha for a muted feel. -->
+    <SolidColorBrush x:Key="IncludeBgBrush"           Color="#3322C55E" />
+    <SolidColorBrush x:Key="IncludeBgHoverBrush"      Color="#5522C55E" />
+    <SolidColorBrush x:Key="IncludeBorderBrush"       Color="#8022C55E" />
+    <SolidColorBrush x:Key="IncludeForegroundBrush"   Color="#E022C55E" />
+    <SolidColorBrush x:Key="ExcludeBgBrush"           Color="#33EF4444" />
+    <SolidColorBrush x:Key="ExcludeBgHoverBrush"      Color="#55EF4444" />
+    <SolidColorBrush x:Key="ExcludeBorderBrush"       Color="#80EF4444" />
+    <SolidColorBrush x:Key="ExcludeForegroundBrush"   Color="#E0EF4444" />
+
+    <!-- Rounded-rectangle Include/Exclude toggle used in the Filter dropdown.
+         Default (IsChecked=false): muted green "+" — this criterion includes matches.
+         Pressed (IsChecked=true): muted red "−" — this criterion excludes matches.
+         Glyphs are vector Paths so they sit dead-center regardless of font metrics. -->
+    <Style x:Key="FilterPolarityToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Background"  Value="{StaticResource IncludeBgBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource IncludeBorderBrush}" />
+        <Setter Property="Foreground"  Value="{StaticResource IncludeForegroundBrush}" />
+        <Setter Property="ToolTip" Value="Include — click to invert: show photos that DON'T match" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                        <!-- Glyph bars: one Grid layout-centered horizontal bar always shown,
+                             plus a vertical bar shown only when not excluded (= "+" state).
+                             Using Rectangle elements guarantees pixel-centred layout. -->
+                        <Grid>
+                            <Rectangle Width="8" Height="1.6"
+                                       Fill="{TemplateBinding Foreground}"
+                                       RadiusX="0.8" RadiusY="0.8"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                            <Rectangle x:Name="VerticalBar"
+                                       Width="1.6" Height="8"
+                                       Fill="{TemplateBinding Foreground}"
+                                       RadiusX="0.8" RadiusY="0.8"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="VerticalBar" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Background"  Value="{StaticResource ExcludeBgBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ExcludeBorderBrush}" />
+                <Setter Property="Foreground"  Value="{StaticResource ExcludeForegroundBrush}" />
+                <Setter Property="ToolTip" Value="Exclude — click to revert: show photos that DO match" />
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource IncludeBgHoverBrush}" />
+            </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsMouseOver" Value="True" />
+                    <Condition Property="IsChecked"   Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Background" Value="{StaticResource ExcludeBgHoverBrush}" />
+            </MultiTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- Burst stack backer brushes (subtle, blend into BgFilmstrip) -->
     <SolidColorBrush x:Key="BurstStackBack1Brush" Color="#FF1A1D24" />
     <SolidColorBrush x:Key="BurstStackBack2Brush" Color="#FF22252D" />

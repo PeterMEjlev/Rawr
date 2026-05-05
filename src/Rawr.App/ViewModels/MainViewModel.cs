@@ -132,6 +132,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     private ExposureFilterMode _exposureFilter = ExposureFilterMode.Any;
 
+    // Per-criterion polarity. When true, the criterion's predicate is negated
+    // (e.g. "NOT Rejected" instead of "Rejected"). Has no effect when the
+    // associated filter is in its "Any" state.
+    [ObservableProperty] private bool _ratingFilterExclude;
+    [ObservableProperty] private bool _flagFilterExclude;
+    [ObservableProperty] private bool _colorLabelFilterExclude;
+    [ObservableProperty] private bool _tagFilterExclude;
+    [ObservableProperty] private bool _burstFilterExclude;
+    [ObservableProperty] private bool _imageTypeFilterExclude;
+    [ObservableProperty] private bool _exposureFilterExclude;
+
+    partial void OnRatingFilterExcludeChanged(bool value)     { if (RatingFilterMode != RatingFilterMode.Any) ApplyFilter(); }
+    partial void OnFlagFilterExcludeChanged(bool value)       { if (FlagFilter.HasValue)                     ApplyFilter(); }
+    partial void OnColorLabelFilterExcludeChanged(bool value) { if (ColorLabelFilter.HasValue)               ApplyFilter(); }
+    partial void OnTagFilterExcludeChanged(bool value)        { if (TagFilter != null)                       ApplyFilter(); }
+    partial void OnBurstFilterExcludeChanged(bool value)      { if (BurstFilter != BurstFilterMode.Any)      ApplyFilter(); }
+    partial void OnImageTypeFilterExcludeChanged(bool value)  { if (ImageTypeFilter != ImageTypeFilterMode.Any) ApplyFilter(); }
+    partial void OnExposureFilterExcludeChanged(bool value)   { if (ExposureFilter != ExposureFilterMode.Any) ApplyFilter(); }
+
     public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any;
 
     [ObservableProperty] private int _burstCount;
@@ -1481,6 +1500,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ClearRatingFilter()
     {
         RatingFilterMode = RatingFilterMode.Any;
+        RatingFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1504,7 +1524,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetRatingValue(int value)
     {
         if (RatingFilterMode == RatingCycleMode && RatingFilterValue == value)
+        {
             RatingFilterMode = RatingFilterMode.Any;
+            RatingFilterExclude = false;
+        }
         else
         {
             RatingFilterMode = RatingCycleMode;
@@ -1561,6 +1584,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetFlagFilter(CullFlag flag)
     {
         FlagFilter = FlagFilter == flag ? null : flag;
+        if (!FlagFilter.HasValue) FlagFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1568,6 +1592,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ClearFlagFilter()
     {
         FlagFilter = null;
+        FlagFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1575,6 +1600,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetColorLabelFilter(ColorLabel label)
     {
         ColorLabelFilter = ColorLabelFilter == label ? null : label;
+        if (!ColorLabelFilter.HasValue) ColorLabelFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1582,6 +1608,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ClearColorLabelFilter()
     {
         ColorLabelFilter = null;
+        ColorLabelFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1591,6 +1618,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetTagFilter(PhotoTag tag)
     {
         TagFilter = TagFilter?.Id == tag.Id ? null : tag;
+        if (TagFilter == null) TagFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1598,6 +1626,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ClearTagFilter()
     {
         TagFilter = null;
+        TagFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1706,6 +1735,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         TagFilter = null;
         BurstFilter = BurstFilterMode.Any;
         ImageTypeFilter = ImageTypeFilterMode.Any;
+        ExposureFilter = ExposureFilterMode.Any;
+        RatingFilterExclude = false;
+        FlagFilterExclude = false;
+        ColorLabelFilterExclude = false;
+        TagFilterExclude = false;
+        BurstFilterExclude = false;
+        ImageTypeFilterExclude = false;
+        ExposureFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1715,6 +1752,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetBurstFilter(BurstFilterMode mode)
     {
         BurstFilter = BurstFilter == mode ? BurstFilterMode.Any : mode;
+        if (BurstFilter == BurstFilterMode.Any) BurstFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1722,6 +1760,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ClearBurstFilter()
     {
         BurstFilter = BurstFilterMode.Any;
+        BurstFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1731,6 +1770,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetImageTypeFilter(ImageTypeFilterMode mode)
     {
         ImageTypeFilter = ImageTypeFilter == mode ? ImageTypeFilterMode.Any : mode;
+        if (ImageTypeFilter == ImageTypeFilterMode.Any) ImageTypeFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1738,6 +1778,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ClearImageTypeFilter()
     {
         ImageTypeFilter = ImageTypeFilterMode.Any;
+        ImageTypeFilterExclude = false;
+        ApplyFilter();
+    }
+
+    // ── Exposure filter (filter popup; combines with other criteria) ──
+
+    [RelayCommand]
+    private void SetExposureFilter(ExposureFilterMode mode)
+    {
+        ExposureFilter = ExposureFilter == mode ? ExposureFilterMode.Any : mode;
+        if (ExposureFilter == ExposureFilterMode.Any) ExposureFilterExclude = false;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearExposureFilter()
+    {
+        ExposureFilter = ExposureFilterMode.Any;
+        ExposureFilterExclude = false;
         ApplyFilter();
     }
 
@@ -1892,38 +1951,59 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         FilteredPhotos.Clear();
 
         IEnumerable<PhotoItem> visible = AllPhotos;
-        visible = RatingFilterMode switch
+
+        Func<PhotoItem, bool>? ratingPred = RatingFilterMode switch
         {
-            RatingFilterMode.Exact    => visible.Where(p => p.Rating == RatingFilterValue),
-            RatingFilterMode.AtLeast  => visible.Where(p => p.Rating >= RatingFilterValue),
-            RatingFilterMode.LessThan => visible.Where(p => p.Rating < RatingFilterValue),
-            _                         => visible
+            RatingFilterMode.Exact    => p => p.Rating == RatingFilterValue,
+            RatingFilterMode.AtLeast  => p => p.Rating >= RatingFilterValue,
+            RatingFilterMode.LessThan => p => p.Rating <  RatingFilterValue,
+            _                         => null
         };
+        if (ratingPred != null)
+            visible = RatingFilterExclude ? visible.Where(p => !ratingPred(p)) : visible.Where(ratingPred);
+
         if (FlagFilter.HasValue)
-            visible = visible.Where(p => p.Flag == FlagFilter.Value);
+        {
+            var f = FlagFilter.Value;
+            visible = FlagFilterExclude ? visible.Where(p => p.Flag != f) : visible.Where(p => p.Flag == f);
+        }
         if (ColorLabelFilter.HasValue)
-            visible = visible.Where(p => p.ColorLabel == ColorLabelFilter.Value);
+        {
+            var c = ColorLabelFilter.Value;
+            visible = ColorLabelFilterExclude ? visible.Where(p => p.ColorLabel != c) : visible.Where(p => p.ColorLabel == c);
+        }
         if (TagFilter != null)
-            visible = visible.Where(p => p.TagIds.Contains(TagFilter.Id));
-        visible = ImageTypeFilter switch
         {
-            ImageTypeFilterMode.RawOnly   => visible.Where(p => p.IsRaw),
-            ImageTypeFilterMode.JpegOnly  => visible.Where(p => !p.IsRaw && !p.IsVideo),
-            ImageTypeFilterMode.VideoOnly => visible.Where(p => p.IsVideo),
-            _                             => visible
-        };
-        visible = BurstFilter switch
+            var tagId = TagFilter.Id;
+            visible = TagFilterExclude ? visible.Where(p => !p.TagIds.Contains(tagId)) : visible.Where(p => p.TagIds.Contains(tagId));
+        }
+
+        Func<PhotoItem, bool>? typePred = ImageTypeFilter switch
         {
-            BurstFilterMode.OnlyInBursts => visible.Where(p => p.GroupId > 0),
-            BurstFilterMode.OnlySingles  => visible.Where(p => p.GroupId == 0),
-            _                            => visible
+            ImageTypeFilterMode.RawOnly   => p => p.IsRaw,
+            ImageTypeFilterMode.JpegOnly  => p => !p.IsRaw && !p.IsVideo,
+            ImageTypeFilterMode.VideoOnly => p => p.IsVideo,
+            _                             => null
         };
+        if (typePred != null)
+            visible = ImageTypeFilterExclude ? visible.Where(p => !typePred(p)) : visible.Where(typePred);
+
+        Func<PhotoItem, bool>? burstPred = BurstFilter switch
+        {
+            BurstFilterMode.OnlyInBursts => p => p.GroupId >  0,
+            BurstFilterMode.OnlySingles  => p => p.GroupId == 0,
+            _                            => null
+        };
+        if (burstPred != null)
+            visible = BurstFilterExclude ? visible.Where(p => !burstPred(p)) : visible.Where(burstPred);
+
         if (ExposureFilter != ExposureFilterMode.Any)
         {
             float gate = AppSettings.Current.ClippedAreaThreshold;
-            visible = ExposureFilter == ExposureFilterMode.ClippedHighlights
-                ? visible.Where(p => p.HighlightClippedPct.HasValue && p.HighlightClippedPct.Value >= gate)
-                : visible.Where(p => p.ShadowClippedPct.HasValue    && p.ShadowClippedPct.Value    >= gate);
+            Func<PhotoItem, bool> exposurePred = ExposureFilter == ExposureFilterMode.ClippedHighlights
+                ? (p => p.HighlightClippedPct.HasValue && p.HighlightClippedPct.Value >= gate)
+                : (p => p.ShadowClippedPct.HasValue    && p.ShadowClippedPct.Value    >= gate);
+            visible = ExposureFilterExclude ? visible.Where(p => !exposurePred(p)) : visible.Where(exposurePred);
         }
 
         var sorted = ApplySorting(visible).ToList();
@@ -2015,6 +2095,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void UpdateFilterDescription()
     {
         var parts = new List<string>();
+        static string Tag(bool exclude, string s) => exclude ? "NOT " + s : s;
 
         var ratingDesc = RatingFilterMode switch
         {
@@ -2023,20 +2104,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             RatingFilterMode.LessThan => $"<{RatingFilterValue}★",
             _                         => null
         };
-        if (ratingDesc != null) parts.Add(ratingDesc);
+        if (ratingDesc != null) parts.Add(Tag(RatingFilterExclude, ratingDesc));
         if (FlagFilter.HasValue)
-            parts.Add(FlagFilter.Value.ToString());
+            parts.Add(Tag(FlagFilterExclude, FlagFilter.Value.ToString()));
         if (ColorLabelFilter.HasValue)
-            parts.Add(ColorLabelFilter.Value.ToString());
+            parts.Add(Tag(ColorLabelFilterExclude, ColorLabelFilter.Value.ToString()));
         if (TagFilter != null)
-            parts.Add(TagFilter.Name);
-        if (BurstFilter == BurstFilterMode.OnlyInBursts) parts.Add("Bursts");
-        else if (BurstFilter == BurstFilterMode.OnlySingles) parts.Add("Singles");
-        if (ImageTypeFilter == ImageTypeFilterMode.RawOnly) parts.Add("RAW");
-        else if (ImageTypeFilter == ImageTypeFilterMode.JpegOnly) parts.Add("JPG");
-        else if (ImageTypeFilter == ImageTypeFilterMode.VideoOnly) parts.Add("Video");
-        if (ExposureFilter == ExposureFilterMode.ClippedHighlights) parts.Add("Clipped highlights");
-        else if (ExposureFilter == ExposureFilterMode.CrushedShadows) parts.Add("Crushed shadows");
+            parts.Add(Tag(TagFilterExclude, TagFilter.Name));
+        if (BurstFilter == BurstFilterMode.OnlyInBursts) parts.Add(Tag(BurstFilterExclude, "Bursts"));
+        else if (BurstFilter == BurstFilterMode.OnlySingles) parts.Add(Tag(BurstFilterExclude, "Singles"));
+        if (ImageTypeFilter == ImageTypeFilterMode.RawOnly) parts.Add(Tag(ImageTypeFilterExclude, "RAW"));
+        else if (ImageTypeFilter == ImageTypeFilterMode.JpegOnly) parts.Add(Tag(ImageTypeFilterExclude, "JPG"));
+        else if (ImageTypeFilter == ImageTypeFilterMode.VideoOnly) parts.Add(Tag(ImageTypeFilterExclude, "Video"));
+        if (ExposureFilter == ExposureFilterMode.ClippedHighlights) parts.Add(Tag(ExposureFilterExclude, "Clipped highlights"));
+        else if (ExposureFilter == ExposureFilterMode.CrushedShadows) parts.Add(Tag(ExposureFilterExclude, "Crushed shadows"));
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }
@@ -2285,6 +2366,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             RatingFilterMode = RatingFilterMode.Any;
             RatingFilterValue = 0;
+            RatingFilterExclude = false;
         }
         else
         {
@@ -2300,6 +2382,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var isSame = ColorLabelFilter == label;
         ClearOtherSidebarFilters(SidebarFilterKind.Color);
         ColorLabelFilter = isSame ? null : label;
+        if (!ColorLabelFilter.HasValue) ColorLabelFilterExclude = false;
         ApplyFilter();
     }
 
@@ -2309,6 +2392,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var isSame = TagFilter?.Id == tag.Id;
         ClearOtherSidebarFilters(SidebarFilterKind.Tag);
         TagFilter = isSame ? null : tag;
+        if (TagFilter == null) TagFilterExclude = false;
         ApplyFilter();
     }
 
@@ -2318,6 +2402,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var isSame = FlagFilter == flag;
         ClearOtherSidebarFilters(SidebarFilterKind.Flag);
         FlagFilter = isSame ? null : flag;
+        if (!FlagFilter.HasValue) FlagFilterExclude = false;
         ApplyFilter();
     }
 
@@ -2327,6 +2412,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var isSame = ExposureFilter == mode;
         ClearOtherSidebarFilters(SidebarFilterKind.Exposure);
         ExposureFilter = isSame ? ExposureFilterMode.Any : mode;
+        if (ExposureFilter == ExposureFilterMode.Any) ExposureFilterExclude = false;
         ApplyFilter();
     }
 
@@ -2338,25 +2424,32 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             RatingFilterMode = RatingFilterMode.Any;
             RatingFilterValue = 0;
+            RatingFilterExclude = false;
         }
         if (keep != SidebarFilterKind.Color)
         {
             ColorLabelFilter = null;
+            ColorLabelFilterExclude = false;
         }
         if (keep != SidebarFilterKind.Tag)
         {
             TagFilter = null;
+            TagFilterExclude = false;
         }
         if (keep != SidebarFilterKind.Flag)
         {
             FlagFilter = null;
+            FlagFilterExclude = false;
         }
         if (keep != SidebarFilterKind.Exposure)
         {
             ExposureFilter = ExposureFilterMode.Any;
+            ExposureFilterExclude = false;
         }
         BurstFilter = BurstFilterMode.Any;
+        BurstFilterExclude = false;
         ImageTypeFilter = ImageTypeFilterMode.Any;
+        ImageTypeFilterExclude = false;
     }
 
     private void RefreshFilterBuckets()

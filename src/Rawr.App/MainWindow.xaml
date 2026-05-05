@@ -68,7 +68,12 @@
                             <StackPanel>
 
                                 <!-- Rating -->
-                                <TextBlock Text="RATING" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="RATING" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    <ToggleButton Style="{StaticResource FilterPolarityToggleStyle}"
+                                                  IsChecked="{Binding RatingFilterExclude}"
+                                                  Margin="8,0,0,0" />
+                                </StackPanel>
                                 <StackPanel Margin="0,0,0,10">
 
                                     <!-- Any + mode toggle -->
@@ -124,7 +129,12 @@
                                 </StackPanel>
 
                                 <!-- Flag -->
-                                <TextBlock Text="FLAG" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="FLAG" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    <ToggleButton Style="{StaticResource FilterPolarityToggleStyle}"
+                                                  IsChecked="{Binding FlagFilterExclude}"
+                                                  Margin="8,0,0,0" />
+                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <Button Content="Any" Command="{Binding ClearFlagFilterCommand}" Margin="0,0,3,0">
                                         <Button.Style>
@@ -176,7 +186,12 @@
                                 </StackPanel>
 
                                 <!-- Color -->
-                                <TextBlock Text="COLOR" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="COLOR" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    <ToggleButton Style="{StaticResource FilterPolarityToggleStyle}"
+                                                  IsChecked="{Binding ColorLabelFilterExclude}"
+                                                  Margin="8,0,0,0" />
+                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <Button Content="Any" Command="{Binding ClearColorLabelFilterCommand}" Margin="0,0,3,0">
                                         <Button.Style>
@@ -289,7 +304,12 @@
                                 </StackPanel>
 
                                 <!-- Bursts -->
-                                <TextBlock Text="BURSTS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="BURSTS" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    <ToggleButton Style="{StaticResource FilterPolarityToggleStyle}"
+                                                  IsChecked="{Binding BurstFilterExclude}"
+                                                  Margin="8,0,0,0" />
+                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <Button Content="Any" Command="{Binding ClearBurstFilterCommand}" Margin="0,0,3,0">
                                         <Button.Style>
@@ -334,7 +354,12 @@
                                 </StackPanel>
 
                                 <!-- Type -->
-                                <TextBlock Text="TYPE" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="TYPE" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    <ToggleButton Style="{StaticResource FilterPolarityToggleStyle}"
+                                                  IsChecked="{Binding ImageTypeFilterExclude}"
+                                                  Margin="8,0,0,0" />
+                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <Button Content="Any" Command="{Binding ClearImageTypeFilterCommand}" Margin="0,0,3,0">
                                         <Button.Style>
@@ -393,8 +418,63 @@
                                     </Button>
                                 </StackPanel>
 
+                                <!-- Exposure -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="EXPOSURE" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    <ToggleButton Style="{StaticResource FilterPolarityToggleStyle}"
+                                                  IsChecked="{Binding ExposureFilterExclude}"
+                                                  Margin="8,0,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Any" Command="{Binding ClearExposureFilterCommand}" Margin="0,0,3,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ExposureFilter}" Value="Any">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Clipped highlights"
+                                            Command="{Binding SetExposureFilterCommand}"
+                                            CommandParameter="{x:Static vm:ExposureFilterMode.ClippedHighlights}"
+                                            Margin="0,0,3,0"
+                                            ToolTip="Show photos whose highlight-clipped pixel area exceeds the threshold in Settings">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ExposureFilter}" Value="ClippedHighlights">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Crushed shadows"
+                                            Command="{Binding SetExposureFilterCommand}"
+                                            CommandParameter="{x:Static vm:ExposureFilterMode.CrushedShadows}"
+                                            ToolTip="Show photos whose crushed-shadow pixel area exceeds the threshold in Settings">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ExposureFilter}" Value="CrushedShadows">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+
                                 <!-- Groups -->
-                                <TextBlock Text="TAGS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="TAGS" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    <ToggleButton Style="{StaticResource FilterPolarityToggleStyle}"
+                                                  IsChecked="{Binding TagFilterExclude}"
+                                                  Margin="8,0,0,0" />
+                                </StackPanel>
                                 <WrapPanel Margin="0,0,0,6">
                                     <Button Content="Any" Command="{Binding ClearTagFilterCommand}" Margin="0,0,3,3">
                                         <Button.Style>
