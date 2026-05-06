@@ -17,8 +17,6 @@
 
 - ## GPS map view — if EXIF has coordinates, plot on a map (offline tile cache). Filter by location.
 
-- ## Add time of day to filter 
-
 - ## Multi-shot HDR detection — bracket sequences, group separately from regular bursts. Detect if shot is HDR (maybe by same content, but with varying exposure levels = HDR?)
 
-- ## Two-monitor mode — full preview on monitor 2, filmstrip + tools on monitor 1
+- ## Two-monitor mode — full preview on monitor 2, filmstrip + tools on monitor 1. Use the already exisiting 'View' menu in the top panel.

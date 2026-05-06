@@ -1035,4 +1035,57 @@
         </Setter>
     </Style>
 
+    <!-- RangeSlider — two-handle slider used by the time-of-day filter.
+         The Canvas is the named PART_Track; the code-behind reads its ActualWidth
+         to map between mouse positions and (LowerValue, UpperValue). -->
+    <Style TargetType="{x:Type controls:RangeSlider}">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:RangeSlider}">
+                    <Grid>
+                        <Border Background="{StaticResource BgControlBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                Height="6"
+                                CornerRadius="3"
+                                VerticalAlignment="Center" />
+                        <Canvas x:Name="PART_Track" Background="Transparent" ClipToBounds="False">
+                            <Rectangle x:Name="PART_SelectedRange"
+                                       Height="6"
+                                       Fill="{StaticResource AccentBrush}"
+                                       RadiusX="3" RadiusY="3"
+                                       Canvas.Top="8" />
+                            <Thumb x:Name="PART_LowerThumb"
+                                   Width="14" Height="14"
+                                   Canvas.Top="4"
+                                   Cursor="Hand">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Ellipse Fill="{StaticResource TextBrush}"
+                                                 Stroke="{StaticResource AccentBrush}"
+                                                 StrokeThickness="2" />
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                            <Thumb x:Name="PART_UpperThumb"
+                                   Width="14" Height="14"
+                                   Canvas.Top="4"
+                                   Cursor="Hand">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Ellipse Fill="{StaticResource TextBrush}"
+                                                 Stroke="{StaticResource AccentBrush}"
+                                                 StrokeThickness="2" />
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Canvas>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

@@ -470,6 +470,56 @@
                                     </Button>
                                 </StackPanel>
 
+                                <!-- Time of day -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="TIME OF DAY" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    <ToggleButton Style="{StaticResource FilterPolarityToggleStyle}"
+                                                  IsChecked="{Binding TimeOfDayFilterExclude}"
+                                                  Margin="8,0,0,0" />
+                                </StackPanel>
+                                <Grid Margin="0,0,0,10" Width="260">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Row="0" Grid.Column="0"
+                                             Width="56"
+                                             HorizontalContentAlignment="Center"
+                                             Text="{Binding TimeOfDayStartText, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="Window start (HH:mm)" />
+                                    <TextBox Grid.Row="0" Grid.Column="2"
+                                             Width="56"
+                                             HorizontalContentAlignment="Center"
+                                             Text="{Binding TimeOfDayEndText, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="Window end (HH:mm). If end is earlier than start the window straddles midnight." />
+                                    <Button Grid.Row="0" Grid.Column="3"
+                                            Content="Any"
+                                            Command="{Binding ClearTimeOfDayFilterCommand}"
+                                            Margin="6,0,0,0"
+                                            ToolTip="Clear time-of-day filter">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsTimeOfDayFilterActive}" Value="False">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <controls:RangeSlider Grid.Row="1" Grid.ColumnSpan="4"
+                                                          Margin="0,8,0,0"
+                                                          Minimum="0" Maximum="1440" Step="15"
+                                                          LowerValue="{Binding TimeOfDayStartMinutes, Mode=TwoWay}"
+                                                          UpperValue="{Binding TimeOfDayEndMinutes,   Mode=TwoWay}" />
+                                </Grid>
+
                                 <!-- Groups -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                                     <TextBlock Text="TAGS" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />

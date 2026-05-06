@@ -144,6 +144,77 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     private FaceFilterMode _faceFilter = FaceFilterMode.Any;
 
+    // Time-of-day filter: include photos whose CaptureTime falls between
+    // [TimeOfDayStartMinutes, TimeOfDayEndMinutes) modulo 24h. The filter is
+    // active whenever the range isn't the full day (0..1440). Both values are
+    // stored as minutes since midnight (0–1440 inclusive).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(TimeOfDayStartText))]
+    [NotifyPropertyChangedFor(nameof(IsTimeOfDayFilterActive))]
+    private int _timeOfDayStartMinutes;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(TimeOfDayEndText))]
+    [NotifyPropertyChangedFor(nameof(IsTimeOfDayFilterActive))]
+    private int _timeOfDayEndMinutes = 1440;
+
+    public bool IsTimeOfDayFilterActive => TimeOfDayStartMinutes != 0 || TimeOfDayEndMinutes != 1440;
+
+    public string TimeOfDayStartText
+    {
+        get => FormatMinutes(TimeOfDayStartMinutes);
+        set
+        {
+            if (TryParseMinutes(value, out var m)) TimeOfDayStartMinutes = Math.Clamp(m, 0, 1440);
+            // Always re-notify so an unparseable string in the TextBox snaps back
+            // to the last valid value rather than lingering as garbage on screen.
+            OnPropertyChanged(nameof(TimeOfDayStartText));
+        }
+    }
+
+    public string TimeOfDayEndText
+    {
+        get => FormatMinutes(TimeOfDayEndMinutes);
+        set
+        {
+            if (TryParseMinutes(value, out var m)) TimeOfDayEndMinutes = Math.Clamp(m, 0, 1440);
+            OnPropertyChanged(nameof(TimeOfDayEndText));
+        }
+    }
+
+    private static string FormatMinutes(int totalMinutes)
+    {
+        var clamped = Math.Clamp(totalMinutes, 0, 1440);
+        var h = clamped / 60;
+        var m = clamped % 60;
+        // 24:00 is preserved as the explicit "end of day" marker so the upper
+        // handle reads as the user expects rather than wrapping back to 00:00.
+        return $"{h:D2}:{m:D2}";
+    }
+
+    private static bool TryParseMinutes(string? text, out int minutes)
+    {
+        minutes = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var parts = text.Trim().Split(':');
+        if (parts.Length == 1)
+        {
+            if (int.TryParse(parts[0], out var hOnly) && hOnly >= 0 && hOnly <= 24)
+            {
+                minutes = hOnly * 60;
+                return true;
+            }
+            return false;
+        }
+        if (parts.Length != 2) return false;
+        if (!int.TryParse(parts[0], out var h) || !int.TryParse(parts[1], out var m)) return false;
+        if (h < 0 || h > 24 || m < 0 || m > 59) return false;
+        minutes = h * 60 + m;
+        return true;
+    }
+
     // Per-criterion polarity. When true, the criterion's predicate is negated
     // (e.g. "NOT Rejected" instead of "Rejected"). Has no effect when the
     // associated filter is in its "Any" state.
@@ -155,6 +226,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _imageTypeFilterExclude;
     [ObservableProperty] private bool _exposureFilterExclude;
     [ObservableProperty] private bool _faceFilterExclude;
+    [ObservableProperty] private bool _timeOfDayFilterExclude;
 
     partial void OnRatingFilterExcludeChanged(bool value)     { if (RatingFilterMode != RatingFilterMode.Any) ApplyFilter(); }
     partial void OnFlagFilterExcludeChanged(bool value)       { if (FlagFilter.HasValue)                     ApplyFilter(); }
@@ -164,8 +236,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnImageTypeFilterExcludeChanged(bool value)  { if (ImageTypeFilter != ImageTypeFilterMode.Any) ApplyFilter(); }
     partial void OnExposureFilterExcludeChanged(bool value)   { if (ExposureFilter != ExposureFilterMode.Any) ApplyFilter(); }
     partial void OnFaceFilterExcludeChanged(bool value)       { if (FaceFilter != FaceFilterMode.Any)        ApplyFilter(); }
+    partial void OnTimeOfDayFilterExcludeChanged(bool value)  { if (IsTimeOfDayFilterActive)                 ApplyFilter(); }
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any;
+    partial void OnTimeOfDayStartMinutesChanged(int value) => ApplyFilter();
+    partial void OnTimeOfDayEndMinutesChanged(int value)   => ApplyFilter();
+
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive;
 
     [ObservableProperty] private int _burstCount;
 
@@ -2200,6 +2276,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         BurstFilter = BurstFilterMode.Any;
         ImageTypeFilter = ImageTypeFilterMode.Any;
         ExposureFilter = ExposureFilterMode.Any;
+        FaceFilter = FaceFilterMode.Any;
+        TimeOfDayStartMinutes = 0;
+        TimeOfDayEndMinutes = 1440;
         RatingFilterExclude = false;
         FlagFilterExclude = false;
         ColorLabelFilterExclude = false;
@@ -2207,7 +2286,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         BurstFilterExclude = false;
         ImageTypeFilterExclude = false;
         ExposureFilterExclude = false;
+        FaceFilterExclude = false;
+        TimeOfDayFilterExclude = false;
         ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearTimeOfDayFilter()
+    {
+        TimeOfDayStartMinutes = 0;
+        TimeOfDayEndMinutes = 1440;
+        TimeOfDayFilterExclude = false;
     }
 
     // ── Burst filter ──
@@ -2582,6 +2671,29 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 : visible.Where(facePred);
         }
 
+        if (IsTimeOfDayFilterActive)
+        {
+            int start = TimeOfDayStartMinutes;
+            int end   = TimeOfDayEndMinutes;
+            // Photos without a CaptureTime stay out of both sides of the
+            // include/exclude split, matching the Face/Exposure convention so
+            // un-analysable photos don't lie either way.
+            Func<PhotoItem, bool> hasTime = p => p.Metadata?.CaptureTime.HasValue == true;
+            Func<PhotoItem, bool> inWindow = p =>
+            {
+                var t = p.Metadata!.CaptureTime!.Value;
+                int mins = t.Hour * 60 + t.Minute;
+                // start <= end is the simple "same day" window; start > end means
+                // the window straddles midnight (e.g. 22:00 → 04:00 = night).
+                return start <= end
+                    ? mins >= start && mins < end
+                    : mins >= start || mins < end;
+            };
+            visible = TimeOfDayFilterExclude
+                ? visible.Where(p => hasTime(p) && !inWindow(p))
+                : visible.Where(p => hasTime(p) && inWindow(p));
+        }
+
         var sorted = ApplySorting(visible).ToList();
 
         // Reset any prior collapse markers — collapse is purely a presentation
@@ -2654,6 +2766,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ImageTypeFilterExclude = ImageTypeFilterExclude,
         ExposureFilterExclude = ExposureFilterExclude,
         FaceFilterExclude = FaceFilterExclude,
+        TimeOfDayStartMinutes = TimeOfDayStartMinutes,
+        TimeOfDayEndMinutes = TimeOfDayEndMinutes,
+        TimeOfDayFilterExclude = TimeOfDayFilterExclude,
         BurstCollapsed = BurstCollapsed,
         SortField = SortField,
         SortDescending = SortDescending,
@@ -2683,6 +2798,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ImageTypeFilterExclude = s.ImageTypeFilterExclude;
         ExposureFilterExclude = s.ExposureFilterExclude;
         FaceFilterExclude = s.FaceFilterExclude;
+
+        TimeOfDayStartMinutes = Math.Clamp(s.TimeOfDayStartMinutes, 0, 1440);
+        TimeOfDayEndMinutes = Math.Clamp(s.TimeOfDayEndMinutes <= 0 ? 1440 : s.TimeOfDayEndMinutes, 0, 1440);
+        TimeOfDayFilterExclude = s.TimeOfDayFilterExclude;
 
         if (s.BurstCollapsed.HasValue) BurstCollapsed = s.BurstCollapsed.Value;
         if (s.SortField.HasValue) SortField = s.SortField.Value;
@@ -2768,6 +2887,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (ExposureFilter == ExposureFilterMode.ClippedHighlights) parts.Add(Tag(ExposureFilterExclude, "Clipped highlights"));
         else if (ExposureFilter == ExposureFilterMode.CrushedShadows) parts.Add(Tag(ExposureFilterExclude, "Crushed shadows"));
         if (FaceFilter == FaceFilterMode.ClosedEyes) parts.Add(Tag(FaceFilterExclude, "Closed eyes"));
+        if (IsTimeOfDayFilterActive) parts.Add(Tag(TimeOfDayFilterExclude, $"{FormatMinutes(TimeOfDayStartMinutes)}–{FormatMinutes(TimeOfDayEndMinutes)}"));
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
     }

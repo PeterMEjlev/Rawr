@@ -35,6 +35,10 @@ public sealed class FolderSession
     public bool ExposureFilterExclude { get; set; }
     public bool FaceFilterExclude { get; set; }
 
+    public int TimeOfDayStartMinutes { get; set; }
+    public int TimeOfDayEndMinutes { get; set; } = 1440;
+    public bool TimeOfDayFilterExclude { get; set; }
+
     public bool? BurstCollapsed { get; set; }
     public SortField? SortField { get; set; }
     public bool SortDescending { get; set; }
