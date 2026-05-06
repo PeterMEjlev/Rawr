@@ -119,12 +119,22 @@
                         <!-- Visual similarity strictness -->
                         <TextBlock Text="Visual similarity" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Looser"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
                             <Slider x:Name="SimilaritySlider"
                                     Minimum="0" Maximum="100"
                                     SmallChange="5" LargeChange="10"
                                     TickFrequency="5" IsSnapToTickEnabled="True"
-                                    Width="280"
+                                    Width="220"
                                     VerticalAlignment="Center" />
+                            <TextBlock Text="Stricter"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
                             <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
                                 <Run Text="{Binding ElementName=SimilaritySlider, Path=Value, StringFormat={}{0:F0}}" />
                             </TextBlock>
@@ -182,12 +192,22 @@
 
                         <TextBlock Text="Threshold (%)" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Looser"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
                             <Slider x:Name="ClippingThresholdSlider"
                                     Minimum="90" Maximum="100"
                                     SmallChange="1" LargeChange="1"
                                     TickFrequency="1" IsSnapToTickEnabled="True"
-                                    Width="280"
+                                    Width="220"
                                     VerticalAlignment="Center" />
+                            <TextBlock Text="Stricter"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
                             <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
                                 <Run Text="{Binding ElementName=ClippingThresholdSlider, Path=Value, StringFormat={}{0:F0}}" />
                                 <Run Text="%" />
@@ -201,12 +221,22 @@
 
                         <TextBlock Text="Sidebar bucket sensitivity (% of pixels)" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Looser"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
                             <Slider x:Name="ClippedAreaThresholdSlider"
                                     Minimum="1" Maximum="50"
                                     SmallChange="1" LargeChange="5"
                                     TickFrequency="1" IsSnapToTickEnabled="True"
-                                    Width="280"
+                                    Width="220"
                                     VerticalAlignment="Center" />
+                            <TextBlock Text="Stricter"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
                             <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
                                 <Run Text="{Binding ElementName=ClippedAreaThresholdSlider, Path=Value, StringFormat={}{0:F0}}" />
                                 <Run Text="%" />
@@ -230,12 +260,22 @@
 
                         <TextBlock Text="Closed-eye sensitivity (%)" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Looser"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
                             <Slider x:Name="ClosedEyeThresholdSlider"
                                     Minimum="10" Maximum="90"
                                     SmallChange="1" LargeChange="5"
                                     TickFrequency="5" IsSnapToTickEnabled="True"
-                                    Width="280"
+                                    Width="220"
                                     VerticalAlignment="Center" />
+                            <TextBlock Text="Stricter"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
                             <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
                                 <Run Text="{Binding ElementName=ClosedEyeThresholdSlider, Path=Value, StringFormat={}{0:F0}}" />
                                 <Run Text="%" />
@@ -259,12 +299,22 @@
 
                         <TextBlock Text="Strictness" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Looser"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
                             <Slider x:Name="FocusPeakingStrictnessSlider"
                                     Minimum="10" Maximum="100"
                                     SmallChange="5" LargeChange="10"
                                     TickFrequency="5" IsSnapToTickEnabled="True"
-                                    Width="280"
+                                    Width="220"
                                     VerticalAlignment="Center" />
+                            <TextBlock Text="Stricter"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
                             <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
                                 <Run Text="{Binding ElementName=FocusPeakingStrictnessSlider, Path=Value, StringFormat={}{0:F0}}" />
                             </TextBlock>
