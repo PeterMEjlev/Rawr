@@ -38,6 +38,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool _highResPreviewLoaded;
     private PhotoItem? _metadataSubscription;
 
+    // Per-folder "resume where I left off" — persisted to <folder>/.rawr/session.json.
+    // Suppressed while a folder is being loaded so the reset/restore sequence doesn't
+    // overwrite the file with transient null state.
+    private string? _sessionFolder;
+    private bool _suppressSessionSave;
+
     // Photos within this radius of the current selection keep their PreviewJpeg /
     // FullJpeg bytes in memory for instant browsing. Photos outside the window are
     // evicted on selection change to keep memory bounded.
@@ -582,6 +588,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _indexCts = new CancellationTokenSource();
         var ct = _indexCts.Token;
 
+        // Suppress per-folder session writes while we tear down the previous folder
+        // and rebuild this one — otherwise transient state (cleared filters, null
+        // selection) would clobber the saved session before we get a chance to
+        // restore it. Any final save happens via SaveSessionIfNeeded after restore.
+        _suppressSessionSave = true;
+        _sessionFolder = null;
+
         IsLoading = true;
         CurrentFolder = folderPath;
         StatusText = "Scanning folder...";
@@ -700,14 +713,45 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (pendingMerges.Count > 0)
             ApplyXmpMerges(pendingMerges);
 
+        // Restore per-folder session (filters, sort, burst-collapse) before the
+        // first ApplyFilter so the rebuilt FilteredPhotos already reflects the
+        // user's previous view of this folder. Falls back to the defaults set
+        // earlier if there's no session file.
+        var session = FolderSession.TryLoad(folderPath);
+        if (session != null)
+            ApplySessionState(session);
+
         ApplyFilter();
 
-        // Select first photo
-        if (FilteredPhotos.Count > 0)
+        // Resume on the same photo as last time, if it's still in the filtered
+        // view. If filters now hide it, fall back to the first visible photo.
+        var resumedIndex = -1;
+        if (!string.IsNullOrEmpty(session?.LastSelectedFile))
+        {
+            for (int i = 0; i < FilteredPhotos.Count; i++)
+            {
+                if (string.Equals(FilteredPhotos[i].FileName, session.LastSelectedFile, StringComparison.OrdinalIgnoreCase))
+                {
+                    resumedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (resumedIndex >= 0)
+        {
+            SelectedIndex = resumedIndex;
+            SelectedPhoto = FilteredPhotos[resumedIndex];
+        }
+        else if (FilteredPhotos.Count > 0)
         {
             SelectedIndex = 0;
             SelectedPhoto = FilteredPhotos[0];
         }
+
+        // Restore complete — re-enable session writes, anchored to this folder.
+        _sessionFolder = folderPath;
+        _suppressSessionSave = false;
 
         StatusText = $"Loaded {files.Count} photos. Generating previews...";
 
@@ -884,6 +928,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _metadataSubscription = value;
         if (value != null)
             value.PropertyChanged += OnSelectedPhotoPropertyChanged;
+
+        // Persist last-selected so reopening this folder jumps straight back here.
+        // Skip when value is null — that's almost always the transient clear during
+        // folder load or filter rebuild, not a real "user deselected everything".
+        if (value != null) SaveSessionIfNeeded();
     }
 
     private void OnSelectedPhotoPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -2579,6 +2628,73 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         RestoreSelection(previousSelection);
         RefreshFilterBuckets();
+        SaveSessionIfNeeded();
+    }
+
+    // ── Per-folder session persistence ──
+
+    private FolderSession CaptureSessionState() => new()
+    {
+        LastSelectedFile = SelectedPhoto?.FileName,
+        RatingFilterMode = RatingFilterMode,
+        RatingFilterValue = RatingFilterValue,
+        RatingCycleMode = RatingCycleMode,
+        FlagFilter = FlagFilter,
+        ColorLabelFilter = ColorLabelFilter,
+        BurstFilter = BurstFilter,
+        ImageTypeFilter = ImageTypeFilter,
+        ExposureFilter = ExposureFilter,
+        FaceFilter = FaceFilter,
+        TagFilterId = TagFilter?.Id,
+        RatingFilterExclude = RatingFilterExclude,
+        FlagFilterExclude = FlagFilterExclude,
+        ColorLabelFilterExclude = ColorLabelFilterExclude,
+        TagFilterExclude = TagFilterExclude,
+        BurstFilterExclude = BurstFilterExclude,
+        ImageTypeFilterExclude = ImageTypeFilterExclude,
+        ExposureFilterExclude = ExposureFilterExclude,
+        FaceFilterExclude = FaceFilterExclude,
+        BurstCollapsed = BurstCollapsed,
+        SortField = SortField,
+        SortDescending = SortDescending,
+    };
+
+    private void ApplySessionState(FolderSession s)
+    {
+        // Filters
+        RatingFilterMode = s.RatingFilterMode;
+        RatingFilterValue = s.RatingFilterValue;
+        RatingCycleMode = s.RatingCycleMode == RatingFilterMode.Any ? RatingFilterMode.Exact : s.RatingCycleMode;
+        FlagFilter = s.FlagFilter;
+        ColorLabelFilter = s.ColorLabelFilter;
+        BurstFilter = s.BurstFilter;
+        ImageTypeFilter = s.ImageTypeFilter;
+        ExposureFilter = s.ExposureFilter;
+        FaceFilter = s.FaceFilter;
+        TagFilter = s.TagFilterId.HasValue
+            ? Tags.FirstOrDefault(t => t.Id == s.TagFilterId.Value)
+            : null;
+
+        RatingFilterExclude = s.RatingFilterExclude;
+        FlagFilterExclude = s.FlagFilterExclude;
+        ColorLabelFilterExclude = s.ColorLabelFilterExclude;
+        TagFilterExclude = s.TagFilterExclude;
+        BurstFilterExclude = s.BurstFilterExclude;
+        ImageTypeFilterExclude = s.ImageTypeFilterExclude;
+        ExposureFilterExclude = s.ExposureFilterExclude;
+        FaceFilterExclude = s.FaceFilterExclude;
+
+        if (s.BurstCollapsed.HasValue) BurstCollapsed = s.BurstCollapsed.Value;
+        if (s.SortField.HasValue) SortField = s.SortField.Value;
+        SortDescending = s.SortDescending;
+    }
+
+    private void SaveSessionIfNeeded()
+    {
+        if (_suppressSessionSave) return;
+        if (string.IsNullOrEmpty(_sessionFolder)) return;
+        if (!Directory.Exists(_sessionFolder)) return;
+        CaptureSessionState().Save(_sessionFolder);
     }
 
     private void RestoreSelection(PhotoItem? previousSelection)
@@ -3067,6 +3183,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        // Flush the per-folder "resume where I left off" state on shutdown so
+        // edits that happened after the last ApplyFilter / selection change
+        // (none today, but cheap insurance against future code paths) make it
+        // to disk.
+        SaveSessionIfNeeded();
+
         _indexCts?.Cancel();
         _indexCts?.Dispose();
         _previewCts?.Cancel();

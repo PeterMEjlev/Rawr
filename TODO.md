@@ -7,13 +7,9 @@
 
 - ## 2-up and 4-up compare — already on the roadmap. Implement with synced pan/zoom; this is a flagship pro feature.
 
-
 - ## manually selecting the desired thumbnail for a burst
 
 - ## Pixel-peep window — click anywhere → floating 1:1 zoom window pinned to that location across navigation. Compare focus of identical compositions
-
-
-- ## Resume where I left off — per-folder, remember last selected photo + filter state. Open a folder, jump straight back in.
 
 - ## undo / redo - both buttons and keyboard shortcut (ctrl+x and ctrl+y)
 
