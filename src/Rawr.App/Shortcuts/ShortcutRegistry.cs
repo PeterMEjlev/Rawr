@@ -63,6 +63,8 @@ public static class ShortcutRegistry
 
             // Edit
             new("DeletePhoto", "Delete photo", CatEdit, Key.Delete, ModifierKeys.None, Vm(vm => vm.DeletePhotoCommand)),
+            new("Undo",        "Undo last edit", CatEdit, Key.Z, ModifierKeys.Control, Vm(vm => vm.UndoCommand)),
+            new("Redo",        "Redo last edit", CatEdit, Key.Y, ModifierKeys.Control, Vm(vm => vm.RedoCommand)),
 
             // View
             new("ToggleFocusPeaking", "Toggle focus peaking",    CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ToggleFocusPeakingCommand)),

@@ -41,6 +41,14 @@
                         ToolTip="Write Lightroom-compatible XMP sidecars for every photo in this folder (rating, label, keywords, pick/reject)." />
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
+                <Button DockPanel.Dock="Left" Content="↶" Command="{Binding UndoCommand}"
+                        Margin="0,0,4,0" Padding="8,2" FontSize="14"
+                        ToolTip="{Binding UndoTooltip}" />
+                <Button DockPanel.Dock="Left" Content="↷" Command="{Binding RedoCommand}"
+                        Margin="0,0,8,0" Padding="8,2" FontSize="14"
+                        ToolTip="{Binding RedoTooltip}" />
+                <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
+
                 <!-- Filter dropdown -->
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="FilterToggleButton"

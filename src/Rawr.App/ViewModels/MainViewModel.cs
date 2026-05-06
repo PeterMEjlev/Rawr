@@ -314,6 +314,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<PhotoItem> AllPhotos { get; } = [];
     public ObservableCollection<PhotoItem> FilteredPhotos { get; } = [];
 
+    public EditHistory History { get; } = new();
+
+    public bool CanUndo => History.CanUndo;
+    public bool CanRedo => History.CanRedo;
+    public string UndoTooltip => History.CanUndo
+        ? $"Undo: {History.UndoDescription} (Ctrl+Z)"
+        : "Nothing to undo (Ctrl+Z)";
+    public string RedoTooltip => History.CanRedo
+        ? $"Redo: {History.RedoDescription} (Ctrl+Y)"
+        : "Nothing to redo (Ctrl+Y)";
+
     public string ExtractorName { get; }
 
     private static readonly string SettingsDir =
@@ -327,6 +338,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _extractor = libraw.IsAvailable ? libraw : new WicExtractor();
         _libRaw = libraw.IsAvailable ? libraw : null;
         ExtractorName = libraw.IsAvailable ? "LibRaw" : "WIC";
+
+        History.Changed += (_, _) =>
+        {
+            UndoCommand.NotifyCanExecuteChanged();
+            RedoCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+            OnPropertyChanged(nameof(UndoTooltip));
+            OnPropertyChanged(nameof(RedoTooltip));
+        };
     }
 
     public async Task RestoreLastFolderAsync()
@@ -694,6 +715,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         VideoSourceUri = null;
         SelectedPhoto = null;
         SelectedIndex = -1;
+        // History references PhotoItem instances that won't survive a folder switch.
+        History.Clear();
 
         BurstCollapsed = AppSettings.Current.CollapseBurstsOnOpen;
         SortField = AppSettings.Current.DefaultSortField;
@@ -1985,16 +2008,55 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         catch { return 0.0; }
     }
 
+    // ── Undo / Redo ──
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        var op = History.Undo();
+        if (op != null) NavigateToHistoryTarget(op.Photo);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo()
+    {
+        var op = History.Redo();
+        if (op != null) NavigateToHistoryTarget(op.Photo);
+    }
+
+    private void NavigateToHistoryTarget(PhotoItem photo)
+    {
+        // Only re-select if the photo is currently visible; if a filter has hidden it
+        // since the edit was recorded, the value still updates but selection stays put.
+        if (FilteredPhotos.Contains(photo))
+            SelectedPhoto = photo;
+        UpdateStatus();
+    }
+
     // ── Rating ──
 
     [RelayCommand]
     private void SetRating(int rating)
     {
         if (SelectedPhoto == null) return;
+        var photo = SelectedPhoto;
         var clamped = Math.Clamp(rating, 0, 5);
         // Toggle: pressing the same star already on the photo clears the rating.
-        SelectedPhoto.Rating = SelectedPhoto.Rating == clamped ? 0 : clamped;
-        SavePhoto(SelectedPhoto);
+        var oldRating = photo.Rating;
+        var newRating = oldRating == clamped ? 0 : clamped;
+        if (oldRating == newRating) return;
+        ApplyRatingEdit(photo, newRating);
+        History.Record(new EditOp(
+            $"Rating {oldRating} → {newRating}",
+            photo,
+            Apply: () => ApplyRatingEdit(photo, newRating),
+            Revert: () => ApplyRatingEdit(photo, oldRating)));
+    }
+
+    private void ApplyRatingEdit(PhotoItem photo, int rating)
+    {
+        photo.Rating = rating;
+        SavePhoto(photo);
     }
 
     // ── Flagging ──
@@ -2003,24 +2065,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void TogglePick()
     {
         if (SelectedPhoto == null) return;
-        SelectedPhoto.Flag = SelectedPhoto.Flag == CullFlag.Pick ? CullFlag.Unflagged : CullFlag.Pick;
-        SavePhoto(SelectedPhoto);
+        var photo = SelectedPhoto;
+        var newFlag = photo.Flag == CullFlag.Pick ? CullFlag.Unflagged : CullFlag.Pick;
+        SetFlagWithHistory(photo, newFlag);
     }
 
     [RelayCommand]
     private void ToggleReject()
     {
         if (SelectedPhoto == null) return;
-        SelectedPhoto.Flag = SelectedPhoto.Flag == CullFlag.Reject ? CullFlag.Unflagged : CullFlag.Reject;
-        SavePhoto(SelectedPhoto);
+        var photo = SelectedPhoto;
+        var newFlag = photo.Flag == CullFlag.Reject ? CullFlag.Unflagged : CullFlag.Reject;
+        SetFlagWithHistory(photo, newFlag);
     }
 
     [RelayCommand]
     private void Unflag()
     {
         if (SelectedPhoto == null) return;
-        SelectedPhoto.Flag = CullFlag.Unflagged;
-        SavePhoto(SelectedPhoto);
+        SetFlagWithHistory(SelectedPhoto, CullFlag.Unflagged);
+    }
+
+    private void SetFlagWithHistory(PhotoItem photo, CullFlag newFlag)
+    {
+        var oldFlag = photo.Flag;
+        if (oldFlag == newFlag) return;
+        ApplyFlagEdit(photo, newFlag);
+        History.Record(new EditOp(
+            $"Flag {oldFlag} → {newFlag}",
+            photo,
+            Apply: () => ApplyFlagEdit(photo, newFlag),
+            Revert: () => ApplyFlagEdit(photo, oldFlag)));
+    }
+
+    private void ApplyFlagEdit(PhotoItem photo, CullFlag flag)
+    {
+        photo.Flag = flag;
+        SavePhoto(photo);
     }
 
     // ── Color labels ──
@@ -2029,8 +2110,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetColorLabel(ColorLabel label)
     {
         if (SelectedPhoto == null) return;
-        SelectedPhoto.ColorLabel = SelectedPhoto.ColorLabel == label ? ColorLabel.None : label;
-        SavePhoto(SelectedPhoto);
+        var photo = SelectedPhoto;
+        var oldLabel = photo.ColorLabel;
+        var newLabel = oldLabel == label ? ColorLabel.None : label;
+        if (oldLabel == newLabel) return;
+        ApplyColorLabelEdit(photo, newLabel);
+        History.Record(new EditOp(
+            $"Color {oldLabel} → {newLabel}",
+            photo,
+            Apply: () => ApplyColorLabelEdit(photo, newLabel),
+            Revert: () => ApplyColorLabelEdit(photo, oldLabel)));
+    }
+
+    private void ApplyColorLabelEdit(PhotoItem photo, ColorLabel label)
+    {
+        photo.ColorLabel = label;
+        SavePhoto(photo);
     }
 
     // ── Filtering ──
@@ -2233,19 +2328,33 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleTagForSelected(PhotoTag tag)
     {
         if (SelectedPhoto == null || _db == null) return;
-        if (SelectedPhoto.TagIds.Contains(tag.Id))
+        var photo = SelectedPhoto;
+        var wasAssigned = photo.TagIds.Contains(tag.Id);
+        ApplyTagEdit(photo, tag, assign: !wasAssigned);
+        History.Record(new EditOp(
+            wasAssigned ? $"Remove tag “{tag.Name}”" : $"Add tag “{tag.Name}”",
+            photo,
+            Apply: () => ApplyTagEdit(photo, tag, assign: !wasAssigned),
+            Revert: () => ApplyTagEdit(photo, tag, assign: wasAssigned)));
+    }
+
+    private void ApplyTagEdit(PhotoItem photo, PhotoTag tag, bool assign)
+    {
+        if (_db == null) return;
+        if (assign)
         {
-            SelectedPhoto.TagIds.Remove(tag.Id);
-            _db.UnassignGroup(SelectedPhoto.FileName, tag.Id);
+            if (photo.TagIds.Add(tag.Id))
+                _db.AssignGroup(photo.FileName, tag.Id);
         }
         else
         {
-            SelectedPhoto.TagIds.Add(tag.Id);
-            _db.AssignGroup(SelectedPhoto.FileName, tag.Id);
+            if (photo.TagIds.Remove(tag.Id))
+                _db.UnassignGroup(photo.FileName, tag.Id);
         }
-        UpdateTagDisplay(SelectedPhoto);
-        ScheduleXmpWrite(SelectedPhoto);
-        OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
+        UpdateTagDisplay(photo);
+        ScheduleXmpWrite(photo);
+        if (ReferenceEquals(photo, SelectedPhoto))
+            OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
         if (TagFilter != null)
             ApplyFilter();
     }
@@ -3051,8 +3160,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void PickAndAdvance()
     {
         if (SelectedPhoto == null) return;
-        SelectedPhoto.Flag = CullFlag.Pick;
-        SavePhoto(SelectedPhoto);
+        SetFlagWithHistory(SelectedPhoto, CullFlag.Pick);
         NextPhoto();
     }
 
@@ -3060,8 +3168,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void RejectAndAdvance()
     {
         if (SelectedPhoto == null) return;
-        SelectedPhoto.Flag = CullFlag.Reject;
-        SavePhoto(SelectedPhoto);
+        SetFlagWithHistory(SelectedPhoto, CullFlag.Reject);
         NextPhoto();
     }
 
