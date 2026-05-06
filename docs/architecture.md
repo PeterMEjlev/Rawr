@@ -104,8 +104,13 @@ Two side-car artefacts, both inside `<photo-folder>/.rawr/`:
 - `cache/<basename>_thumb.jpg` and `_preview.jpg`: extracted JPEG bytes.
   Disposable — deleting the cache only costs CPU, never user data.
 
-We never write into the RAW files themselves and we don't write XMP
-side-cars yet (see roadmap).
+We never write into the RAW files themselves. Lightroom-compatible XMP
+side-cars are written next to each photo on every state change (debounced
+~500 ms via `XmpSidecarWriter`), and a manual "Sync XMP" command flushes
+the whole folder on demand. On folder open, `XmpSidecar.TryRead` is called
+for each photo; sidecars whose mtime is newer than `culling.db` (or whose
+photo has no DB row at all) are merged back into SQLite, so edits made in
+Lightroom round-trip into RAWR.
 
 ## Threading
 
@@ -123,8 +128,6 @@ text — keeping the UI responsive without a flood of marshalling.
 
 ## What this codebase deliberately doesn't do
 
-- **No XMP side-car writing** — only the SQLite DB knows your ratings.
-  Lightroom-compatible XMP export is on the roadmap.
 - **No image editing** — exposure, white balance, crop, anything.
 - **No catalog** — there is no global database, no "import" step.
 - **No demosaicing path** — full-resolution viewing relies on the embedded

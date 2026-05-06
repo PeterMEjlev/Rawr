@@ -37,6 +37,8 @@
                 Padding="8,6">
             <DockPanel LastChildFill="False">
                 <Button DockPanel.Dock="Left" Content="📂 Open Folder…" Command="{Binding OpenFolderCommand}" Margin="0,0,8,0" ToolTip="Ctrl+O" />
+                <Button DockPanel.Dock="Left" Content="📝 Sync XMP" Command="{Binding SyncAllXmpCommand}" Margin="0,0,8,0"
+                        ToolTip="Write Lightroom-compatible XMP sidecars for every photo in this folder (rating, label, keywords, pick/reject)." />
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
                 <!-- Filter dropdown -->

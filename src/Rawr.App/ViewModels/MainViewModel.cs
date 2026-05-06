@@ -32,6 +32,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly ShellThumbnailExtractor _videoExtractor = new();
     private PreviewCache? _cache;
     private CullingDatabase? _db;
+    private XmpSidecarWriter? _xmpWriter;
     private CancellationTokenSource? _indexCts;
     private CancellationTokenSource? _previewCts;
     private bool _highResPreviewLoaded;
@@ -585,7 +586,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         CurrentFolder = folderPath;
         StatusText = "Scanning folder...";
 
-        // Dispose previous session
+        // Dispose previous session. Drain any queued XMP writes for the *previous*
+        // folder first so we don't lose edits from a debounce window straddling a
+        // folder switch — bounded so a slow disk can't stall the UI indefinitely.
+        if (_xmpWriter != null)
+        {
+            _xmpWriter.Flush(TimeSpan.FromSeconds(2));
+            _xmpWriter.Dispose();
+            _xmpWriter = null;
+        }
         _db?.Dispose();
 
         AllPhotos.Clear();
@@ -615,8 +624,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Open database and preview cache
         _db = CullingDatabase.Open(folderPath);
+        _xmpWriter = new XmpSidecarWriter();
         _cache = new PreviewCache(folderPath);
         var savedState = _db.LoadAll();
+        var dbPath = Path.Combine(folderPath, ".rawr", "culling.db");
+        DateTime dbMtime = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath) : DateTime.MinValue;
 
         // Create PhotoItem for each file, restoring saved culling state
         foreach (var filePath in files)
@@ -655,6 +667,38 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             UpdateTagDisplay(photo);
         }
+
+        // Merge externally-edited XMP sidecars. A sidecar is "external" when it
+        // was modified after the SQLite file (e.g. the user edited the rating in
+        // Lightroom and saved metadata back), or when there's no DB row at all
+        // for this photo (folder copied between machines / catalogs).
+        // Read sidecars off-thread (just file I/O + XML parse), then apply to
+        // the observable PhotoItems on the UI thread.
+        // 5-second grace window: writes that RAWR itself made just before this
+        // session started will land *after* the SQLite mtime; without the grace
+        // we'd re-merge our own data on every folder open. Harmless but wasteful.
+        var grace = TimeSpan.FromSeconds(5);
+        var photosToScan = AllPhotos.ToList();
+        var pendingMerges = await Task.Run(() =>
+        {
+            var list = new List<(PhotoItem photo, XmpData data)>();
+            foreach (var photo in photosToScan)
+            {
+                if (ct.IsCancellationRequested) break;
+                if (photo.IsVideo) continue;
+                var sidecarPath = XmpSidecar.SidecarPathFor(photo.FilePath);
+                if (!File.Exists(sidecarPath)) continue;
+                var sidecarMtime = File.GetLastWriteTimeUtc(sidecarPath);
+                bool noDbRow = !savedState.ContainsKey(photo.FileName);
+                if (!noDbRow && sidecarMtime <= dbMtime + grace) continue;
+                var data = XmpSidecar.TryRead(photo.FilePath);
+                if (data != null) list.Add((photo, data));
+            }
+            return list;
+        }, ct);
+
+        if (pendingMerges.Count > 0)
+            ApplyXmpMerges(pendingMerges);
 
         ApplyFilter();
 
@@ -2075,6 +2119,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _db.AssignGroup(SelectedPhoto.FileName, tag.Id);
         }
         UpdateTagDisplay(SelectedPhoto);
+        ScheduleXmpWrite(SelectedPhoto);
         OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
         if (TagFilter != null)
             ApplyFilter();
@@ -2211,7 +2256,106 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public IPreviewExtractor Extractor => _extractor;
 
-    public void PersistPhoto(PhotoItem photo) => _db?.Save(photo);
+    public void PersistPhoto(PhotoItem photo)
+    {
+        _db?.Save(photo);
+        ScheduleXmpWrite(photo);
+    }
+
+    private void ScheduleXmpWrite(PhotoItem photo)
+    {
+        if (_xmpWriter == null || photo.IsVideo) return;
+        // Tag IDs → names lookup is rebuilt per call. Tag count is small (typically
+        // single digits) so the cost is negligible compared to the write itself.
+        var tagNames = Tags.ToDictionary(t => t.Id, t => t.Name);
+        _xmpWriter.Schedule(photo.FilePath, XmpSidecar.Snapshot(photo, tagNames));
+    }
+
+    /// <summary>
+    /// Apply a batch of parsed sidecar reads to their target photos. Mutates
+    /// observable PhotoItem properties so it must run on the UI thread; reuses
+    /// or creates tags as needed and persists every touched row to SQLite.
+    /// </summary>
+    private void ApplyXmpMerges(List<(PhotoItem photo, XmpData data)> merges)
+    {
+        if (_db == null) return;
+        foreach (var (photo, data) in merges)
+        {
+            if (data.Rating.HasValue)
+            {
+                if (data.Rating.Value == -1)
+                {
+                    photo.Flag = CullFlag.Reject;
+                }
+                else if (data.Rating.Value >= 0 && data.Rating.Value <= 5)
+                {
+                    photo.Rating = data.Rating.Value;
+                }
+            }
+            photo.ColorLabel = data.Label switch
+            {
+                "Red"    => ColorLabel.Red,
+                "Yellow" => ColorLabel.Yellow,
+                "Green"  => ColorLabel.Green,
+                "Blue"   => ColorLabel.Blue,
+                "Purple" => ColorLabel.Purple,
+                _        => photo.ColorLabel,
+            };
+
+            foreach (var keyword in data.Keywords)
+            {
+                if (keyword == XmpSidecar.PickKeyword)   { photo.Flag = CullFlag.Pick;   continue; }
+                if (keyword == XmpSidecar.RejectKeyword) { photo.Flag = CullFlag.Reject; continue; }
+
+                var tag = Tags.FirstOrDefault(t => string.Equals(t.Name, keyword, StringComparison.OrdinalIgnoreCase));
+                if (tag == null)
+                {
+                    tag = _db.CreateGroup(keyword);
+                    Tags.Add(tag);
+                }
+                if (photo.TagIds.Add(tag.Id))
+                    _db.AssignGroup(photo.FileName, tag.Id);
+            }
+            UpdateTagDisplay(photo);
+            _db.Save(photo);
+        }
+    }
+
+    /// <summary>
+    /// Force an immediate XMP sidecar write for every photo in the current
+    /// folder, bypassing the debounce queue. Used for the toolbar
+    /// "Sync metadata to XMP" command — typical case is the first export of an
+    /// already-culled folder, so users don't have to touch every photo to get
+    /// sidecars written.
+    /// </summary>
+    [RelayCommand]
+    private async Task SyncAllXmpAsync()
+    {
+        if (AllPhotos.Count == 0)
+        {
+            StatusText = "No photos in this folder.";
+            return;
+        }
+
+        var tagNames = Tags.ToDictionary(t => t.Id, t => t.Name);
+        var snapshots = AllPhotos
+            .Where(p => !p.IsVideo)
+            .Select(p => (path: p.FilePath, data: XmpSidecar.Snapshot(p, tagNames)))
+            .ToList();
+        StatusText = $"Writing XMP for {snapshots.Count} photos...";
+
+        int written = 0;
+        await Task.Run(() =>
+        {
+            foreach (var (path, data) in snapshots)
+            {
+                try { XmpSidecar.Write(path, data); written++; }
+                catch { /* skip files we can't write next to (read-only media, locked, …) */ }
+            }
+        });
+
+        StatusText = $"Wrote {written}/{snapshots.Count} XMP sidecars.";
+    }
 
     /// <summary>
     /// Re-runs burst detection with the current AppSettings and refreshes the view.
@@ -2687,7 +2831,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     // ── Helpers ──
 
-    private void SavePhoto(PhotoItem photo) => _db?.Save(photo);
+    private void SavePhoto(PhotoItem photo)
+    {
+        _db?.Save(photo);
+        ScheduleXmpWrite(photo);
+    }
 
     private void UpdateStatus()
     {
@@ -2926,6 +3074,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _analyzeFacesCts?.Cancel();
         _analyzeFacesCts?.Dispose();
         _faceAnalyzer?.Dispose();
+        // Drain any debounced XMP writes that haven't fired yet so an immediate
+        // app exit doesn't lose recent rating/flag/label edits. Bounded so a
+        // wedged disk can't keep the process alive.
+        _xmpWriter?.Flush(TimeSpan.FromSeconds(2));
+        _xmpWriter?.Dispose();
         _db?.Dispose();
     }
 }

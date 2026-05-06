@@ -55,8 +55,15 @@ and "tool you'd reach for instead of Lightroom".
 
 ## Lightroom interop
 
-- [ ] **XMP side-car export.** Write Lightroom-compatible XMP next to each
-      RAW so picks/ratings survive the hand-off.
+- [x] **XMP side-car export.** Lightroom-compatible XMP is written next to
+      every photo (`<basename>.xmp`). Per-file debounced writes fire 500 ms
+      after each rating/flag/label/tag change; a toolbar **📝 Sync XMP**
+      button forces an immediate full-folder export. Sidecars are read on
+      folder open and merged when newer than `culling.db` (or when no DB row
+      exists), so external Lightroom edits round-trip back. Pick/Reject are
+      encoded as the keywords `RAWR:Pick` / `RAWR:Reject` (Lightroom doesn't
+      read flags from XMP), with a Reject also forcing `xmp:Rating = -1` so
+      Lightroom recognises rejects natively.
 - [ ] **Optional: rename-on-copy templates.** "Copy picks to folder X with
       pattern `{date}_{originalname}`."
 
