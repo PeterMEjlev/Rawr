@@ -588,6 +588,13 @@ public partial class MainWindow : Window
         _lastClickTime = now;
     }
 
+    private void OnOpenMap(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm) return;
+        var win = new MapWindow(vm, vm.AllPhotos) { Owner = this };
+        win.Show();
+    }
+
     private void OpenBurstFocus(PhotoItem representative)
     {
         if (DataContext is not MainViewModel vm) return;

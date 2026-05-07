@@ -9,6 +9,7 @@
       "RAWR/1.0.0": {
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.4.2",
+          "GMap.NET.WindowsPresentation": "1.9.6",
           "Microsoft.ML.OnnxRuntime": "1.20.1",
           "Rawr.Core": "1.0.0",
           "Rawr.Raw": "1.0.0"
@@ -22,6 +23,30 @@
           "lib/net8.0/CommunityToolkit.Mvvm.dll": {
             "assemblyVersion": "8.4.0.0",
             "fileVersion": "8.4.2.1"
+          }
+        }
+      },
+      "GMap.NET.Core/1.9.6": {
+        "dependencies": {
+          "Newtonsoft.Json": "12.0.3",
+          "System.Data.SQLite": "1.0.112",
+          "System.Data.SqlClient": "4.7.0"
+        },
+        "runtime": {
+          "lib/netstandard2.0/GMap.NET.Core.dll": {
+            "assemblyVersion": "1.9.6.0",
+            "fileVersion": "1.9.6.0"
+          }
+        }
+      },
+      "GMap.NET.WindowsPresentation/1.9.6": {
+        "dependencies": {
+          "GMap.NET.Core": "1.9.6"
+        },
+        "runtime": {
+          "lib/netcoreapp3.0/GMap.NET.WindowsPresentation.dll": {
+            "assemblyVersion": "1.9.6.0",
+            "fileVersion": "1.9.6.0"
           }
         }
       },
@@ -155,6 +180,48 @@
           "lib/net8.0/Microsoft.ML.OnnxRuntime.dll": {
             "assemblyVersion": "1.20.1.0",
             "fileVersion": "1.20.1.0"
+          }
+        }
+      },
+      "Newtonsoft.Json/12.0.3": {
+        "runtime": {
+          "lib/netstandard2.0/Newtonsoft.Json.dll": {
+            "assemblyVersion": "12.0.0.0",
+            "fileVersion": "12.0.3.23909"
+          }
+        }
+      },
+      "runtime.native.System.Data.SqlClient.sni/4.6.0": {
+        "dependencies": {
+          "runtime.win-arm64.runtime.native.System.Data.SqlClient.sni": "4.4.0",
+          "runtime.win-x64.runtime.native.System.Data.SqlClient.sni": "4.4.0",
+          "runtime.win-x86.runtime.native.System.Data.SqlClient.sni": "4.4.0"
+        }
+      },
+      "runtime.win-arm64.runtime.native.System.Data.SqlClient.sni/4.4.0": {
+        "runtimeTargets": {
+          "runtimes/win-arm64/native/sni.dll": {
+            "rid": "win-arm64",
+            "assetType": "native",
+            "fileVersion": "4.6.25512.1"
+          }
+        }
+      },
+      "runtime.win-x64.runtime.native.System.Data.SqlClient.sni/4.4.0": {
+        "runtimeTargets": {
+          "runtimes/win-x64/native/sni.dll": {
+            "rid": "win-x64",
+            "assetType": "native",
+            "fileVersion": "4.6.25512.1"
+          }
+        }
+      },
+      "runtime.win-x86.runtime.native.System.Data.SqlClient.sni/4.4.0": {
+        "runtimeTargets": {
+          "runtimes/win-x86/native/sni.dll": {
+            "rid": "win-x86",
+            "assetType": "native",
+            "fileVersion": "4.6.25512.1"
           }
         }
       },
@@ -298,6 +365,66 @@
           }
         }
       },
+      "System.Data.SqlClient/4.7.0": {
+        "dependencies": {
+          "runtime.native.System.Data.SqlClient.sni": "4.6.0"
+        },
+        "runtime": {
+          "lib/netcoreapp2.1/System.Data.SqlClient.dll": {
+            "assemblyVersion": "4.6.0.0",
+            "fileVersion": "4.700.19.46214"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/unix/lib/netcoreapp2.1/System.Data.SqlClient.dll": {
+            "rid": "unix",
+            "assetType": "runtime",
+            "assemblyVersion": "4.6.0.0",
+            "fileVersion": "4.700.19.46214"
+          },
+          "runtimes/win/lib/netcoreapp2.1/System.Data.SqlClient.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "4.6.0.0",
+            "fileVersion": "4.700.19.46214"
+          }
+        }
+      },
+      "System.Data.SQLite/1.0.112": {
+        "dependencies": {
+          "System.Data.SQLite.Core": "1.0.112"
+        }
+      },
+      "System.Data.SQLite.Core/1.0.112": {
+        "runtime": {
+          "lib/netstandard2.0/System.Data.SQLite.dll": {
+            "assemblyVersion": "1.0.112.0",
+            "fileVersion": "1.0.112.0"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/linux-x64/native/netstandard2.0/SQLite.Interop.dll": {
+            "rid": "linux-x64",
+            "assetType": "native",
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/osx-x64/native/netstandard2.0/SQLite.Interop.dll": {
+            "rid": "osx-x64",
+            "assetType": "native",
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/win-x64/native/netstandard2.0/SQLite.Interop.dll": {
+            "rid": "win-x64",
+            "assetType": "native",
+            "fileVersion": "1.0.112.0"
+          },
+          "runtimes/win-x86/native/netstandard2.0/SQLite.Interop.dll": {
+            "rid": "win-x86",
+            "assetType": "native",
+            "fileVersion": "1.0.112.0"
+          }
+        }
+      },
       "Rawr.Core/1.0.0": {
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.4.2",
@@ -336,6 +463,20 @@
       "path": "communitytoolkit.mvvm/8.4.2",
       "hashPath": "communitytoolkit.mvvm.8.4.2.nupkg.sha512"
     },
+    "GMap.NET.Core/1.9.6": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-h/PuaU42sh6rE3R8xF9IbgGfhMkA3wuTvIzqhQDbXFMhe5XVbs9MWOgag5MhsM/0PLh+XUth2XqWKr6YOEZjyQ==",
+      "path": "gmap.net.core/1.9.6",
+      "hashPath": "gmap.net.core.1.9.6.nupkg.sha512"
+    },
+    "GMap.NET.WindowsPresentation/1.9.6": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-dc2L6J1NEWJk6GijZ+3i91fk0H0c8cK0xgPGfjEYjA2po1cmQVSh4H/4LkJfLNt22cYRspSvndyJcnOPG3jr3w==",
+      "path": "gmap.net.windowspresentation/1.9.6",
+      "hashPath": "gmap.net.windowspresentation.1.9.6.nupkg.sha512"
+    },
     "Microsoft.Data.Sqlite/9.0.15": {
       "type": "package",
       "serviceable": true,
@@ -364,6 +505,41 @@
       "path": "microsoft.ml.onnxruntime.managed/1.20.1",
       "hashPath": "microsoft.ml.onnxruntime.managed.1.20.1.nupkg.sha512"
     },
+    "Newtonsoft.Json/12.0.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-6mgjfnRB4jKMlzHSl+VD+oUc1IebOZabkbyWj2RiTgWwYPPuaK1H97G1sHqGwPlS5npiF5Q0OrxN1wni2n5QWg==",
+      "path": "newtonsoft.json/12.0.3",
+      "hashPath": "newtonsoft.json.12.0.3.nupkg.sha512"
+    },
+    "runtime.native.System.Data.SqlClient.sni/4.6.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-WRq11dBcJYyAbrUVguvv3BqNGl5ub60mZxUd+xaxNsSOb7tMLQxjbiyD/hF6FSl1akiom7GMttPDa3TW+UmnAQ==",
+      "path": "runtime.native.system.data.sqlclient.sni/4.6.0",
+      "hashPath": "runtime.native.system.data.sqlclient.sni.4.6.0.nupkg.sha512"
+    },
+    "runtime.win-arm64.runtime.native.System.Data.SqlClient.sni/4.4.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-LbrynESTp3bm5O/+jGL8v0Qg5SJlTV08lpIpFesXjF6uGNMWqFnUQbYBJwZTeua6E/Y7FIM1C54Ey1btLWupdg==",
+      "path": "runtime.win-arm64.runtime.native.system.data.sqlclient.sni/4.4.0",
+      "hashPath": "runtime.win-arm64.runtime.native.system.data.sqlclient.sni.4.4.0.nupkg.sha512"
+    },
+    "runtime.win-x64.runtime.native.System.Data.SqlClient.sni/4.4.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-38ugOfkYJqJoX9g6EYRlZB5U2ZJH51UP8ptxZgdpS07FgOEToV+lS11ouNK2PM12Pr6X/PpT5jK82G3DwH/SxQ==",
+      "path": "runtime.win-x64.runtime.native.system.data.sqlclient.sni/4.4.0",
+      "hashPath": "runtime.win-x64.runtime.native.system.data.sqlclient.sni.4.4.0.nupkg.sha512"
+    },
+    "runtime.win-x86.runtime.native.System.Data.SqlClient.sni/4.4.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-YhEdSQUsTx+C8m8Bw7ar5/VesXvCFMItyZF7G1AUY+OM0VPZUOeAVpJ4Wl6fydBGUYZxojTDR3I6Bj/+BPkJNA==",
+      "path": "runtime.win-x86.runtime.native.system.data.sqlclient.sni/4.4.0",
+      "hashPath": "runtime.win-x86.runtime.native.system.data.sqlclient.sni.4.4.0.nupkg.sha512"
+    },
     "SQLitePCLRaw.bundle_e_sqlite3/2.1.10": {
       "type": "package",
       "serviceable": true,
@@ -391,6 +567,27 @@
       "sha512": "sha512-uZVTi02C1SxqzgT0HqTWatIbWGb40iIkfc3FpFCpE/r7g6K0PqzDUeefL6P6HPhDtc6BacN3yQysfzP7ks+wSQ==",
       "path": "sqlitepclraw.provider.e_sqlite3/2.1.10",
       "hashPath": "sqlitepclraw.provider.e_sqlite3.2.1.10.nupkg.sha512"
+    },
+    "System.Data.SqlClient/4.7.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-lV3ljZeFc01DYyjcEBSxK3sy8Ow2R6AWa6o+g0t7B4hoDcA6Kzv4bTB4E4T7C/pKuZzHeBFLxe6fD4Am4q939Q==",
+      "path": "system.data.sqlclient/4.7.0",
+      "hashPath": "system.data.sqlclient.4.7.0.nupkg.sha512"
+    },
+    "System.Data.SQLite/1.0.112": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-QsYUir0pcx+1DfhhbpCsIJN8nWmHTT4Z/s85q6Un5AbVEPCP6RA0EA9cgzwQ1l5wZ8SQ0jUq747FxPmwJs7ycQ==",
+      "path": "system.data.sqlite/1.0.112",
+      "hashPath": "system.data.sqlite.1.0.112.nupkg.sha512"
+    },
+    "System.Data.SQLite.Core/1.0.112": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-3wA9v/K2ncZWsWfEBTiQppsi2014IJMXsZ1md3pk5bEXAJyuTthSrHF4bIWm5MG+C5g5XLhA2H7XfnSq1PXCeQ==",
+      "path": "system.data.sqlite.core/1.0.112",
+      "hashPath": "system.data.sqlite.core.1.0.112.nupkg.sha512"
     },
     "Rawr.Core/1.0.0": {
       "type": "project",

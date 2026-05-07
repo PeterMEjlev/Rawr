@@ -168,6 +168,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsTimeOfDayFilterActive => TimeOfDayStartMinutes != 0 || TimeOfDayEndMinutes != 1440;
 
+    // Geographic bounding box filter set by the Map view's rectangle selection.
+    // All four bounds are set together as a single unit; null means "no region filter".
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(IsRegionFilterActive))]
+    private double? _regionFilterMinLat;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(IsRegionFilterActive))]
+    private double? _regionFilterMaxLat;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(IsRegionFilterActive))]
+    private double? _regionFilterMinLon;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(IsRegionFilterActive))]
+    private double? _regionFilterMaxLon;
+
+    public bool IsRegionFilterActive => RegionFilterMinLat.HasValue;
+
     public string TimeOfDayStartText
     {
         get => FormatMinutes(TimeOfDayStartMinutes);
@@ -233,6 +257,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _exposureFilterExclude;
     [ObservableProperty] private bool _faceFilterExclude;
     [ObservableProperty] private bool _timeOfDayFilterExclude;
+    [ObservableProperty] private bool _regionFilterExclude;
 
     partial void OnRatingFilterExcludeChanged(bool value)     { if (RatingFilterMode != RatingFilterMode.Any) ApplyFilter(); }
     partial void OnFlagFilterExcludeChanged(bool value)       { if (FlagFilter.HasValue)                     ApplyFilter(); }
@@ -243,6 +268,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnExposureFilterExcludeChanged(bool value)   { if (ExposureFilter != ExposureFilterMode.Any) ApplyFilter(); }
     partial void OnFaceFilterExcludeChanged(bool value)       { if (FaceFilter != FaceFilterMode.Any)        ApplyFilter(); }
     partial void OnTimeOfDayFilterExcludeChanged(bool value)  { if (IsTimeOfDayFilterActive)                 ApplyFilter(); }
+    partial void OnRegionFilterExcludeChanged(bool value)     { if (IsRegionFilterActive)                    ApplyFilter(); }
 
     // While the user is dragging a slider thumb we still update the start/end
     // minute values continuously (so the labels and text boxes track the
@@ -254,7 +280,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnTimeOfDayEndMinutesChanged(int value)   { if (!IsTimeOfDaySliderDragging) ApplyFilter(); }
     partial void OnIsTimeOfDaySliderDraggingChanged(bool value) { if (!value) ApplyFilter(); }
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive;
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive || IsRegionFilterActive;
 
     [ObservableProperty] private int _burstCount;
 
@@ -2413,6 +2439,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ExposureFilterExclude = false;
         FaceFilterExclude = false;
         TimeOfDayFilterExclude = false;
+        RegionFilterMinLat = null;
+        RegionFilterMaxLat = null;
+        RegionFilterMinLon = null;
+        RegionFilterMaxLon = null;
+        RegionFilterExclude = false;
         ApplyFilter();
     }
 
@@ -2422,6 +2453,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         TimeOfDayStartMinutes = 0;
         TimeOfDayEndMinutes = 1440;
         TimeOfDayFilterExclude = false;
+    }
+
+    /// <summary>
+    /// Sets all four geographic bounds at once and re-applies the filter. Called
+    /// from the Map window when the user finishes drawing a selection rectangle.
+    /// </summary>
+    public void SetRegionFilter(double minLat, double minLon, double maxLat, double maxLon)
+    {
+        RegionFilterMinLat = Math.Min(minLat, maxLat);
+        RegionFilterMaxLat = Math.Max(minLat, maxLat);
+        RegionFilterMinLon = Math.Min(minLon, maxLon);
+        RegionFilterMaxLon = Math.Max(minLon, maxLon);
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearRegionFilter()
+    {
+        RegionFilterMinLat = null;
+        RegionFilterMaxLat = null;
+        RegionFilterMinLon = null;
+        RegionFilterMaxLon = null;
+        RegionFilterExclude = false;
+        ApplyFilter();
     }
 
     // ── Burst filter ──
@@ -2817,6 +2872,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             visible = TimeOfDayFilterExclude
                 ? visible.Where(p => hasTime(p) && !inWindow(p))
                 : visible.Where(p => hasTime(p) && inWindow(p));
+        }
+
+        if (IsRegionFilterActive)
+        {
+            double minLat = RegionFilterMinLat!.Value;
+            double maxLat = RegionFilterMaxLat!.Value;
+            double minLon = RegionFilterMinLon!.Value;
+            double maxLon = RegionFilterMaxLon!.Value;
+            // Photos without GPS coordinates stay out of both sides of the
+            // include/exclude split — same convention as Time-of-day / Face.
+            Func<PhotoItem, bool> hasGps = p => p.Metadata?.GpsLatitude.HasValue == true && p.Metadata?.GpsLongitude.HasValue == true;
+            Func<PhotoItem, bool> inBox = p =>
+            {
+                double lat = p.Metadata!.GpsLatitude!.Value;
+                double lon = p.Metadata!.GpsLongitude!.Value;
+                return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+            };
+            visible = RegionFilterExclude
+                ? visible.Where(p => hasGps(p) && !inBox(p))
+                : visible.Where(p => hasGps(p) && inBox(p));
         }
 
         var sorted = ApplySorting(visible).ToList();

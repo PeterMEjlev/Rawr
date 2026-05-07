@@ -39,6 +39,8 @@
                 <Button DockPanel.Dock="Left" Content="📂 Open Folder…" Command="{Binding OpenFolderCommand}" Margin="0,0,8,0" ToolTip="Ctrl+O" />
                 <Button DockPanel.Dock="Left" Content="📝 Sync XMP" Command="{Binding SyncAllXmpCommand}" Margin="0,0,8,0"
                         ToolTip="Write Lightroom-compatible XMP sidecars for every photo in this folder (rating, label, keywords, pick/reject)." />
+                <Button DockPanel.Dock="Left" Content="🗺 Map" Click="OnOpenMap" Margin="0,0,8,0"
+                        ToolTip="Plot photos with GPS data on a map and filter by region." />
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
                 <Button DockPanel.Dock="Left" Content="↶" Command="{Binding UndoCommand}"
@@ -2220,6 +2222,29 @@
 
                                 <TextBlock Text="DATE" Style="{StaticResource SectionCardHeader}" />
                                 <TextBlock Text="{Binding SelectedPhotoCaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
+
+                                <TextBlock Text="LOCATION" Style="{StaticResource SectionCardHeader}"
+                                           Visibility="{Binding SelectedPhoto.Metadata.GpsLatFormatted, Converter={StaticResource NullToVisibility}}" />
+                                <Grid Margin="0,0,0,12"
+                                      Visibility="{Binding SelectedPhoto.Metadata.GpsLatFormatted, Converter={StaticResource NullToVisibility}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Lat "      Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.GpsLatFormatted, FallbackValue='—'}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Lon "      Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.GpsLonFormatted, FallbackValue='—'}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Alt "      Foreground="{StaticResource TextDimBrush}"
+                                               Visibility="{Binding SelectedPhoto.Metadata.GpsAltFormatted, Converter={StaticResource NullToVisibility}}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPhoto.Metadata.GpsAltFormatted, FallbackValue=''}"
+                                               Visibility="{Binding SelectedPhoto.Metadata.GpsAltFormatted, Converter={StaticResource NullToVisibility}}" />
+                                </Grid>
 
                                 <TextBlock Text="FILE" Style="{StaticResource SectionCardHeader}" />
                                 <Grid Margin="0,0,0,4">

@@ -46,6 +46,8 @@ internal static class ExifHelper
         }
         catch { }
 
+        var (gpsLat, gpsLon) = ParseGpsCoords(meta);
+
         // Try both JPEG (/app1/ifd/...) and TIFF (/ifd/...) path prefixes so this
         // works on JPEG thumbnails extracted by LibRaw and on raw files opened via WIC.
         return new PhotoMetadata
@@ -61,8 +63,68 @@ internal static class ExifHelper
             HeightPx     = heightPx,
             FileSizeBytes = fileSizeBytes,
             CaptureTime  = captureTime,
+            GpsLatitude  = gpsLat,
+            GpsLongitude = gpsLon,
+            GpsAltitude  = ParseGpsAltitude(meta),
         };
     }
+
+    private static (double? lat, double? lon) ParseGpsCoords(BitmapMetadata? meta)
+    {
+        var lat = GpsDms(meta, "/app1/ifd/gps/{ushort=2}") ?? GpsDms(meta, "/ifd/gps/{ushort=2}");
+        if (lat == null) return (null, null);
+        var lon = GpsDms(meta, "/app1/ifd/gps/{ushort=4}") ?? GpsDms(meta, "/ifd/gps/{ushort=4}");
+        if (lon == null) return (null, null);
+
+        var latRef = Str(meta, "/app1/ifd/gps/{ushort=1}") ?? Str(meta, "/ifd/gps/{ushort=1}");
+        var lonRef = Str(meta, "/app1/ifd/gps/{ushort=3}") ?? Str(meta, "/ifd/gps/{ushort=3}");
+        if (latRef?.Trim() == "S") lat = -lat;
+        if (lonRef?.Trim() == "W") lon = -lon;
+        return (lat, lon);
+    }
+
+    private static double? ParseGpsAltitude(BitmapMetadata? meta)
+    {
+        var alt = FltOr(meta, "/app1/ifd/gps/{ushort=6}", "/ifd/gps/{ushort=6}");
+        if (alt <= 0) return null;
+        try
+        {
+            var refObj = meta?.GetQuery("/app1/ifd/gps/{ushort=5}") ?? meta?.GetQuery("/ifd/gps/{ushort=5}");
+            bool belowSea = refObj is byte b && b == 1;
+            return belowSea ? -(double)alt : (double)alt;
+        }
+        catch { return (double)alt; }
+    }
+
+    // GPS latitude/longitude tags store degrees-minutes-seconds as an array of three RATIONALs.
+    // WIC returns them as ulong[] or long[] using the same low/high-32 packing as scalar RATIONALs.
+    private static double? GpsDms(BitmapMetadata? meta, string query)
+    {
+        if (meta == null) return null;
+        try
+        {
+            var obj = meta.GetQuery(query);
+            if (obj == null) return null;
+
+            ulong[]? arr = null;
+            if (obj is ulong[] ua) arr = ua;
+            else if (obj is long[] la)
+            {
+                arr = new ulong[la.Length];
+                for (int i = 0; i < la.Length; i++) arr[i] = (ulong)la[i];
+            }
+            if (arr == null || arr.Length < 2) return null;
+
+            double deg = RationalToDouble(arr[0]);
+            double min = RationalToDouble(arr[1]);
+            double sec = arr.Length > 2 ? RationalToDouble(arr[2]) : 0;
+            return deg + min / 60.0 + sec / 3600.0;
+        }
+        catch { return null; }
+    }
+
+    private static double RationalToDouble(ulong ul) =>
+        ul == 0 ? 0 : (uint)(ul & 0xFFFFFFFF) / (double)(uint)(ul >> 32);
 
     private static string? Str(BitmapMetadata? meta, string query)
     {

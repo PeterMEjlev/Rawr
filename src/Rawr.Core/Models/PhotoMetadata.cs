@@ -17,6 +17,9 @@ public sealed class PhotoMetadata
     public float FocalLength { get; init; }
     public DateTime? CaptureTime { get; init; }
     public long FileSizeBytes { get; init; }
+    public double? GpsLatitude { get; init; }
+    public double? GpsLongitude { get; init; }
+    public double? GpsAltitude { get; init; }
 
     public string ShutterSpeedFormatted =>
         ShutterSpeed >= 1 ? $"{ShutterSpeed:F1}s"
@@ -70,4 +73,17 @@ public sealed class PhotoMetadata
             };
         }
     }
+
+    public string? GpsLatFormatted =>
+        GpsLatitude.HasValue
+            ? $"{Math.Abs(GpsLatitude.Value):F5}° {(GpsLatitude.Value >= 0 ? "N" : "S")}"
+            : null;
+
+    public string? GpsLonFormatted =>
+        GpsLongitude.HasValue
+            ? $"{Math.Abs(GpsLongitude.Value):F5}° {(GpsLongitude.Value >= 0 ? "E" : "W")}"
+            : null;
+
+    public string? GpsAltFormatted =>
+        GpsAltitude.HasValue ? $"{GpsAltitude.Value:F0} m" : null;
 }

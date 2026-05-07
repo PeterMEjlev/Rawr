@@ -9,7 +9,6 @@
 
 - ## manually selecting the desired thumbnail for a burst
 
-- ## Pixel-peep window — click anywhere → floating 1:1 zoom window pinned to that location across navigation. Compare focus of identical compositions
 
 - ## Custom keyboard macros / chords — "Shift+1 = pick + 5 stars + Yellow label + advance".
 
