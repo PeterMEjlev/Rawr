@@ -45,13 +45,14 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     private double _panStartTy;
     private PixelPeekController? _peek;
 
-    public IRelayCommand CloseCommand        { get; }
-    public IRelayCommand NextCommand         { get; }
-    public IRelayCommand PrevCommand         { get; }
-    public IRelayCommand TogglePickCommand   { get; }
-    public IRelayCommand ToggleRejectCommand { get; }
-    public IRelayCommand UnflagCommand       { get; }
-    public IRelayCommand<int> SetRatingCommand { get; }
+    public IRelayCommand CloseCommand           { get; }
+    public IRelayCommand NextCommand            { get; }
+    public IRelayCommand PrevCommand            { get; }
+    public IRelayCommand TogglePickCommand      { get; }
+    public IRelayCommand ToggleRejectCommand    { get; }
+    public IRelayCommand UnflagCommand          { get; }
+    public IRelayCommand SetAsThumbnailCommand  { get; }
+    public IRelayCommand<int> SetRatingCommand  { get; }
     public IRelayCommand<ColorLabel> SetColorLabelCommand { get; }
 
     /// <summary>Optional initial peek anchor + zoom carried over from the
@@ -70,10 +71,11 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         CloseCommand        = new RelayCommand(Close);
         NextCommand         = new RelayCommand(() => MoveTo(_currentIndex + 1, keepZoom: true));
         PrevCommand         = new RelayCommand(() => MoveTo(_currentIndex - 1, keepZoom: true));
-        TogglePickCommand   = new RelayCommand(() => MutateCurrent(p => p.Flag = p.Flag == CullFlag.Pick   ? CullFlag.Unflagged : CullFlag.Pick));
-        ToggleRejectCommand = new RelayCommand(() => MutateCurrent(p => p.Flag = p.Flag == CullFlag.Reject ? CullFlag.Unflagged : CullFlag.Reject));
-        UnflagCommand       = new RelayCommand(() => MutateCurrent(p => p.Flag = CullFlag.Unflagged));
-        SetRatingCommand    = new RelayCommand<int>(r => MutateCurrent(p => p.Rating = Math.Clamp(r, 0, 5)));
+        TogglePickCommand      = new RelayCommand(() => MutateCurrent(p => p.Flag = p.Flag == CullFlag.Pick   ? CullFlag.Unflagged : CullFlag.Pick));
+        ToggleRejectCommand    = new RelayCommand(() => MutateCurrent(p => p.Flag = p.Flag == CullFlag.Reject ? CullFlag.Unflagged : CullFlag.Reject));
+        UnflagCommand          = new RelayCommand(() => MutateCurrent(p => p.Flag = CullFlag.Unflagged));
+        SetAsThumbnailCommand  = new RelayCommand(SetAsThumbnail);
+        SetRatingCommand       = new RelayCommand<int>(r => MutateCurrent(p => p.Rating = Math.Clamp(r, 0, 5)));
         SetColorLabelCommand = new RelayCommand<ColorLabel>(l => MutateCurrent(p => p.ColorLabel = p.ColorLabel == l ? ColorLabel.None : l));
 
         InitializeComponent();
@@ -126,6 +128,22 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         mutate(photo);
         _vm.PersistPhoto(photo);
         UpdateOverlays();
+    }
+
+    private void SetAsThumbnail()
+    {
+        if (_currentIndex < 0 || _currentIndex >= _photos.Count) return;
+        var current = _photos[_currentIndex];
+        var setTo = !current.IsBestInGroup;
+        foreach (var p in _photos)
+        {
+            var desired = p == current && setTo;
+            if (p.IsBestInGroup != desired)
+            {
+                p.IsBestInGroup = desired;
+                _vm.PersistPhoto(p);
+            }
+        }
     }
 
     private void UpdateOverlays()

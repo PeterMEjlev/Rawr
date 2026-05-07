@@ -443,6 +443,40 @@
         </Setter>
     </Style>
 
+    <!-- Burst-viewer strip: same look as the main filmstrip but ignores
+         PhotoItem.IsSelected. The burst window has its own focus model
+         (Strip.SelectedIndex), and main-window multi-selection bleeding
+         through would highlight every frame and obscure the active one. -->
+    <Style TargetType="{x:Type ListBoxItem}" x:Key="BurstStripItemStyle">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="2" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="Transparent"
+                            BorderThickness="2"
+                            CornerRadius="7">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ItemHoverBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Separator -->
     <Style TargetType="{x:Type Separator}">
         <Setter Property="Background" Value="{StaticResource BorderBrush}" />

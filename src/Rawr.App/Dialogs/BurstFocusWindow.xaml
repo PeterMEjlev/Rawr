@@ -19,9 +19,10 @@
         <KeyBinding Key="Right"  Command="{Binding NextCommand,  RelativeSource={RelativeSource AncestorType=Window}}" />
         <KeyBinding Key="Left"   Command="{Binding PrevCommand,  RelativeSource={RelativeSource AncestorType=Window}}" />
 
-        <KeyBinding Key="P"      Command="{Binding TogglePickCommand,   RelativeSource={RelativeSource AncestorType=Window}}" />
-        <KeyBinding Key="X"      Command="{Binding ToggleRejectCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-        <KeyBinding Key="U"      Command="{Binding UnflagCommand,       RelativeSource={RelativeSource AncestorType=Window}}" />
+        <KeyBinding Key="P"      Command="{Binding TogglePickCommand,    RelativeSource={RelativeSource AncestorType=Window}}" />
+        <KeyBinding Key="X"      Command="{Binding ToggleRejectCommand,  RelativeSource={RelativeSource AncestorType=Window}}" />
+        <KeyBinding Key="U"      Command="{Binding UnflagCommand,        RelativeSource={RelativeSource AncestorType=Window}}" />
+        <KeyBinding Key="T"      Command="{Binding SetAsThumbnailCommand,RelativeSource={RelativeSource AncestorType=Window}}" />
 
         <KeyBinding Key="D0" Command="{Binding SetRatingCommand, RelativeSource={RelativeSource AncestorType=Window}}"><KeyBinding.CommandParameter><sys:Int32>0</sys:Int32></KeyBinding.CommandParameter></KeyBinding>
         <KeyBinding Key="D1" Command="{Binding SetRatingCommand, RelativeSource={RelativeSource AncestorType=Window}}"><KeyBinding.CommandParameter><sys:Int32>1</sys:Int32></KeyBinding.CommandParameter></KeyBinding>
@@ -59,6 +60,23 @@
                            Text="Esc to close"
                            Foreground="{StaticResource TextDimBrush}"
                            VerticalAlignment="Center" />
+                <Button DockPanel.Dock="Right"
+                        Command="{Binding SetAsThumbnailCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Margin="0,0,12,0"
+                        Padding="10,3"
+                        VerticalAlignment="Center"
+                        ToolTip="Press T to toggle this frame as the burst thumbnail">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Content" Value="Set as thumbnail (T)" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPhoto.IsBestInGroup, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                    <Setter Property="Content" Value="✓ Burst thumbnail (T to unpin)" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
             </DockPanel>
         </Border>
 
@@ -226,6 +244,7 @@
                         <TextBlock Text="6–9  Color label" Margin="0,1" />
                         <TextBlock Text="P / X  Pick / Reject" Margin="0,1" />
                         <TextBlock Text="U  Unflag" Margin="0,1" />
+                        <TextBlock Text="T  Set/clear thumbnail" Margin="0,1" />
                         <TextBlock Text="Esc  Close" Margin="0,1" />
                     </StackPanel>
                 </ScrollViewer>
@@ -238,7 +257,7 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0">
             <ListBox x:Name="Strip"
-                     ItemContainerStyle="{StaticResource FilmstripItemStyle}"
+                     ItemContainerStyle="{StaticResource BurstStripItemStyle}"
                      SelectionChanged="Strip_SelectionChanged"
                      PreviewMouseWheel="Strip_PreviewMouseWheel"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto"

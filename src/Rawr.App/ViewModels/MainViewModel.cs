@@ -2878,10 +2878,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Picks the burst member most likely to be the user's favourite.
-    /// Priority: rated+picked > highest rated > any pick > first chronologically.
+    /// Priority: user-pinned > rated+picked > highest rated > any pick > first chronologically.
     /// </summary>
     private static PhotoItem SelectBurstRepresentative(List<PhotoItem> members)
     {
+        var pinned = members.FirstOrDefault(p => p.IsBestInGroup);
+        if (pinned != null) return pinned;
+
         if (AppSettings.Current.BurstThumbnailMode == BurstThumbnailMode.FirstChronological)
             return members[0];
 
