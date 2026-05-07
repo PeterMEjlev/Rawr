@@ -3490,30 +3490,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return candidates;
     }
 
-    [RelayCommand]
-    private async Task ExportFileListAsync()
-    {
-        var picked = BuildCopyCustomFilter().ToList();
-        if (picked.Count == 0)
-        {
-            StatusText = "No photos match the copy criteria.";
-            return;
-        }
-
-        var dialog = new SaveFileDialog
-        {
-            Title = "Export file list",
-            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            DefaultExt = ".txt",
-            FileName = "selected_photos.txt"
-        };
-
-        if (dialog.ShowDialog() != true) return;
-
-        await FileOperations.ExportFileListAsync(picked, dialog.FileName);
-        StatusText = $"Exported {picked.Count} file paths to {dialog.FileName}";
-    }
-
     // ── Delete ──
 
     [RelayCommand]

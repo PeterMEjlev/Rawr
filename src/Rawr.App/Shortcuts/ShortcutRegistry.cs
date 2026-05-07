@@ -27,8 +27,7 @@ public static class ShortcutRegistry
         {
             // File ops
             new("OpenFolder",     "Open folder",        CatFile, Key.O, ModifierKeys.Control, Vm(vm => vm.OpenFolderCommand)),
-            new("ExportFileList", "Export file list",   CatFile, Key.E, ModifierKeys.Control, Vm(vm => vm.ExportFileListCommand)),
-            new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control, Vm(vm => vm.CopyPickedCommand)),
+new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control, Vm(vm => vm.CopyPickedCommand)),
 
             // Navigation
             new("NextPhoto",     "Next photo",          CatNav, Key.Right, ModifierKeys.None,    Vm(vm => vm.NextPhotoCommand)),

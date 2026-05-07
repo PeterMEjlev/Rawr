@@ -997,8 +997,7 @@
                         </Border>
                     </Popup>
                 </Grid>
-                <Button DockPanel.Dock="Left" Content="📝 Export List…"     Command="{Binding ExportFileListCommand}" Margin="0,0,4,0" ToolTip="Ctrl+E — export list of picked file paths" />
-                <Button DockPanel.Dock="Left" Content="🗑 Delete Rejected…" Command="{Binding DeleteAllRejectedCommand}" Margin="0,0,4,0" ToolTip="Move all rejected photos to the Recycle Bin" />
+<Button DockPanel.Dock="Left" Content="🗑 Delete Rejected…" Command="{Binding DeleteAllRejectedCommand}" Margin="0,0,4,0" ToolTip="Move all rejected photos to the Recycle Bin" />
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
