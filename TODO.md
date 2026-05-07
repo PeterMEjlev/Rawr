@@ -12,8 +12,6 @@
 
 - ## Custom keyboard macros / chords — "Shift+1 = pick + 5 stars + Yellow label + advance".
 
-- ## GPS map view — if EXIF has coordinates, plot on a map (offline tile cache). Filter by location.
-
 - ## Multi-shot HDR detection — bracket sequences, group separately from regular bursts. Detect if shot is HDR (maybe by same content, but with varying exposure levels = HDR?)
 
 - ## Two-monitor mode — full preview on monitor 2, filmstrip + tools on monitor 1. Use the already exisiting 'View' menu in the top panel.
@@ -21,3 +19,5 @@
 - ## Copy / Export Detail setting
 
 - ## detect panorama? how to?
+
+- ## What does the export list button do? remove it? bundle it with the copy button to save space in the top panel?

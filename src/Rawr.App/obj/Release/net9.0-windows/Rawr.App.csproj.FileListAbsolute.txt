@@ -244,3 +244,5 @@ C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin\Release\net9.0-windows\ru
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin\Release\net9.0-windows\runtimes\win-x86\native\netstandard2.0\SQLite.Interop.dll
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\MapWindow.baml
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\MapWindow.g.cs
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SecondMonitorWindow.baml
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SecondMonitorWindow.g.cs

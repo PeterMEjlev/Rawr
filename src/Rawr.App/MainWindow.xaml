@@ -989,6 +989,11 @@
                                 <TextBlock Text="PANELS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6" />
                                 <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}" Margin="0,0,0,4" />
                                 <CheckBox Content="Filmstrip" IsChecked="{Binding ShowFilmstrip}" />
+                                <Separator Margin="0,8,0,8" />
+                                <TextBlock Text="MONITORS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6" />
+                                <CheckBox Content="Second-monitor preview"
+                                          IsChecked="{Binding ShowSecondMonitor}"
+                                          ToolTip="Open a borderless preview window on a second display. Filmstrip and tools stay on this monitor." />
                             </StackPanel>
                         </Border>
                     </Popup>

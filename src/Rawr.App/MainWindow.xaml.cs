@@ -27,7 +27,16 @@ public partial class MainWindow : Window
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR");
     private static readonly string LayoutSettingsFile = Path.Combine(SettingsDir, "layout.json");
 
-    private record LayoutSettings(int GridColumnCount = 2, double FilmstripRowHeight = 148.0, bool ShowGrid = true, bool ShowFilmstrip = true);
+    private record LayoutSettings(
+        int GridColumnCount = 2,
+        double FilmstripRowHeight = 148.0,
+        bool ShowGrid = true,
+        bool ShowFilmstrip = true,
+        bool ShowSecondMonitor = false,
+        double? SecondMonitorLeft = null,
+        double? SecondMonitorTop = null,
+        double? SecondMonitorWidth = null,
+        double? SecondMonitorHeight = null);
 
     private bool _isPanning;
     private Point _panStart;
@@ -52,6 +61,11 @@ public partial class MainWindow : Window
     // controller handles the peek window lifecycle, source tracking and
     // cursor → image-pixel mapping.
     private PixelPeekController? _peek;
+
+    // Second-monitor preview window. Lifetime is driven by MainViewModel.ShowSecondMonitor;
+    // closing the window directly flips the flag back off so the View-menu checkbox stays in sync.
+    private SecondMonitorWindow? _secondMonitor;
+    private LayoutSettings? _loadedLayout;
 
     private bool _videoIsPlaying;
     private bool _videoSliderIsDragging;
@@ -112,6 +126,8 @@ public partial class MainWindow : Window
                     ApplyGridVisibility(vmG.ShowGrid);
                 if (e.PropertyName == nameof(MainViewModel.ShowFilmstrip) && DataContext is MainViewModel vmF)
                     ApplyFilmstripVisibility(vmF.ShowFilmstrip);
+                if (e.PropertyName == nameof(MainViewModel.ShowSecondMonitor) && DataContext is MainViewModel vmS)
+                    ApplySecondMonitorVisibility(vmS.ShowSecondMonitor);
                 if (e.PropertyName == nameof(MainViewModel.VideoSourceUri))
                     OnVideoSourceChanged();
             };
@@ -145,6 +161,7 @@ public partial class MainWindow : Window
             if (DataContext is MainViewModel vm)
             {
                 var layout = await LoadLayoutSettingsAsync();
+                _loadedLayout = layout;
                 vm.GridColumnCount = Math.Clamp(layout.GridColumnCount, 1, 8);
                 _savedFilmstripHeight = new GridLength(Math.Clamp(layout.FilmstripRowHeight, 80, 400));
                 RootGrid.RowDefinitions[3].Height = _savedFilmstripHeight;
@@ -152,6 +169,7 @@ public partial class MainWindow : Window
                 vm.ShowFilmstrip = layout.ShowFilmstrip;
                 ApplyGridVisibility(vm.ShowGrid);
                 ApplyFilmstripVisibility(vm.ShowFilmstrip);
+                vm.ShowSecondMonitor = layout.ShowSecondMonitor;
                 await vm.RestoreLastFolderAsync();
             }
             RecalcGridThumbnailSize();
@@ -181,7 +199,29 @@ public partial class MainWindow : Window
             var height = vm.ShowFilmstrip
                 ? RootGrid.RowDefinitions[3].ActualHeight
                 : _savedFilmstripHeight.Value;
-            var settings = new LayoutSettings(vm.GridColumnCount, height > 0 ? height : 148.0, vm.ShowGrid, vm.ShowFilmstrip);
+
+            // Carry forward the second-monitor bounds so the next session restores
+            // to the same display. Prefer the live window's bounds; otherwise reuse
+            // whatever was loaded.
+            double? smLeft = _loadedLayout?.SecondMonitorLeft;
+            double? smTop = _loadedLayout?.SecondMonitorTop;
+            double? smWidth = _loadedLayout?.SecondMonitorWidth;
+            double? smHeight = _loadedLayout?.SecondMonitorHeight;
+            if (_secondMonitor is { IsLoaded: true } w)
+            {
+                smLeft = w.Left;
+                smTop = w.Top;
+                smWidth = w.Width;
+                smHeight = w.Height;
+            }
+
+            var settings = new LayoutSettings(
+                vm.GridColumnCount,
+                height > 0 ? height : 148.0,
+                vm.ShowGrid,
+                vm.ShowFilmstrip,
+                vm.ShowSecondMonitor,
+                smLeft, smTop, smWidth, smHeight);
             File.WriteAllText(LayoutSettingsFile, JsonSerializer.Serialize(settings));
         }
         catch { /* non-critical */ }
@@ -205,6 +245,83 @@ public partial class MainWindow : Window
             cols[0].MinWidth = 0;
             cols[0].Width = new GridLength(0);
             cols[1].Width = new GridLength(0);
+        }
+    }
+
+    private void ApplySecondMonitorVisibility(bool show)
+    {
+        if (show)
+        {
+            if (_secondMonitor is { IsLoaded: true })
+            {
+                _secondMonitor.Activate();
+                return;
+            }
+
+            if (DataContext is not MainViewModel vm) return;
+
+            var win = new SecondMonitorWindow(vm) { Owner = this };
+
+            // Prefer last-saved bounds when present; otherwise centre a default-size window
+            // on a non-primary monitor so the user can maximize / drag from there.
+            if (_loadedLayout is { SecondMonitorWidth: > 0, SecondMonitorHeight: > 0 } l
+                && l.SecondMonitorLeft is double ll
+                && l.SecondMonitorTop is double tt
+                && l.SecondMonitorWidth is double ww
+                && l.SecondMonitorHeight is double hh)
+            {
+                win.WindowStartupLocation = WindowStartupLocation.Manual;
+                win.Left = ll;
+                win.Top = tt;
+                win.Width = ww;
+                win.Height = hh;
+            }
+            else if (WindowHelper.PickSecondaryMonitor() is { } target)
+            {
+                win.WindowStartupLocation = WindowStartupLocation.Manual;
+                var w = Math.Min(win.Width, target.Width * 0.8);
+                var h = Math.Min(win.Height, target.Height * 0.8);
+                win.Width = w;
+                win.Height = h;
+                win.Left = target.Left + (target.Width - w) / 2;
+                win.Top = target.Top + (target.Height - h) / 2;
+            }
+
+            // User-driven close (e.g. ESC) needs to flip the menu checkbox off.
+            // Re-entrancy guard: ApplySecondMonitorVisibility is the only writer when
+            // _secondMonitor != null, so resetting the flag here doesn't loop.
+            win.Closing += (_, _) =>
+            {
+                // Capture the final bounds so SaveLayoutSettings on app exit still
+                // writes them, even though _secondMonitor is about to be cleared.
+                if (win.IsLoaded)
+                {
+                    _loadedLayout = (_loadedLayout ?? new LayoutSettings()) with
+                    {
+                        SecondMonitorLeft = win.Left,
+                        SecondMonitorTop = win.Top,
+                        SecondMonitorWidth = win.Width,
+                        SecondMonitorHeight = win.Height,
+                    };
+                }
+            };
+            win.Closed += (_, _) =>
+            {
+                _secondMonitor = null;
+                if (DataContext is MainViewModel vm2 && vm2.ShowSecondMonitor)
+                    vm2.ShowSecondMonitor = false;
+            };
+
+            _secondMonitor = win;
+            win.Show();
+        }
+        else
+        {
+            if (_secondMonitor is { } w)
+            {
+                _secondMonitor = null;
+                w.Close();
+            }
         }
     }
 
