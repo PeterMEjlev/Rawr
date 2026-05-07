@@ -2740,6 +2740,123 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ToggleTagForSelected(Tags[index]);
     }
 
+    /// <summary>
+    /// Apply a user-defined macro (flag/rating/color/tag) to the current selection
+    /// in a single undoable step. Each macro field is "set" semantics — pressing the
+    /// macro again on already-matching photos is a no-op, never a toggle. A tag name
+    /// that doesn't yet exist is auto-created.
+    /// </summary>
+    public void ExecuteMacro(Shortcuts.KeyboardMacro macro)
+        => ExecuteMacro(macro, SelectedPhotosSnapshot());
+
+    /// <summary>
+    /// Macro variant with an explicit target list — used by the burst viewer so the
+    /// macro hits only the frame on screen, not whatever multi-selection happens to
+    /// be active in the main window.
+    /// </summary>
+    public void ExecuteMacro(Shortcuts.KeyboardMacro macro, IList<PhotoItem> photos)
+    {
+        if (!macro.HasAnyAction) return;
+        if (photos.Count == 0) return;
+
+        // Resolve / create the target tag once up front so undo can refer to it.
+        PhotoTag? targetTag = null;
+        bool tagCreatedByMacro = false;
+        if (!string.IsNullOrWhiteSpace(macro.TagName) && _db != null)
+        {
+            targetTag = Tags.FirstOrDefault(t =>
+                string.Equals(t.Name, macro.TagName, StringComparison.OrdinalIgnoreCase));
+            if (targetTag == null)
+            {
+                targetTag = _db.CreateGroup(macro.TagName!);
+                Tags.Add(targetTag);
+                tagCreatedByMacro = true;
+            }
+        }
+
+        // Snapshot per-photo prior state for the things this macro touches.
+        var snapshots = photos.Select(p => new
+        {
+            Photo = p,
+            OldFlag = p.Flag,
+            OldRating = p.Rating,
+            OldLabel = p.ColorLabel,
+            HadTag = targetTag != null && p.TagIds.Contains(targetTag.Id),
+        }).ToList();
+
+        var changedPhotos = new List<PhotoItem>();
+
+        void ApplyAll()
+        {
+            changedPhotos.Clear();
+            foreach (var s in snapshots)
+            {
+                var p = s.Photo;
+                bool changed = false;
+
+                if (macro.SetFlag.HasValue && p.Flag != macro.SetFlag.Value)
+                {
+                    p.Flag = macro.SetFlag.Value;
+                    changed = true;
+                }
+                if (macro.SetRating.HasValue)
+                {
+                    var r = Math.Clamp(macro.SetRating.Value, 0, 5);
+                    if (p.Rating != r) { p.Rating = r; changed = true; }
+                }
+                if (macro.SetColorLabel.HasValue && p.ColorLabel != macro.SetColorLabel.Value)
+                {
+                    p.ColorLabel = macro.SetColorLabel.Value;
+                    changed = true;
+                }
+                if (targetTag != null && !p.TagIds.Contains(targetTag.Id))
+                {
+                    if (_db != null)
+                    {
+                        p.TagIds.Add(targetTag.Id);
+                        _db.AssignGroup(p.FileName, targetTag.Id);
+                        UpdateTagDisplay(p);
+                    }
+                    changed = true;
+                }
+
+                if (changed) changedPhotos.Add(p);
+            }
+            if (changedPhotos.Count > 0) SavePhotoBatch(changedPhotos);
+            if (TagFilter != null && targetTag != null) ApplyFilter();
+        }
+
+        void RevertAll()
+        {
+            foreach (var s in snapshots)
+            {
+                var p = s.Photo;
+                if (macro.SetFlag.HasValue) p.Flag = s.OldFlag;
+                if (macro.SetRating.HasValue) p.Rating = s.OldRating;
+                if (macro.SetColorLabel.HasValue) p.ColorLabel = s.OldLabel;
+                if (targetTag != null && !s.HadTag && p.TagIds.Contains(targetTag.Id))
+                {
+                    if (_db != null)
+                    {
+                        p.TagIds.Remove(targetTag.Id);
+                        _db.UnassignGroup(p.FileName, targetTag.Id);
+                        UpdateTagDisplay(p);
+                    }
+                }
+            }
+            SavePhotoBatch(snapshots.Select(s => s.Photo).ToList());
+            if (TagFilter != null && targetTag != null) ApplyFilter();
+        }
+
+        ApplyAll();
+        if (changedPhotos.Count == 0 && !tagCreatedByMacro) return;
+
+        var label = string.IsNullOrWhiteSpace(macro.Name)
+            ? $"Macro ({changedPhotos.Count} photo{(changedPhotos.Count == 1 ? "" : "s")})"
+            : $"Macro: {macro.Name}";
+        History.Record(new EditOp(label, SelectedPhoto ?? snapshots[0].Photo, ApplyAll, RevertAll));
+    }
+
     private void UpdateTagDisplay(PhotoItem photo)
     {
         photo.TagDisplay = photo.TagIds.Count == 0

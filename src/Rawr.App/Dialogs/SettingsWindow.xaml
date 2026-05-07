@@ -329,6 +329,42 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ── MACROS TAB ── -->
+            <TabItem Header="Macros">
+                <Grid Margin="16,14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                        <TextBlock Text="KEYBOARD MACROS"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Grid.Row="1"
+                               Text="One key combo applies a sequence of edits (flag, rating, color, tag) to the current selection as a single undoable step. Macros override built-in shortcuts on the same key."
+                               Foreground="{StaticResource TextDimBrush}"
+                               FontSize="10"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,10" />
+                    <ScrollViewer Grid.Row="2"
+                                  VerticalScrollBarVisibility="Auto"
+                                  PreviewMouseWheel="TabScroll_PreviewMouseWheel">
+                        <StackPanel x:Name="MacrosHost" />
+                    </ScrollViewer>
+                    <Button Grid.Row="3"
+                            Content="+ Add macro"
+                            HorizontalAlignment="Left"
+                            Padding="8,4"
+                            Margin="0,8,0,0"
+                            Click="AddMacro_Click" />
+                </Grid>
+            </TabItem>
+
             <!-- ── SHORTCUTS TAB ── -->
             <TabItem Header="Shortcuts">
                 <Grid Margin="16,14">

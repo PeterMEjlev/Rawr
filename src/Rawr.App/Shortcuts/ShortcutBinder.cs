@@ -1,5 +1,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
+using Rawr.App.ViewModels;
 
 namespace Rawr.App.Shortcuts;
 
@@ -47,10 +49,38 @@ public static class ShortcutBinder
         // We own the entire InputBindings collection on MainWindow — clear and rebuild.
         window.InputBindings.Clear();
 
+        // Track keys claimed by macros so they shadow any built-in shortcut on the
+        // same combo. The settings UI rejects collisions, but if a stale settings
+        // file slips one through we still want deterministic behaviour.
+        var macroKeys = new HashSet<(Key, ModifierKeys)>();
+        if (window.DataContext is MainViewModel vm)
+        {
+            foreach (var macro in settings.Macros)
+            {
+                if (!macro.HasAnyAction) continue;
+                var spec = KeySpec.TryParse(macro.KeyBinding);
+                if (spec is null) continue;
+                if (!macroKeys.Add((spec.Key, spec.Modifiers))) continue;
+
+                var capturedMacro = macro;
+                ICommand cmd = new RelayCommand(() => vm.ExecuteMacro(capturedMacro));
+                ICommand boundCmd = spec.Modifiers == ModifierKeys.None
+                    ? new TextInputGuardCommand(cmd)
+                    : cmd;
+                window.InputBindings.Add(new KeyBinding
+                {
+                    Command = boundCmd,
+                    Key = spec.Key,
+                    Modifiers = spec.Modifiers,
+                });
+            }
+        }
+
         foreach (var action in ShortcutRegistry.All)
         {
             var (spec, _) = ResolveBinding(settings, action);
             if (spec is null) continue;
+            if (macroKeys.Contains((spec.Key, spec.Modifiers))) continue;
 
             var cmd = action.ResolveCommand(window);
             if (cmd is null) continue;

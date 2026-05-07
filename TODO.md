@@ -5,13 +5,12 @@
 
 - ## Subject classifier — small zero-shot model (CLIP-tiny or similar) tags photos with "person", "landscape", "food", "animal". Filterable. Surprisingly accurate even at small sizes.
 
-- ## Custom keyboard macros / chords — "Shift+1 = pick + 5 stars + Yellow label + tag".
-
 - ## Multi-shot HDR detection — bracket sequences, group separately from regular bursts. Detect if shot is HDR (maybe by same content, but with varying exposure levels = HDR?)
 no frame shift
 different exposure levels
 high perceptual hash similarity
 
+- ## identify missing keyboard shortcuts that arent in settings
 
 - ## detect panorama? 
 For each neighboring pair, estimate how the second image moved relative to the previous one:
@@ -56,5 +55,3 @@ if overlap between neighboring frames is 35-85%
 and movement direction is consistent
 and image count >= 3
 then classify as panorama candidate
-
-- ## What does the export list button do? remove it? bundle it with the copy button to save space in the top panel?

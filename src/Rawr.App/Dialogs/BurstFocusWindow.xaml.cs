@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using Rawr.App.Controls;
+using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
 
@@ -88,6 +89,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         _peek = new PixelPeekController(PreviewHost, PreviewImageElement,
             loadHighResAsync: LoadFullJpegIfNeededAsync);
 
+        RegisterMacroBindings();
+
         Loaded += (_, _) =>
         {
             _peek?.AttachView(PixelPeekViewControl);
@@ -128,6 +131,33 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         mutate(photo);
         _vm.PersistPhoto(photo);
         UpdateOverlays();
+    }
+
+    private void RegisterMacroBindings()
+    {
+        // Mirror the main-window macro bindings here so the user's chord works even
+        // when the burst viewer has the keyboard focus. Targets only the current
+        // frame, not the main-window selection.
+        foreach (var macro in AppSettings.Current.Macros)
+        {
+            if (!macro.HasAnyAction) continue;
+            var spec = KeySpec.TryParse(macro.KeyBinding);
+            if (spec is null) continue;
+
+            var capturedMacro = macro;
+            var cmd = new RelayCommand(() =>
+            {
+                if (_currentIndex < 0 || _currentIndex >= _photos.Count) return;
+                _vm.ExecuteMacro(capturedMacro, new[] { _photos[_currentIndex] });
+                UpdateOverlays();
+            });
+            InputBindings.Add(new KeyBinding
+            {
+                Command = cmd,
+                Key = spec.Key,
+                Modifiers = spec.Modifiers,
+            });
+        }
     }
 
     private void SetAsThumbnail()

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 
 namespace Rawr.App;
@@ -50,6 +51,11 @@ public sealed class AppSettings
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
     public Dictionary<string, string> KeyBindings { get; set; } = new();
 
+    // User-defined keyboard macros. Each binds a single key combo to a sequence
+    // of edits (flag, rating, color label, tag) applied to the current selection
+    // as one undoable step.
+    public List<KeyboardMacro> Macros { get; set; } = new();
+
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR", "settings.json");
 
@@ -91,6 +97,16 @@ public sealed class AppSettings
         ClosedEyeThreshold = ClosedEyeThreshold,
         DoubleClickZoom = DoubleClickZoom,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
+        Macros = Macros.Select(m => new KeyboardMacro
+        {
+            Id = m.Id,
+            Name = m.Name,
+            KeyBinding = m.KeyBinding,
+            SetFlag = m.SetFlag,
+            SetRating = m.SetRating,
+            SetColorLabel = m.SetColorLabel,
+            TagName = m.TagName,
+        }).ToList(),
     };
 
 }
