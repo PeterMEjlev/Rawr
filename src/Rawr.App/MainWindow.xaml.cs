@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
+using Rawr.App.Controls;
 using Rawr.App.Dialogs;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
@@ -46,6 +47,11 @@ public partial class MainWindow : Window
     // full-resolution bitmap mid-scroll stalls the render thread when WPF uploads the
     // texture; deferring the load until the user pauses keeps rapid zoom smooth.
     private readonly DispatcherTimer _hiResZoomTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
+
+    // Pixel-peep loupe. Toggled by single-clicking the unzoomed preview; the
+    // controller handles the peek window lifecycle, source tracking and
+    // cursor → image-pixel mapping.
+    private PixelPeekController? _peek;
 
     private bool _videoIsPlaying;
     private bool _videoSliderIsDragging;
@@ -125,7 +131,14 @@ public partial class MainWindow : Window
             }
         };
 
-        Closing += (_, _) => SaveLayoutSettings();
+        _peek = new PixelPeekController(
+            PreviewHost, PreviewImageElement,
+            loadHighResAsync: () => (DataContext as MainViewModel)?.LoadHighResPreviewAsync() ?? Task.CompletedTask);
+
+        // The peek view is in the right-hand panel — attach once it's loaded.
+        Loaded += (_, _) => _peek?.AttachView(PixelPeekViewControl);
+
+        Closing += (_, _) => { SaveLayoutSettings(); _peek?.Dispose(); _peek = null; };
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
         Loaded += async (_, _) =>
         {
@@ -377,6 +390,11 @@ public partial class MainWindow : Window
         if (sender is not FrameworkElement host) return;
         if ((DataContext as MainViewModel)?.VideoSourceUri != null) return; // no zoom for videos
 
+        // While the loupe is open the wheel adjusts its zoom rather than the
+        // main preview; otherwise a mid-peep wheel-spin would zoom out the
+        // background and break the 1:1 reference.
+        // Wheel always zooms the main preview here. To zoom the loupe, scroll
+        // over the peek view itself in the side panel.
         var oldScale = PreviewScale.ScaleX;
         var step = e.Delta > 0 ? ZoomStep : 1.0 / ZoomStep;
         var newScale = Math.Clamp(oldScale * step, MinZoom, MaxZoom);
@@ -428,6 +446,18 @@ public partial class MainWindow : Window
     {
         if (sender is not FrameworkElement host) return;
         if ((DataContext as MainViewModel)?.VideoSourceUri != null) return; // no zoom/pan for videos
+
+        // Shift + click: re-anchor the pixel-peep view to the clicked pixel.
+        // Works at any zoom level — TranslatePoint already inverts the
+        // preview's RenderTransform so the math holds when zoomed in.
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && e.ClickCount == 1)
+        {
+            _peek?.SetAnchorFromCursor(e.GetPosition(host));
+            if (DataContext is MainViewModel vmShift)
+                vmShift.SidePanelView = SidePanelView.PixelPeek;
+            e.Handled = true;
+            return;
+        }
 
         if (e.ClickCount == 2)
         {
@@ -564,8 +594,18 @@ public partial class MainWindow : Window
         var members = vm.GetBurstMembers(representative.GroupId);
         if (members.Count == 0) return;
         var startIdx = Math.Max(0, members.IndexOf(representative));
-        var win = new BurstFocusWindow(vm, members, startIdx) { Owner = this };
+        var win = new BurstFocusWindow(vm, members, startIdx)
+        {
+            Owner = this,
+            // Carry the current peek anchor in so the burst viewer keeps
+            // inspecting the same composition pixel — comparing focus across
+            // burst frames is the whole point of the loupe here.
+            InitialPeekState = _peek?.CaptureState(),
+        };
         win.ShowDialog();
+        // Bring any anchor / zoom changes from the burst viewer back so the
+        // main panel reflects the user's last-inspected point.
+        if (win.LastPeekState is { } returned) _peek?.RestoreState(returned);
         vm.ApplyFilter();
     }
 

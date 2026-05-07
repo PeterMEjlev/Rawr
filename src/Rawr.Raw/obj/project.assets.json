@@ -431,8 +431,8 @@
         "net9.0-windows7.0": {
           "targetAlias": "net9.0-windows",
           "projectReferences": {
-            "c:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
-              "projectPath": "c:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
+            "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
+              "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
             }
           }
         }

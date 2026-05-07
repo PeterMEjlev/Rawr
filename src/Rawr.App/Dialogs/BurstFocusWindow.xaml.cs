@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
+using Rawr.App.Controls;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
 
@@ -41,6 +42,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     private Point _panStart;
     private double _panStartTx;
     private double _panStartTy;
+    private PixelPeekController? _peek;
 
     public IRelayCommand CloseCommand        { get; }
     public IRelayCommand NextCommand         { get; }
@@ -50,6 +52,14 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     public IRelayCommand UnflagCommand       { get; }
     public IRelayCommand<int> SetRatingCommand { get; }
     public IRelayCommand<ColorLabel> SetColorLabelCommand { get; }
+
+    /// <summary>Optional initial peek anchor + zoom carried over from the
+    /// caller so opening a burst doesn't lose the inspection point.</summary>
+    public PixelPeekController.State? InitialPeekState { get; init; }
+
+    /// <summary>Peek state snapshotted at close time for the caller to copy
+    /// back so the main window's loupe stays in sync.</summary>
+    public PixelPeekController.State? LastPeekState { get; private set; }
 
     public BurstFocusWindow(MainViewModel vm, List<PhotoItem> photos, int startIndex)
     {
@@ -72,8 +82,22 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         Strip.ItemsSource = _photos;
         HeaderText.Text = $"Burst — {_photos.Count} photos";
 
-        Loaded += (_, _) => MoveTo(Math.Clamp(startIndex, 0, _photos.Count - 1));
-        Closed += (_, _) => _previewCts?.Cancel();
+        _peek = new PixelPeekController(PreviewHost, PreviewImageElement,
+            loadHighResAsync: LoadFullJpegIfNeededAsync);
+
+        Loaded += (_, _) =>
+        {
+            _peek?.AttachView(PixelPeekViewControl);
+            if (InitialPeekState is { HasAnchor: true } s) _peek?.RestoreState(s);
+            MoveTo(Math.Clamp(startIndex, 0, _photos.Count - 1));
+        };
+        Closed += (_, _) =>
+        {
+            _previewCts?.Cancel();
+            LastPeekState = _peek?.CaptureState();
+            _peek?.Dispose();
+            _peek = null;
+        };
     }
 
     private void MoveTo(int index, bool keepZoom = false)
@@ -187,6 +211,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
 
     private void PreviewHost_MouseWheel(object sender, MouseWheelEventArgs e)
     {
+        // Wheel always zooms the main preview. To zoom the loupe, scroll
+        // over the peek view itself in the metadata panel.
         var oldScale = PreviewScale.ScaleX;
         var step = e.Delta > 0 ? ZoomStep : 1.0 / ZoomStep;
         var newScale = Math.Clamp(oldScale * step, MinZoom, MaxZoom);
@@ -223,6 +249,14 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     private void PreviewHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement host) return;
+
+        // Shift + click re-anchors the pixel-peep view at any zoom level.
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && e.ClickCount == 1)
+        {
+            _peek?.SetAnchorFromCursor(e.GetPosition(host));
+            e.Handled = true;
+            return;
+        }
 
         if (e.ClickCount == 2)
         {

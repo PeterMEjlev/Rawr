@@ -49,11 +49,20 @@ public sealed class RangeSlider : Control
         nameof(Step), typeof(double), typeof(RangeSlider),
         new FrameworkPropertyMetadata(0.0));
 
+    // Reflects whether either thumb is currently being dragged. Bind this to a
+    // ViewModel flag and have downstream side-effects (e.g. re-running an
+    // expensive filter) skip while it is true; the value flips back to false on
+    // DragCompleted, which is the cue to do the work once.
+    public static readonly DependencyProperty IsDraggingProperty = DependencyProperty.Register(
+        nameof(IsDragging), typeof(bool), typeof(RangeSlider),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
     public double Minimum    { get => (double)GetValue(MinimumProperty);    set => SetValue(MinimumProperty, value); }
     public double Maximum    { get => (double)GetValue(MaximumProperty);    set => SetValue(MaximumProperty, value); }
     public double LowerValue { get => (double)GetValue(LowerValueProperty); set => SetValue(LowerValueProperty, value); }
     public double UpperValue { get => (double)GetValue(UpperValueProperty); set => SetValue(UpperValueProperty, value); }
     public double Step       { get => (double)GetValue(StepProperty);       set => SetValue(StepProperty, value); }
+    public bool   IsDragging { get => (bool)GetValue(IsDraggingProperty);   set => SetValue(IsDraggingProperty, value); }
 
     private Thumb? _lowerThumb;
     private Thumb? _upperThumb;
@@ -64,16 +73,36 @@ public sealed class RangeSlider : Control
     {
         base.OnApplyTemplate();
 
-        if (_lowerThumb != null) _lowerThumb.DragDelta -= OnLowerDragDelta;
-        if (_upperThumb != null) _upperThumb.DragDelta -= OnUpperDragDelta;
+        if (_lowerThumb != null)
+        {
+            _lowerThumb.DragStarted   -= OnDragStarted;
+            _lowerThumb.DragDelta     -= OnLowerDragDelta;
+            _lowerThumb.DragCompleted -= OnDragCompleted;
+        }
+        if (_upperThumb != null)
+        {
+            _upperThumb.DragStarted   -= OnDragStarted;
+            _upperThumb.DragDelta     -= OnUpperDragDelta;
+            _upperThumb.DragCompleted -= OnDragCompleted;
+        }
 
         _track = GetTemplateChild("PART_Track") as FrameworkElement;
         _lowerThumb = GetTemplateChild("PART_LowerThumb") as Thumb;
         _upperThumb = GetTemplateChild("PART_UpperThumb") as Thumb;
         _selectedRange = GetTemplateChild("PART_SelectedRange") as Rectangle;
 
-        if (_lowerThumb != null) _lowerThumb.DragDelta += OnLowerDragDelta;
-        if (_upperThumb != null) _upperThumb.DragDelta += OnUpperDragDelta;
+        if (_lowerThumb != null)
+        {
+            _lowerThumb.DragStarted   += OnDragStarted;
+            _lowerThumb.DragDelta     += OnLowerDragDelta;
+            _lowerThumb.DragCompleted += OnDragCompleted;
+        }
+        if (_upperThumb != null)
+        {
+            _upperThumb.DragStarted   += OnDragStarted;
+            _upperThumb.DragDelta     += OnUpperDragDelta;
+            _upperThumb.DragCompleted += OnDragCompleted;
+        }
 
         UpdateLayoutPositions();
     }
@@ -95,6 +124,16 @@ public sealed class RangeSlider : Control
         var midpoint = (LowerValue + UpperValue) / 2;
         if (v < midpoint) LowerValue = v;
         else UpperValue = v;
+    }
+
+    private void OnDragStarted(object sender, DragStartedEventArgs e)
+    {
+        IsDragging = true;
+    }
+
+    private void OnDragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        IsDragging = false;
     }
 
     private void OnLowerDragDelta(object sender, DragDeltaEventArgs e)

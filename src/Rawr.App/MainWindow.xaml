@@ -525,7 +525,8 @@
                                                           Margin="0,8,0,0"
                                                           Minimum="0" Maximum="1440" Step="15"
                                                           LowerValue="{Binding TimeOfDayStartMinutes, Mode=TwoWay}"
-                                                          UpperValue="{Binding TimeOfDayEndMinutes,   Mode=TwoWay}" />
+                                                          UpperValue="{Binding TimeOfDayEndMinutes,   Mode=TwoWay}"
+                                                          IsDragging="{Binding IsTimeOfDaySliderDragging, Mode=TwoWay}" />
                                 </Grid>
 
                                 <!-- Groups -->
@@ -2039,10 +2040,53 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,6,10">
                     <StackPanel>
 
-                        <!-- Histogram card -->
+                        <!-- Histogram / Pixel-peep card -->
                         <Border Style="{StaticResource SectionCard}">
                             <StackPanel>
-                                <TextBlock Text="HISTOGRAM" Style="{StaticResource SectionCardHeader}" />
+                                <!-- Tab strip: pick which view occupies the card. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <ToggleButton Content="HISTOGRAM"
+                                                  Command="{Binding SetSidePanelViewCommand}"
+                                                  CommandParameter="{x:Static vm:SidePanelView.Histogram}"
+                                                  FontSize="10" Padding="8,3" Margin="0,0,4,0">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                                <Setter Property="IsChecked" Value="False" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SidePanelView}" Value="{x:Static vm:SidePanelView.Histogram}">
+                                                        <Setter Property="IsChecked" Value="True" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <ToggleButton Content="PEEK"
+                                                  Command="{Binding SetSidePanelViewCommand}"
+                                                  CommandParameter="{x:Static vm:SidePanelView.PixelPeek}"
+                                                  FontSize="10" Padding="8,3"
+                                                  ToolTip="Shift + click on the preview to inspect a point at 1:1. Scroll inside this panel to zoom.">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                                <Setter Property="IsChecked" Value="False" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SidePanelView}" Value="{x:Static vm:SidePanelView.PixelPeek}">
+                                                        <Setter Property="IsChecked" Value="True" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                </StackPanel>
+
+                                <!-- Pixel-peep view: panel-embedded loupe. -->
+                                <controls:PixelPeekView x:Name="PixelPeekViewControl"
+                                                        Height="240"
+                                                        Visibility="{Binding SidePanelView, ConverterParameter={x:Static vm:SidePanelView.PixelPeek}, Converter={StaticResource EqualsToVisibility}}" />
+
+                                <!-- Histogram view (default). Visibility on the
+                                     wrapper hides both the chart and the mode-
+                                     toggle row when Peek is active. -->
+                                <StackPanel Visibility="{Binding SidePanelView, ConverterParameter={x:Static vm:SidePanelView.Histogram}, Converter={StaticResource EqualsToVisibility}}">
                                 <controls:HistogramControl Height="120"
                                                            Data="{Binding HistogramData}"
                                                            Mode="{Binding HistogramMode}" />
@@ -2118,6 +2162,7 @@
                                             </Style>
                                         </ToggleButton.Style>
                                     </ToggleButton>
+                                </StackPanel>
                                 </StackPanel>
                             </StackPanel>
                         </Border>

@@ -23,6 +23,7 @@ public enum BurstFilterMode { Any, OnlyInBursts, OnlySingles }
 public enum ImageTypeFilterMode { Any, RawOnly, JpegOnly, VideoOnly }
 public enum ExposureFilterMode { Any, ClippedHighlights, CrushedShadows }
 public enum FaceFilterMode { Any, ClosedEyes }
+public enum SidePanelView { Histogram, PixelPeek }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -80,6 +81,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<FolderNode> FolderTreeRoots { get; } = [];
     [ObservableProperty] private HistogramData? _histogramData;
     [ObservableProperty] private HistogramMode _histogramMode = HistogramMode.Rgb;
+
+    // The right-hand panel's first card swaps between the histogram view and
+    // the pixel-peep loupe; both share a single slot to avoid stealing screen
+    // estate when neither is in active use.
+    [ObservableProperty] private SidePanelView _sidePanelView = SidePanelView.Histogram;
     [ObservableProperty] private bool _focusPeakingEnabled;
     [ObservableProperty] private BitmapSource? _focusPeakingOverlay;
     [ObservableProperty] private bool _clippingEnabled;
@@ -238,8 +244,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnFaceFilterExcludeChanged(bool value)       { if (FaceFilter != FaceFilterMode.Any)        ApplyFilter(); }
     partial void OnTimeOfDayFilterExcludeChanged(bool value)  { if (IsTimeOfDayFilterActive)                 ApplyFilter(); }
 
-    partial void OnTimeOfDayStartMinutesChanged(int value) => ApplyFilter();
-    partial void OnTimeOfDayEndMinutesChanged(int value)   => ApplyFilter();
+    // While the user is dragging a slider thumb we still update the start/end
+    // minute values continuously (so the labels and text boxes track the
+    // motion), but skip the expensive ApplyFilter pass. The filter runs once
+    // when IsTimeOfDaySliderDragging flips back to false.
+    [ObservableProperty] private bool _isTimeOfDaySliderDragging;
+
+    partial void OnTimeOfDayStartMinutesChanged(int value) { if (!IsTimeOfDaySliderDragging) ApplyFilter(); }
+    partial void OnTimeOfDayEndMinutesChanged(int value)   { if (!IsTimeOfDaySliderDragging) ApplyFilter(); }
+    partial void OnIsTimeOfDaySliderDraggingChanged(bool value) { if (!value) ApplyFilter(); }
 
     public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive;
 
@@ -1050,6 +1063,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void SetHistogramMode(HistogramMode mode) => HistogramMode = mode;
+
+    [RelayCommand]
+    private void SetSidePanelView(SidePanelView view) => SidePanelView = view;
 
     [RelayCommand]
     private void ToggleFocusPeaking()

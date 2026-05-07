@@ -634,11 +634,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
+      "projectUniqueName": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
       "projectName": "RAWR",
-      "projectPath": "c:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
+      "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
       "packagesPath": "C:\\Users\\pejlev\\.nuget\\packages\\",
-      "outputPath": "c:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\obj\\",
+      "outputPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\pejlev\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -653,8 +653,8 @@
         "net9.0-windows7.0": {
           "targetAlias": "net9.0-windows",
           "projectReferences": {
-            "c:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
-              "projectPath": "c:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
+            "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj": {
+              "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj"
             },
             "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj": {
               "projectPath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Raw\\Rawr.Raw.csproj"

@@ -226,3 +226,5 @@ C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin\Release\net9.0-windows\ru
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin\Release\net9.0-windows\runtimes\win-x86\native\onnxruntime.lib
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin\Release\net9.0-windows\runtimes\win-x86\native\onnxruntime_providers_shared.dll
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\bin\Release\net9.0-windows\runtimes\win-x86\native\onnxruntime_providers_shared.lib
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PixelPeekView.baml
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PixelPeekView.g.cs
