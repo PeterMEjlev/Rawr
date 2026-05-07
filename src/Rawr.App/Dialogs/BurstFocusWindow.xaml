@@ -8,6 +8,7 @@
         Height="720" Width="1380"
         MinHeight="400" MinWidth="700"
         WindowStartupLocation="CenterOwner"
+        WindowState="Maximized"
         Background="{StaticResource BgBrush}"
         Foreground="{StaticResource TextBrush}"
         FontFamily="Segoe UI"
