@@ -775,16 +775,77 @@ public partial class MainWindow : Window
             vm.ApplyFilter();
     }
 
-    // ── Context menu: select item on right-click so ToggleGroupForSelected works on the right photo ──
+    // ── Click handling: Ctrl/Shift modifiers build the multi-selection set ──
+    //
+    // PreviewMouseLeftButtonDown runs before the ListBox claims the click, so we can
+    // intercept Ctrl+click (toggle photo in selection set) and Shift+click (range from
+    // anchor) and route them through the VM. Plain click falls through to ListBox's
+    // built-in selection change → OnSelectedPhotoChanged → ReconcileSingleSelection
+    // collapses any prior multi-selection back to the new anchor.
+
+    private void PhotoList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox) return;
+        if (DataContext is not MainViewModel vm) return;
+
+        var hit = e.OriginalSource as DependencyObject;
+        while (hit != null && hit is not ListBoxItem)
+            hit = VisualTreeHelper.GetParent(hit);
+        if (hit is not ListBoxItem item) return;
+        if (item.DataContext is not PhotoItem photo) return;
+
+        var modifiers = Keyboard.Modifiers;
+        if (modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            vm.SelectRangeTo(photo);
+            // ListBox would otherwise do its own range selection (anchor → click)
+            // using ListBoxItem.IsSelected and clobber our PhotoItem.IsSelected
+            // bookkeeping; suppress the default so only our path runs.
+            e.Handled = true;
+        }
+        else if (modifiers.HasFlag(ModifierKeys.Control))
+        {
+            vm.TogglePhotoSelection(photo);
+            e.Handled = true;
+        }
+        else
+        {
+            // Plain click. Call SelectSinglePhoto explicitly so re-clicking the
+            // current anchor still collapses any prior multi-selection (the
+            // ListBox's own selection change wouldn't fire for a re-click).
+            vm.SelectSinglePhoto(photo);
+            // Don't mark Handled — let ListBox finish its focus / drag-detect
+            // logic. SelectSinglePhoto already set SelectedIndex to this photo,
+            // so the ListBox's own selection change is a no-op.
+        }
+    }
+
+    // ── Context menu: select item on right-click so bulk ops hit the right photos ──
 
     private void PhotoList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListBox) return;
+        if (DataContext is not MainViewModel vm) return;
         var source = e.OriginalSource as DependencyObject;
         while (source != null && source is not ListBoxItem)
             source = VisualTreeHelper.GetParent(source);
-        if (source is ListBoxItem item)
-            item.IsSelected = true;
+        if (source is not ListBoxItem item) return;
+        if (item.DataContext is not PhotoItem photo) return;
+
+        if (photo.IsSelected && vm.SelectedPhotosCount > 1)
+        {
+            // Right-click inside a multi-selection should preserve the set —
+            // bulk ops triggered from the context menu need every photo. Just
+            // re-aim the anchor so SelectedPhotoTagAssignments reflects the
+            // right-clicked photo's checks (tag-toggle direction, etc.).
+            vm.MoveAnchorTo(photo);
+        }
+        else
+        {
+            // Right-click outside the selection collapses to the click target,
+            // matching Explorer's behaviour.
+            vm.SelectSinglePhoto(photo);
+        }
     }
 
     // ── Helpers ──

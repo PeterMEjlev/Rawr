@@ -66,6 +66,10 @@ public static class ShortcutRegistry
             new("Undo",        "Undo last edit", CatEdit, Key.Z, ModifierKeys.Control, Vm(vm => vm.UndoCommand)),
             new("Redo",        "Redo last edit", CatEdit, Key.Y, ModifierKeys.Control, Vm(vm => vm.RedoCommand)),
 
+            // Selection
+            new("SelectAllVisible",   "Select all visible photos", CatNav, Key.A,      ModifierKeys.Control, Vm(vm => vm.SelectAllVisibleCommand)),
+            new("ClearMultiSelection","Clear multi-selection",     CatNav, Key.Escape, ModifierKeys.None,    Vm(vm => vm.ClearMultiSelectionCommand)),
+
             // View
             new("ToggleFocusPeaking", "Toggle focus peaking",    CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ToggleFocusPeakingCommand)),
             new("ToggleClipping",     "Toggle clipping warning", CatView, Key.C,    ModifierKeys.None, Vm(vm => vm.ToggleClippingCommand)),

@@ -722,11 +722,24 @@
                                 <!-- Source -->
                                 <TextBlock Text="SOURCE" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="{Binding SelectedPhotosCount, StringFormat='Selected ({0})'}"
+                                            Command="{Binding UseCopySelectedPhotosCommand}" Margin="0,0,3,0"
+                                            ToolTip="Copy the photos you've selected in the grid / filmstrip (Ctrl-click and Shift-click to multi-select)">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyMode}" Value="SelectedPhotos">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                     <Button Content="Current view" Command="{Binding UseCopyCurrentViewCommand}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CopyUseActiveFilter}" Value="True">
+                                                    <DataTrigger Binding="{Binding CopyMode}" Value="CurrentView">
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -737,7 +750,7 @@
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CopyUseActiveFilter}" Value="False">
+                                                    <DataTrigger Binding="{Binding CopyMode}" Value="CustomFilter">
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -746,12 +759,16 @@
                                     </Button>
                                 </StackPanel>
 
-                                <!-- Custom filter criteria (disabled when using active filter) -->
+                                <!-- Custom filter criteria (only enabled when source is "Custom filter") -->
                                 <StackPanel>
                                     <StackPanel.Style>
                                         <Style TargetType="StackPanel">
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding CopyUseActiveFilter}" Value="True">
+                                                <DataTrigger Binding="{Binding CopyMode}" Value="SelectedPhotos">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                    <Setter Property="Opacity" Value="0.4" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding CopyMode}" Value="CurrentView">
                                                     <Setter Property="IsEnabled" Value="False" />
                                                     <Setter Property="Opacity" Value="0.4" />
                                                 </DataTrigger>
@@ -1574,6 +1591,7 @@
                              ItemContainerStyle="{StaticResource FilmstripItemStyle}"
                              SelectionChanged="GridView_SelectionChanged"
                              PreviewMouseWheel="GridView_PreviewMouseWheel"
+                             PreviewMouseLeftButtonDown="PhotoList_PreviewMouseLeftButtonDown"
                              PreviewMouseRightButtonDown="PhotoList_PreviewMouseRightButtonDown"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -2334,6 +2352,7 @@
                      SelectionChanged="Filmstrip_SelectionChanged"
                      PreviewKeyDown="Filmstrip_PreviewKeyDown"
                      PreviewMouseWheel="Filmstrip_PreviewMouseWheel"
+                     PreviewMouseLeftButtonDown="PhotoList_PreviewMouseLeftButtonDown"
                      PreviewMouseRightButtonDown="PhotoList_PreviewMouseRightButtonDown"
                      SizeChanged="Filmstrip_SizeChanged">
                 <ListBox.ItemsPanel>

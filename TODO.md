@@ -17,5 +17,3 @@
 - ## detect panorama? how to?
 
 - ## What does the export list button do? remove it? bundle it with the copy button to save space in the top panel?
-
-- ## ability to select photos in the filmstrip or grid view by shit clicking between two photos, or holding ctrl and individually selecting. things like ratings and tag should be applied to all selected photos. likewise the copy button should copy the selected photos (if applicable)

@@ -24,6 +24,7 @@ public enum ImageTypeFilterMode { Any, RawOnly, JpegOnly, VideoOnly }
 public enum ExposureFilterMode { Any, ClippedHighlights, CrushedShadows }
 public enum FaceFilterMode { Any, ClosedEyes }
 public enum SidePanelView { Histogram, PixelPeek }
+public enum CopySource { SelectedPhotos, CurrentView, CustomFilter }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -304,11 +305,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public record TagAssignmentItem(PhotoTag Tag, bool IsAssigned);
 
-    // Copy criteria state (independent of filter; defaults to "Pick" to match original behaviour)
-    [ObservableProperty] private bool _copyUseActiveFilter;
+    // Copy criteria state (independent of filter). Defaults to SelectedPhotos so the
+    // currently highlighted photo (or multi-selection) is the source out-of-the-box —
+    // the path most users want, especially after Ctrl/Shift-clicking to build a set.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyTargetCount))]
+    private CopySource _copyMode = CopySource.SelectedPhotos;
 
-    [RelayCommand] private void UseCopyCurrentView()  => CopyUseActiveFilter = true;
-    [RelayCommand] private void UseCopyCustomFilter()  => CopyUseActiveFilter = false;
+    [RelayCommand] private void UseCopySelectedPhotos() => CopyMode = CopySource.SelectedPhotos;
+    [RelayCommand] private void UseCopyCurrentView()    => CopyMode = CopySource.CurrentView;
+    [RelayCommand] private void UseCopyCustomFilter()   => CopyMode = CopySource.CustomFilter;
+
+    public int CopyTargetCount => CopyMode switch
+    {
+        CopySource.SelectedPhotos => SelectedPhotos.Count,
+        CopySource.CurrentView    => FilteredPhotos.Count,
+        _                          => 0
+    };
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CopyActiveRatingValue))]
@@ -365,6 +378,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PhotoItem> AllPhotos { get; } = [];
     public ObservableCollection<PhotoItem> FilteredPhotos { get; } = [];
+
+    // Multi-selection set that bulk operations (rate/flag/colour/tag/copy/delete) act on.
+    // SelectedPhoto is the *anchor* — the focused tile that drives preview, EXIF, and
+    // arrow-key navigation; it is always also a member of SelectedPhotos when non-null.
+    // _selectionAnchor stays at the last non-shift click target so subsequent shift-clicks
+    // form a range from that anchor, matching Windows Explorer / Lightroom semantics.
+    public ObservableCollection<PhotoItem> SelectedPhotos { get; } = [];
+    private PhotoItem? _selectionAnchor;
+    private bool _suspendSelectionReconcile;
+
+    public int SelectedPhotosCount => SelectedPhotos.Count;
 
     public EditHistory History { get; } = new();
 
@@ -1080,6 +1104,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (value != null)
             value.PropertyChanged += OnSelectedPhotoPropertyChanged;
 
+        // Default path: any anchor change collapses the multi-selection back to just
+        // the new anchor (plain click, arrow keys, undo/redo, filter restore). The
+        // Ctrl/Shift-click selection methods set _suspendSelectionReconcile while
+        // they manage SelectedPhotos themselves so this collapse doesn't fire.
+        if (!_suspendSelectionReconcile)
+            ReconcileSingleSelection(value);
+
         // Persist last-selected so reopening this folder jumps straight back here.
         // Skip when value is null — that's almost always the transient clear during
         // folder load or filter rebuild, not a real "user deselected everything".
@@ -1090,6 +1121,198 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (e.PropertyName == nameof(PhotoItem.Metadata))
             OnPropertyChanged(nameof(SelectedPhotoCaptureDateFormatted));
+    }
+
+    // ── Multi-selection ──
+    //
+    // Three callers — plain click, Ctrl+click, Shift+click — produce different selection
+    // changes; everything else (arrow keys, filter restore, undo target, …) flows
+    // through SelectedPhoto and lands in ReconcileSingleSelection which collapses to
+    // a single-anchor selection. AddToSelection / RemoveFromSelection are the only
+    // places that mutate PhotoItem.IsSelected, and they always expand burst
+    // representatives to cover their full burst (see user requirement #6).
+
+    private void ReconcileSingleSelection(PhotoItem? anchor)
+    {
+        ClearAllSelection();
+        if (anchor != null)
+            AddToSelection(anchor);
+        _selectionAnchor = anchor;
+        OnPropertyChanged(nameof(SelectedPhotosCount));
+        OnPropertyChanged(nameof(CopyTargetCount));
+    }
+
+    private void ClearAllSelection()
+    {
+        foreach (var p in SelectedPhotos)
+            p.IsSelected = false;
+        SelectedPhotos.Clear();
+    }
+
+    private void AddToSelection(PhotoItem photo)
+    {
+        if (!photo.IsSelected)
+        {
+            photo.IsSelected = true;
+            SelectedPhotos.Add(photo);
+        }
+        // A collapsed-burst representative stands in for every member of its burst —
+        // selecting it must select the whole stack so bulk ops touch every frame,
+        // not just the visible representative.
+        if (photo.CollapsedBurstCount > 0)
+        {
+            foreach (var member in GetBurstMembers(photo.GroupId))
+            {
+                if (!member.IsSelected)
+                {
+                    member.IsSelected = true;
+                    SelectedPhotos.Add(member);
+                }
+            }
+        }
+    }
+
+    private void RemoveFromSelection(PhotoItem photo)
+    {
+        if (photo.IsSelected)
+        {
+            photo.IsSelected = false;
+            SelectedPhotos.Remove(photo);
+        }
+        if (photo.CollapsedBurstCount > 0)
+        {
+            foreach (var member in GetBurstMembers(photo.GroupId))
+            {
+                if (member.IsSelected)
+                {
+                    member.IsSelected = false;
+                    SelectedPhotos.Remove(member);
+                }
+            }
+        }
+    }
+
+    private void SetAnchorWithoutReconcile(PhotoItem photo)
+    {
+        var idx = FilteredPhotos.IndexOf(photo);
+        _suspendSelectionReconcile = true;
+        try
+        {
+            // Setting SelectedIndex updates SelectedPhoto via OnSelectedIndexChanged.
+            // Suspending reconcile keeps the multi-selection set intact.
+            if (idx >= 0)
+                SelectedIndex = idx;
+            else
+                SelectedPhoto = photo;
+        }
+        finally { _suspendSelectionReconcile = false; }
+    }
+
+    public void SelectSinglePhoto(PhotoItem photo)
+    {
+        var idx = FilteredPhotos.IndexOf(photo);
+        if (idx < 0) return;
+        if (SelectedIndex == idx)
+        {
+            // Re-click on the existing anchor — SelectedIndex is unchanged, so
+            // OnSelectedIndexChanged won't fire and the multi-selection wouldn't
+            // collapse on its own. Reconcile explicitly so plain-click always
+            // means "single-selection of the click target".
+            ReconcileSingleSelection(photo);
+        }
+        else
+        {
+            // Default reconcile path: setting SelectedIndex flows through
+            // OnSelectedPhotoChanged → ReconcileSingleSelection which clears + adds.
+            SelectedIndex = idx;
+        }
+        _selectionAnchor = photo;
+    }
+
+    public void TogglePhotoSelection(PhotoItem photo)
+    {
+        if (photo.IsSelected)
+        {
+            // Never let the user empty the selection — there is always at least
+            // one anchor (user requirement #4).
+            if (SelectedPhotos.Count <= 1) return;
+            RemoveFromSelection(photo);
+
+            // Anchor moves to the clicked photo so a follow-up Shift+click ranges
+            // from here, even though the photo is no longer selected.
+            _selectionAnchor = photo;
+
+            // SelectedPhoto must point at a still-selected photo so the preview
+            // pane keeps showing one of the user's actual selections.
+            if (ReferenceEquals(SelectedPhoto, photo))
+            {
+                var fallback = SelectedPhotos.FirstOrDefault();
+                if (fallback != null) SetAnchorWithoutReconcile(fallback);
+            }
+        }
+        else
+        {
+            AddToSelection(photo);
+            _selectionAnchor = photo;
+            SetAnchorWithoutReconcile(photo);
+        }
+        OnPropertyChanged(nameof(SelectedPhotosCount));
+        OnPropertyChanged(nameof(CopyTargetCount));
+    }
+
+    public void SelectRangeTo(PhotoItem target)
+    {
+        var anchor = _selectionAnchor ?? SelectedPhoto;
+        if (anchor == null) { SelectSinglePhoto(target); return; }
+
+        var anchorIdx = FilteredPhotos.IndexOf(anchor);
+        var targetIdx = FilteredPhotos.IndexOf(target);
+        if (anchorIdx < 0 || targetIdx < 0) { SelectSinglePhoto(target); return; }
+
+        var lo = Math.Min(anchorIdx, targetIdx);
+        var hi = Math.Max(anchorIdx, targetIdx);
+
+        // A range click replaces the prior selection but keeps the anchor where it
+        // was — that's how Explorer & Lightroom let you re-aim a Shift+click without
+        // re-anchoring after each one.
+        ClearAllSelection();
+        for (int i = lo; i <= hi; i++)
+            AddToSelection(FilteredPhotos[i]);
+
+        SetAnchorWithoutReconcile(target);
+        OnPropertyChanged(nameof(SelectedPhotosCount));
+        OnPropertyChanged(nameof(CopyTargetCount));
+    }
+
+    [RelayCommand]
+    private void SelectAllVisible()
+    {
+        if (FilteredPhotos.Count == 0) return;
+        ClearAllSelection();
+        foreach (var p in FilteredPhotos)
+            AddToSelection(p);
+        // Anchor and SelectedPhoto stay where they were; both remain in the set.
+        if (SelectedPhoto != null && !SelectedPhoto.IsSelected)
+            AddToSelection(SelectedPhoto);
+        OnPropertyChanged(nameof(SelectedPhotosCount));
+        OnPropertyChanged(nameof(CopyTargetCount));
+    }
+
+    [RelayCommand]
+    private void ClearMultiSelection()
+    {
+        // Esc collapses the multi-selection back to just the anchor — there is
+        // always exactly one selected photo (user requirement #4).
+        ReconcileSingleSelection(SelectedPhoto);
+    }
+
+    public void MoveAnchorTo(PhotoItem photo)
+    {
+        // Right-click inside a multi-selection should re-aim the anchor without
+        // tearing the set apart, so context-menu actions hit the right photo for
+        // their "decision" (e.g. tag-toggle direction) but still apply to all.
+        SetAnchorWithoutReconcile(photo);
+        _selectionAnchor = photo;
     }
 
     public string SelectedPhotoCaptureDateFormatted =>
@@ -2094,18 +2317,47 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetRating(int rating)
     {
         if (SelectedPhoto == null) return;
-        var photo = SelectedPhoto;
+        var anchor = SelectedPhoto;
         var clamped = Math.Clamp(rating, 0, 5);
-        // Toggle: pressing the same star already on the photo clears the rating.
-        var oldRating = photo.Rating;
-        var newRating = oldRating == clamped ? 0 : clamped;
-        if (oldRating == newRating) return;
-        ApplyRatingEdit(photo, newRating);
-        History.Record(new EditOp(
-            $"Rating {oldRating} → {newRating}",
-            photo,
-            Apply: () => ApplyRatingEdit(photo, newRating),
-            Revert: () => ApplyRatingEdit(photo, oldRating)));
+        // Toggle: pressing the same star already on the anchor clears the rating —
+        // when applied across a multi-selection the anchor's prior state decides
+        // the new value for every photo in the set, even if some had a different
+        // rating to start with. Predictable beats clever.
+        var newRating = anchor.Rating == clamped ? 0 : clamped;
+
+        ApplyBulkRatingEdit(SelectedPhotosSnapshot(), newRating);
+    }
+
+    private List<PhotoItem> SelectedPhotosSnapshot() =>
+        SelectedPhotos.Count == 0 && SelectedPhoto != null
+            ? [SelectedPhoto]
+            : SelectedPhotos.ToList();
+
+    private void ApplyBulkRatingEdit(IList<PhotoItem> photos, int newRating)
+    {
+        var changes = photos
+            .Select(p => (photo: p, oldRating: p.Rating))
+            .Where(t => t.oldRating != newRating)
+            .ToList();
+        if (changes.Count == 0) return;
+        var changedPhotos = changes.Select(c => c.photo).ToList();
+
+        void ApplyAll()
+        {
+            foreach (var (p, _) in changes) p.Rating = newRating;
+            SavePhotoBatch(changedPhotos);
+        }
+        void RevertAll()
+        {
+            foreach (var (p, old) in changes) p.Rating = old;
+            SavePhotoBatch(changedPhotos);
+        }
+
+        ApplyAll();
+        var label = changes.Count == 1
+            ? $"Rating {changes[0].oldRating} → {newRating}"
+            : $"Rating → {newRating} ({changes.Count} photos)";
+        History.Record(new EditOp(label, SelectedPhoto ?? changes[0].photo, ApplyAll, RevertAll));
     }
 
     private void ApplyRatingEdit(PhotoItem photo, int rating)
@@ -2120,37 +2372,50 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void TogglePick()
     {
         if (SelectedPhoto == null) return;
-        var photo = SelectedPhoto;
-        var newFlag = photo.Flag == CullFlag.Pick ? CullFlag.Unflagged : CullFlag.Pick;
-        SetFlagWithHistory(photo, newFlag);
+        var newFlag = SelectedPhoto.Flag == CullFlag.Pick ? CullFlag.Unflagged : CullFlag.Pick;
+        ApplyBulkFlagEdit(SelectedPhotosSnapshot(), newFlag);
     }
 
     [RelayCommand]
     private void ToggleReject()
     {
         if (SelectedPhoto == null) return;
-        var photo = SelectedPhoto;
-        var newFlag = photo.Flag == CullFlag.Reject ? CullFlag.Unflagged : CullFlag.Reject;
-        SetFlagWithHistory(photo, newFlag);
+        var newFlag = SelectedPhoto.Flag == CullFlag.Reject ? CullFlag.Unflagged : CullFlag.Reject;
+        ApplyBulkFlagEdit(SelectedPhotosSnapshot(), newFlag);
     }
 
     [RelayCommand]
     private void Unflag()
     {
         if (SelectedPhoto == null) return;
-        SetFlagWithHistory(SelectedPhoto, CullFlag.Unflagged);
+        ApplyBulkFlagEdit(SelectedPhotosSnapshot(), CullFlag.Unflagged);
     }
 
-    private void SetFlagWithHistory(PhotoItem photo, CullFlag newFlag)
+    private void ApplyBulkFlagEdit(IList<PhotoItem> photos, CullFlag newFlag)
     {
-        var oldFlag = photo.Flag;
-        if (oldFlag == newFlag) return;
-        ApplyFlagEdit(photo, newFlag);
-        History.Record(new EditOp(
-            $"Flag {oldFlag} → {newFlag}",
-            photo,
-            Apply: () => ApplyFlagEdit(photo, newFlag),
-            Revert: () => ApplyFlagEdit(photo, oldFlag)));
+        var changes = photos
+            .Select(p => (photo: p, oldFlag: p.Flag))
+            .Where(t => t.oldFlag != newFlag)
+            .ToList();
+        if (changes.Count == 0) return;
+        var changedPhotos = changes.Select(c => c.photo).ToList();
+
+        void ApplyAll()
+        {
+            foreach (var (p, _) in changes) p.Flag = newFlag;
+            SavePhotoBatch(changedPhotos);
+        }
+        void RevertAll()
+        {
+            foreach (var (p, old) in changes) p.Flag = old;
+            SavePhotoBatch(changedPhotos);
+        }
+
+        ApplyAll();
+        var label = changes.Count == 1
+            ? $"Flag {changes[0].oldFlag} → {newFlag}"
+            : $"Flag → {newFlag} ({changes.Count} photos)";
+        History.Record(new EditOp(label, SelectedPhoto ?? changes[0].photo, ApplyAll, RevertAll));
     }
 
     private void ApplyFlagEdit(PhotoItem photo, CullFlag flag)
@@ -2165,16 +2430,35 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetColorLabel(ColorLabel label)
     {
         if (SelectedPhoto == null) return;
-        var photo = SelectedPhoto;
-        var oldLabel = photo.ColorLabel;
-        var newLabel = oldLabel == label ? ColorLabel.None : label;
-        if (oldLabel == newLabel) return;
-        ApplyColorLabelEdit(photo, newLabel);
-        History.Record(new EditOp(
-            $"Color {oldLabel} → {newLabel}",
-            photo,
-            Apply: () => ApplyColorLabelEdit(photo, newLabel),
-            Revert: () => ApplyColorLabelEdit(photo, oldLabel)));
+        var newLabel = SelectedPhoto.ColorLabel == label ? ColorLabel.None : label;
+        ApplyBulkColorLabelEdit(SelectedPhotosSnapshot(), newLabel);
+    }
+
+    private void ApplyBulkColorLabelEdit(IList<PhotoItem> photos, ColorLabel newLabel)
+    {
+        var changes = photos
+            .Select(p => (photo: p, oldLabel: p.ColorLabel))
+            .Where(t => t.oldLabel != newLabel)
+            .ToList();
+        if (changes.Count == 0) return;
+        var changedPhotos = changes.Select(c => c.photo).ToList();
+
+        void ApplyAll()
+        {
+            foreach (var (p, _) in changes) p.ColorLabel = newLabel;
+            SavePhotoBatch(changedPhotos);
+        }
+        void RevertAll()
+        {
+            foreach (var (p, old) in changes) p.ColorLabel = old;
+            SavePhotoBatch(changedPhotos);
+        }
+
+        ApplyAll();
+        var label = changes.Count == 1
+            ? $"Color {changes[0].oldLabel} → {newLabel}"
+            : $"Color → {newLabel} ({changes.Count} photos)";
+        History.Record(new EditOp(label, SelectedPhoto ?? changes[0].photo, ApplyAll, RevertAll));
     }
 
     private void ApplyColorLabelEdit(PhotoItem photo, ColorLabel label)
@@ -2383,14 +2667,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleTagForSelected(PhotoTag tag)
     {
         if (SelectedPhoto == null || _db == null) return;
-        var photo = SelectedPhoto;
-        var wasAssigned = photo.TagIds.Contains(tag.Id);
-        ApplyTagEdit(photo, tag, assign: !wasAssigned);
-        History.Record(new EditOp(
-            wasAssigned ? $"Remove tag “{tag.Name}”" : $"Add tag “{tag.Name}”",
-            photo,
-            Apply: () => ApplyTagEdit(photo, tag, assign: !wasAssigned),
-            Revert: () => ApplyTagEdit(photo, tag, assign: wasAssigned)));
+        // Anchor's prior assignment decides direction; the same op is applied to
+        // every selected photo, even those that already match the target state
+        // (those become no-ops in ApplyTagEdit). Single compound undo entry.
+        var assignToAll = !SelectedPhoto.TagIds.Contains(tag.Id);
+
+        var photos = SelectedPhotosSnapshot();
+        var changedPhotos = photos
+            .Where(p => p.TagIds.Contains(tag.Id) != assignToAll)
+            .ToList();
+        if (changedPhotos.Count == 0) return;
+
+        void ApplyAll()
+        {
+            // One SQLite transaction for the whole bulk op — otherwise each
+            // photo's AssignGroup/UnassignGroup fsyncs separately and the UI
+            // visibly stalls on 20+ photos.
+            if (_db != null)
+                _db.WithTransaction(() =>
+                {
+                    foreach (var p in changedPhotos) ApplyTagEdit(p, tag, assignToAll);
+                });
+            else
+                foreach (var p in changedPhotos) ApplyTagEdit(p, tag, assignToAll);
+            if (TagFilter != null) ApplyFilter();
+        }
+        void RevertAll()
+        {
+            if (_db != null)
+                _db.WithTransaction(() =>
+                {
+                    foreach (var p in changedPhotos) ApplyTagEdit(p, tag, !assignToAll);
+                });
+            else
+                foreach (var p in changedPhotos) ApplyTagEdit(p, tag, !assignToAll);
+            if (TagFilter != null) ApplyFilter();
+        }
+
+        ApplyAll();
+        var verb = assignToAll ? "Add" : "Remove";
+        var label = changedPhotos.Count == 1
+            ? $"{verb} tag “{tag.Name}”"
+            : $"{verb} tag “{tag.Name}” ({changedPhotos.Count} photos)";
+        History.Record(new EditOp(label, SelectedPhoto, ApplyAll, RevertAll));
     }
 
     private void ApplyTagEdit(PhotoItem photo, PhotoTag tag, bool assign)
@@ -2410,8 +2729,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ScheduleXmpWrite(photo);
         if (ReferenceEquals(photo, SelectedPhoto))
             OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
-        if (TagFilter != null)
-            ApplyFilter();
+        // Refilter is the caller's responsibility — bulk tag ops batch one ApplyFilter
+        // at the end of the loop to avoid clearing the multi-selection mid-flight.
     }
 
     [RelayCommand]
@@ -2793,6 +3112,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void ApplyFilter()
     {
         var previousSelection = SelectedPhoto;
+        // Filter or burst-collapse change wipes any multi-selection — RestoreSelection
+        // at the end re-adds the (possibly remapped) anchor via the reconcile path.
+        ClearAllSelection();
         FilteredPhotos.Clear();
 
         IEnumerable<PhotoItem> visible = AllPhotos;
@@ -2953,6 +3275,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         RestoreSelection(previousSelection);
         RefreshFilterBuckets();
+        OnPropertyChanged(nameof(CopyTargetCount));
         SaveSessionIfNeeded();
     }
 
@@ -3110,27 +3433,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task CopyPickedAsync()
     {
-        List<PhotoItem> photos;
-        if (CopyUseActiveFilter)
+        List<PhotoItem> photos = CopyMode switch
         {
-            photos = FilteredPhotos.ToList();
-        }
-        else
-        {
-            IEnumerable<PhotoItem> candidates = AllPhotos;
-            candidates = CopyRatingFilterMode switch
-            {
-                RatingFilterMode.Exact    => candidates.Where(p => p.Rating == CopyRatingFilterValue),
-                RatingFilterMode.AtLeast  => candidates.Where(p => p.Rating >= CopyRatingFilterValue),
-                RatingFilterMode.LessThan => candidates.Where(p => p.Rating < CopyRatingFilterValue),
-                _                         => candidates
-            };
-            if (CopyFlagFilter.HasValue)
-                candidates = candidates.Where(p => p.Flag == CopyFlagFilter.Value);
-            if (CopyColorLabelFilter.HasValue)
-                candidates = candidates.Where(p => p.ColorLabel == CopyColorLabelFilter.Value);
-            photos = candidates.ToList();
-        }
+            CopySource.SelectedPhotos => SelectedPhotosSnapshot(),
+            CopySource.CurrentView    => FilteredPhotos.ToList(),
+            _                          => BuildCopyCustomFilter().ToList(),
+        };
         if (photos.Count == 0)
         {
             StatusText = "No photos match the copy criteria.";
@@ -3165,23 +3473,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StatusText = $"Copied {copied}/{photos.Count} photos to {dialog.FolderName} ({preset.Label})";
     }
 
-    [RelayCommand]
-    private async Task ExportFileListAsync()
+    private IEnumerable<PhotoItem> BuildCopyCustomFilter()
     {
         IEnumerable<PhotoItem> candidates = AllPhotos;
         candidates = CopyRatingFilterMode switch
         {
             RatingFilterMode.Exact    => candidates.Where(p => p.Rating == CopyRatingFilterValue),
             RatingFilterMode.AtLeast  => candidates.Where(p => p.Rating >= CopyRatingFilterValue),
-            RatingFilterMode.LessThan => candidates.Where(p => p.Rating < CopyRatingFilterValue),
+            RatingFilterMode.LessThan => candidates.Where(p => p.Rating <  CopyRatingFilterValue),
             _                         => candidates
         };
         if (CopyFlagFilter.HasValue)
             candidates = candidates.Where(p => p.Flag == CopyFlagFilter.Value);
         if (CopyColorLabelFilter.HasValue)
             candidates = candidates.Where(p => p.ColorLabel == CopyColorLabelFilter.Value);
+        return candidates;
+    }
 
-        var picked = candidates.ToList();
+    [RelayCommand]
+    private async Task ExportFileListAsync()
+    {
+        var picked = BuildCopyCustomFilter().ToList();
         if (picked.Count == 0)
         {
             StatusText = "No photos match the copy criteria.";
@@ -3208,30 +3520,47 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void DeletePhoto()
     {
         if (SelectedPhoto == null) return;
-        var photo = SelectedPhoto;
-        var result = MessageBox.Show(
-            $"Move \"{photo.FileName}\" to the Recycle Bin?",
-            "Delete Photo",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+        var photos = SelectedPhotosSnapshot();
+        if (photos.Count == 0) return;
+
+        var prompt = photos.Count == 1
+            ? $"Move \"{photos[0].FileName}\" to the Recycle Bin?"
+            : $"Move {photos.Count} photos to the Recycle Bin?";
+        var title = photos.Count == 1 ? "Delete Photo" : "Delete Photos";
+        var result = MessageBox.Show(prompt, title, MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
 
-        try
+        int deleted = 0;
+        var failed = new List<string>();
+        foreach (var photo in photos)
         {
-            FileSystem.DeleteFile(photo.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Could not delete \"{photo.FileName}\": {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
+            try
+            {
+                FileSystem.DeleteFile(photo.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+                _db?.DeletePhoto(photo.FileName);
+                AllPhotos.Remove(photo);
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"{photo.FileName}: {ex.Message}");
+            }
         }
 
-        _db?.DeletePhoto(photo.FileName);
-        AllPhotos.Remove(photo);
         TotalCount = AllPhotos.Count;
         ApplyFilter();
-        StatusText = $"Moved \"{photo.FileName}\" to the Recycle Bin.";
+        StatusText = photos.Count == 1
+            ? $"Moved \"{photos[0].FileName}\" to the Recycle Bin."
+            : $"Moved {deleted}/{photos.Count} photos to the Recycle Bin.";
+
+        if (failed.Count > 0)
+        {
+            MessageBox.Show(
+                "Some photos could not be deleted:\n\n" + string.Join("\n", failed.Take(8)),
+                "Delete Errors",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     [RelayCommand]
@@ -3276,7 +3605,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void PickAndAdvance()
     {
         if (SelectedPhoto == null) return;
-        SetFlagWithHistory(SelectedPhoto, CullFlag.Pick);
+        ApplyBulkFlagEdit(SelectedPhotosSnapshot(), CullFlag.Pick);
         NextPhoto();
     }
 
@@ -3284,7 +3613,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void RejectAndAdvance()
     {
         if (SelectedPhoto == null) return;
-        SetFlagWithHistory(SelectedPhoto, CullFlag.Reject);
+        ApplyBulkFlagEdit(SelectedPhotosSnapshot(), CullFlag.Reject);
         NextPhoto();
     }
 
@@ -3294,6 +3623,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _db?.Save(photo);
         ScheduleXmpWrite(photo);
+    }
+
+    // Bulk-edit fast path: every per-photo Save() opens its own SQLite transaction,
+    // so each one fsyncs separately — 20 photos meant 20 fsyncs and a visible UI
+    // stall for what should be a metadata flick. SaveBatch wraps the whole set in
+    // one transaction so it's effectively a single disk hit.
+    private void SavePhotoBatch(IList<PhotoItem> photos)
+    {
+        if (photos.Count == 0) return;
+        _db?.SaveBatch(photos);
+        foreach (var p in photos) ScheduleXmpWrite(p);
     }
 
     private void UpdateStatus()

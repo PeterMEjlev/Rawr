@@ -204,6 +204,18 @@ public sealed class CullingDatabase : IDisposable
         tx.Commit();
     }
 
+    /// <summary>
+    /// Run a cluster of writes inside a single SQLite transaction. Without this, every
+    /// AssignGroup/UnassignGroup auto-commits separately and fsyncs the journal — bulk
+    /// tag toggles across 20+ photos would visibly stall the UI.
+    /// </summary>
+    public void WithTransaction(Action body)
+    {
+        using var tx = _db.BeginTransaction();
+        body();
+        tx.Commit();
+    }
+
     // ── Custom groups ──
 
     public List<PhotoTag> LoadGroups()
