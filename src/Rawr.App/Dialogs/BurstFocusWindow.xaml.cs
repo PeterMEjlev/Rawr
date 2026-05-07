@@ -37,6 +37,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     private readonly List<PhotoItem> _photos;
     private int _currentIndex = -1;
     private CancellationTokenSource? _previewCts;
+    private CancellationTokenSource? _preloadCts;
     private bool _highResLoaded;
     private bool _isPanning;
     private Point _panStart;
@@ -90,10 +91,12 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             _peek?.AttachView(PixelPeekViewControl);
             if (InitialPeekState is { HasAnchor: true } s) _peek?.RestoreState(s);
             MoveTo(Math.Clamp(startIndex, 0, _photos.Count - 1));
+            _ = PreloadAllFullJpegsAsync();
         };
         Closed += (_, _) =>
         {
             _previewCts?.Cancel();
+            _preloadCts?.Cancel();
             LastPeekState = _peek?.CaptureState();
             _peek?.Dispose();
             _peek = null;
@@ -113,6 +116,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             _highResLoaded = false;
         UpdateOverlays();
         _ = LoadPreviewAsync(_photos[index]);
+        _ = LoadFullJpegIfNeededAsync();
     }
 
     private void MutateCurrent(Action<PhotoItem> mutate)
@@ -326,6 +330,34 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         {
             ZoomIndicatorText.Text = $"{scale:0.##}×";
             ZoomIndicator.Visibility = Visibility.Visible;
+        }
+    }
+
+    // Extract raw JPEG bytes for every burst photo, ordered nearest-to-current
+    // first. Stores results in photo.FullJpeg so subsequent LoadFullJpegIfNeededAsync
+    // calls skip extraction and go straight to the WPF decode.
+    private async Task PreloadAllFullJpegsAsync()
+    {
+        _preloadCts?.Cancel();
+        _preloadCts = new CancellationTokenSource();
+        var ct = _preloadCts.Token;
+
+        var ordered = _photos
+            .Select((p, i) => (photo: p, dist: Math.Abs(i - _currentIndex)))
+            .OrderBy(x => x.dist)
+            .Select(x => x.photo);
+
+        foreach (var photo in ordered)
+        {
+            if (ct.IsCancellationRequested) break;
+            if (photo.FullJpeg != null) continue;
+            try
+            {
+                var jpeg = await Task.Run(() => _vm.Extractor.ExtractFullJpeg(photo.FilePath), ct);
+                if (jpeg != null) photo.FullJpeg ??= jpeg;
+            }
+            catch (OperationCanceledException) { break; }
+            catch { }
         }
     }
 

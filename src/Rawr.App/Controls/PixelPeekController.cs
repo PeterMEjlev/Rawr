@@ -65,7 +65,8 @@ public sealed class PixelPeekController : IDisposable
         if (_view != null && _hasAnchor && _previewImage.Source is BitmapSource src)
         {
             TrackReference(src);
-            _view.UpdateView(_anchorNormX * src.PixelWidth, _anchorNormY * src.PixelHeight, EffectiveZoom(src));
+            var eff = EffectiveZoom(src);
+            _view.UpdateView(_anchorNormX * src.PixelWidth, _anchorNormY * src.PixelHeight, eff, IsLowRes(eff));
         }
     }
 
@@ -85,7 +86,8 @@ public sealed class PixelPeekController : IDisposable
             if (_hasAnchor && _previewImage.Source is BitmapSource src)
             {
                 TrackReference(src);
-                _view.UpdateView(_anchorNormX * src.PixelWidth, _anchorNormY * src.PixelHeight, EffectiveZoom(src));
+                var eff = EffectiveZoom(src);
+                _view.UpdateView(_anchorNormX * src.PixelWidth, _anchorNormY * src.PixelHeight, eff, IsLowRes(eff));
             }
             // Kick a high-res decode so the embedded view shows real sensor
             // pixels even if the user just attached after a fresh selection.
@@ -127,7 +129,8 @@ public sealed class PixelPeekController : IDisposable
         _hasAnchor = true;
 
         TrackReference(src);
-        _view?.UpdateView(pxX, pxY, EffectiveZoom(src));
+        var effAnchor = EffectiveZoom(src);
+        _view?.UpdateView(pxX, pxY, effAnchor, IsLowRes(effAnchor));
 
         // Pull the full-res frame in so the loupe is at sensor pixels rather
         // than an upsampled preview.
@@ -141,7 +144,8 @@ public sealed class PixelPeekController : IDisposable
         _peekZoom = Math.Clamp(_peekZoom * step, 0.5, 16.0);
         if (_previewImage.Source is BitmapSource src)
         {
-            _view.UpdateView(_anchorNormX * src.PixelWidth, _anchorNormY * src.PixelHeight, EffectiveZoom(src));
+            var eff = EffectiveZoom(src);
+            _view.UpdateView(_anchorNormX * src.PixelWidth, _anchorNormY * src.PixelHeight, eff, IsLowRes(eff));
         }
         return true;
     }
@@ -160,7 +164,8 @@ public sealed class PixelPeekController : IDisposable
         _view?.SetSource(src);
         if (src != null && _hasAnchor)
         {
-            _view?.UpdateView(_anchorNormX * src.PixelWidth, _anchorNormY * src.PixelHeight, EffectiveZoom(src));
+            var eff = EffectiveZoom(src);
+            _view?.UpdateView(_anchorNormX * src.PixelWidth, _anchorNormY * src.PixelHeight, eff, IsLowRes(eff));
         }
     }
 
@@ -169,6 +174,11 @@ public sealed class PixelPeekController : IDisposable
         if (_referencePixelWidth <= 0 || src.PixelWidth <= 0) return _peekZoom;
         return _peekZoom * (_referencePixelWidth / src.PixelWidth);
     }
+
+    // True when the source is a lower-res placeholder being upsampled.
+    // Linear scaling hides blockiness; NearestNeighbor is used at full-res
+    // so individual sensor pixels remain sharp.
+    private bool IsLowRes(double effectiveZoom) => effectiveZoom > _peekZoom * 1.05;
 
     private void TrackReference(BitmapSource? src)
     {

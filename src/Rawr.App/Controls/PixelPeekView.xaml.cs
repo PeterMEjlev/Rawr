@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace Rawr.App.Controls;
@@ -18,6 +19,7 @@ public partial class PixelPeekView : UserControl
     private double _lastPxY;
     private double _lastZoom = 1.0;
     private bool _hasUpdate;
+    private bool _useLinear;
 
     public PixelPeekView()
     {
@@ -31,11 +33,12 @@ public partial class PixelPeekView : UserControl
             HintText.Visibility = source != null && _hasUpdate ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    public void UpdateView(double imagePixelX, double imagePixelY, double zoom)
+    public void UpdateView(double imagePixelX, double imagePixelY, double zoom, bool useLinear = false)
     {
         _lastPxX = imagePixelX;
         _lastPxY = imagePixelY;
         _lastZoom = zoom;
+        _useLinear = useLinear;
         _hasUpdate = true;
         if (HintText != null && PeekImage.Source != null)
             HintText.Visibility = Visibility.Collapsed;
@@ -68,6 +71,9 @@ public partial class PixelPeekView : UserControl
             dpiAdjustX = src.PixelWidth  / src.Width;
             dpiAdjustY = src.PixelHeight / src.Height;
         }
+
+        RenderOptions.SetBitmapScalingMode(PeekImage,
+            _useLinear ? BitmapScalingMode.Linear : BitmapScalingMode.NearestNeighbor);
 
         PeekScale.ScaleX = _lastZoom * dpiAdjustX;
         PeekScale.ScaleY = _lastZoom * dpiAdjustY;
