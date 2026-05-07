@@ -10,7 +10,7 @@ no frame shift
 different exposure levels
 high perceptual hash similarity
 
-- ## identify missing keyboard shortcuts that arent in settings
+- ## identify missing keyboard shortcuts that arent in settings and add them
 
 - ## detect panorama? 
 For each neighboring pair, estimate how the second image moved relative to the previous one:

@@ -89,7 +89,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         _peek = new PixelPeekController(PreviewHost, PreviewImageElement,
             loadHighResAsync: LoadFullJpegIfNeededAsync);
 
-        RegisterMacroBindings();
+        RegisterShortcutBindings();
 
         Loaded += (_, _) =>
         {
@@ -133,16 +133,21 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         UpdateOverlays();
     }
 
-    private void RegisterMacroBindings()
+    private void RegisterShortcutBindings()
     {
-        // Mirror the main-window macro bindings here so the user's chord works even
-        // when the burst viewer has the keyboard focus. Targets only the current
-        // frame, not the main-window selection.
-        foreach (var macro in AppSettings.Current.Macros)
+        // Apply user-customisable bindings programmatically so the burst viewer
+        // honours overrides from Settings instead of using hardcoded XAML keys.
+        // Macros take precedence over registry actions on the same combo, matching
+        // ShortcutBinder.ApplyTo on the main window.
+        var settings = AppSettings.Current;
+        var claimed = new HashSet<(Key, ModifierKeys)>();
+
+        foreach (var macro in settings.Macros)
         {
             if (!macro.HasAnyAction) continue;
             var spec = KeySpec.TryParse(macro.KeyBinding);
             if (spec is null) continue;
+            if (!claimed.Add((spec.Key, spec.Modifiers))) continue;
 
             var capturedMacro = macro;
             var cmd = new RelayCommand(() =>
@@ -158,7 +163,51 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
                 Modifiers = spec.Modifiers,
             });
         }
+
+        var dispatch = BuildBurstActionDispatch();
+        foreach (var action in ShortcutRegistry.All)
+        {
+            if (!dispatch.TryGetValue(action.Id, out var cmd)) continue;
+            var (spec, _) = ShortcutBinder.ResolveBinding(settings, action);
+            if (spec is null) continue;
+            if (!claimed.Add((spec.Key, spec.Modifiers))) continue;
+
+            var kb = new KeyBinding
+            {
+                Command = cmd,
+                Key = spec.Key,
+                Modifiers = spec.Modifiers,
+            };
+            if (action.CommandParameter is not null)
+                kb.CommandParameter = action.CommandParameter;
+            InputBindings.Add(kb);
+        }
     }
+
+    // Maps registry action IDs to the burst viewer's per-frame commands. Only
+    // includes actions that make sense here — main-window concepts like OpenTags,
+    // burst-collapse, or filters are deliberately excluded.
+    private Dictionary<string, ICommand> BuildBurstActionDispatch() => new()
+    {
+        ["TogglePick"]       = TogglePickCommand,
+        ["ToggleReject"]     = ToggleRejectCommand,
+        ["Unflag"]           = UnflagCommand,
+        ["SetAsThumbnail"]   = SetAsThumbnailCommand,
+        ["NextPhoto"]        = NextCommand,
+        ["NextPhotoAlt"]     = NextCommand,
+        ["PreviousPhoto"]    = PrevCommand,
+        ["PreviousPhotoAlt"] = PrevCommand,
+        ["Rating0"]          = SetRatingCommand,
+        ["Rating1"]          = SetRatingCommand,
+        ["Rating2"]          = SetRatingCommand,
+        ["Rating3"]          = SetRatingCommand,
+        ["Rating4"]          = SetRatingCommand,
+        ["Rating5"]          = SetRatingCommand,
+        ["ColorRed"]         = SetColorLabelCommand,
+        ["ColorYellow"]      = SetColorLabelCommand,
+        ["ColorGreen"]       = SetColorLabelCommand,
+        ["ColorBlue"]        = SetColorLabelCommand,
+    };
 
     private void SetAsThumbnail()
     {

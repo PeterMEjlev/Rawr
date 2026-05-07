@@ -45,6 +45,8 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("Unflag",           "Unflag",                     CatFlag, Key.U, ModifierKeys.None,  Vm(vm => vm.UnflagCommand)),
             new("PickAndAdvance",   "Pick and advance",           CatFlag, Key.P, ModifierKeys.Shift, Vm(vm => vm.PickAndAdvanceCommand)),
             new("RejectAndAdvance", "Reject and advance",         CatFlag, Key.X, ModifierKeys.Shift, Vm(vm => vm.RejectAndAdvanceCommand)),
+            // Burst viewer-only — handled by BurstFocusWindow, so resolver returns null on the main window.
+            new("SetAsThumbnail",   "Set as burst thumbnail",     CatFlag, Key.T, ModifierKeys.None,  _ => null),
 
             // Ratings 0..5
             new("Rating0", "Set rating 0", CatRate, Key.D0, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 0),

@@ -4,16 +4,16 @@
 winexe
 C#
 .cs
-C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Debug\net9.0-windows\
 Rawr.App
 none
 false
 TRACE;DEBUG;NET;NET9_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_OR_GREATER;NET7_0_OR_GREATER;NET8_0_OR_GREATER;NET9_0_OR_GREATER;NETCOREAPP3_0_OR_GREATER;NETCOREAPP3_1_OR_GREATER;WINDOWS7_0_OR_GREATER
-C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\App.xaml
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\App.xaml
 8-708183504
 9-1944026211
 392032157672
-213-1920162389
+213-1782605438
 Controls\PixelPeekView.xaml;Dialogs\BurstFocusWindow.xaml;Dialogs\InputDialog.xaml;Dialogs\MapWindow.xaml;Dialogs\SecondMonitorWindow.xaml;Dialogs\SettingsWindow.xaml;MainWindow.xaml;Themes\DarkTheme.xaml;
 
 False
