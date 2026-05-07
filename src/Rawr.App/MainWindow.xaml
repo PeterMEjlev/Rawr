@@ -918,6 +918,21 @@
                                 </StackPanel>
                                 <!-- end custom filter criteria -->
 
+                                <!-- Quality -->
+                                <TextBlock Text="QUALITY" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Margin="0,0,0,10">
+                                    <DockPanel LastChildFill="True">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CopyQualityLabel}" VerticalAlignment="Center"
+                                                   MinWidth="50" TextAlignment="Right" Margin="8,0,0,0" />
+                                        <Slider Minimum="0" Maximum="4" Value="{Binding CopyQualityIndex}"
+                                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                                TickPlacement="BottomRight" SmallChange="1" LargeChange="1"
+                                                ToolTip="Slide left for smaller JPEGs, right for the original RAW" />
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding CopyQualityDescription}" Foreground="{StaticResource TextDimBrush}"
+                                               FontSize="10" Margin="0,2,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+
                                 <!-- Rename -->
                                 <TextBlock Text="RENAME" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
                                 <StackPanel Margin="0,0,0,10">

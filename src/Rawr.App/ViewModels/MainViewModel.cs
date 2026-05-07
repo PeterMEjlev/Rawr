@@ -328,6 +328,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _copyRenameEnabled;
     [ObservableProperty] private string _copyCustomBaseName = string.Empty;
 
+    // Quality slider: 0 = smallest JPEG (Email), CopyQualityPresets.FullIndex = original RAW.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyQualityPreset))]
+    [NotifyPropertyChangedFor(nameof(CopyQualityLabel))]
+    [NotifyPropertyChangedFor(nameof(CopyQualityDescription))]
+    private int _copyQualityIndex = CopyQualityPresets.FullIndex;
+
+    public CopyQualityPreset CopyQualityPreset =>
+        CopyQualityPresets.All[Math.Clamp(CopyQualityIndex, 0, CopyQualityPresets.All.Length - 1)];
+    public string CopyQualityLabel => CopyQualityPreset.Label;
+    public string CopyQualityDescription => CopyQualityPreset.Description;
+
     public int CopyActiveRatingValue => CopyRatingFilterMode == RatingFilterMode.Any ? -1 : CopyRatingFilterValue;
 
     public string CopyRatingModeLabel => CopyRatingCycleMode switch
@@ -3128,17 +3140,29 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var dialog = new OpenFolderDialog { Title = "Select destination folder" };
         if (dialog.ShowDialog() != true) return;
 
-        StatusText = $"Copying {photos.Count} photos...";
-        var progress = new Progress<(int current, int total, string fileName)>(p =>
-        {
-            StatusText = $"Copying {p.current}/{p.total}: {p.fileName}";
-        });
-
         string? baseName = CopyRenameEnabled && !string.IsNullOrWhiteSpace(CopyCustomBaseName)
             ? CopyCustomBaseName.Trim()
             : null;
-        var count = await FileOperations.CopyFilesAsync(photos, dialog.FolderName, progress, baseName);
-        StatusText = $"Copied {count} photos to {dialog.FolderName}";
+
+        var preset = CopyQualityPreset;
+        Directory.CreateDirectory(dialog.FolderName);
+        StatusText = $"Copying {photos.Count} photos ({preset.Label})...";
+
+        var exporter = new PhotoExporter(_extractor);
+        int digits = photos.Count.ToString().Length;
+        int copied = 0;
+        for (int i = 0; i < photos.Count; i++)
+        {
+            var photo = photos[i];
+            StatusText = $"Copying {i + 1}/{photos.Count} ({preset.Label}): {photo.FileName}";
+            try
+            {
+                if (await exporter.ExportAsync(photo, dialog.FolderName, preset, baseName, i + 1, digits))
+                    copied++;
+            }
+            catch { /* skip files that fail to decode/copy */ }
+        }
+        StatusText = $"Copied {copied}/{photos.Count} photos to {dialog.FolderName} ({preset.Label})";
     }
 
     [RelayCommand]
