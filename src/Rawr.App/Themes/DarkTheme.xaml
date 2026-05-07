@@ -648,7 +648,107 @@
                                 </Thumb>
                             </Track.Thumb>
                         </Track>
+                        <!-- Hidden unless the slider opts in via TickPlacement. ReservedSpace
+                             matches the thumb width so ticks align with thumb travel. -->
+                        <TickBar x:Name="BottomTick"
+                                 Grid.Row="2"
+                                 Height="4"
+                                 Margin="0,3,0,0"
+                                 Placement="Bottom"
+                                 SnapsToDevicePixels="True"
+                                 Visibility="Collapsed"
+                                 Fill="{StaticResource TextDimBrush}"
+                                 ReservedSpace="12"
+                                 Minimum="{TemplateBinding Minimum}"
+                                 Maximum="{TemplateBinding Maximum}"
+                                 TickFrequency="{TemplateBinding TickFrequency}"
+                                 Ticks="{TemplateBinding Ticks}"
+                                 IsSelectionRangeEnabled="{TemplateBinding IsSelectionRangeEnabled}"
+                                 SelectionStart="{TemplateBinding SelectionStart}"
+                                 SelectionEnd="{TemplateBinding SelectionEnd}" />
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="TickPlacement" Value="BottomRight">
+                            <Setter TargetName="BottomTick" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="TickPlacement" Value="Both">
+                            <Setter TargetName="BottomTick" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Quality slider variant: thicker track + larger thumb for easier interaction -->
+    <Style x:Key="QualitySliderStyle" TargetType="{x:Type Slider}">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Slider}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" MinHeight="{TemplateBinding MinHeight}" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Track x:Name="PART_Track" Grid.Row="1">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                            <Border Height="6" Background="{StaticResource AccentBrush}" CornerRadius="3" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                            <Border Height="6" Background="{StaticResource BgControlBrush}" CornerRadius="3" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="{x:Type Thumb}">
+                                            <Ellipse Width="16" Height="16"
+                                                     Fill="{StaticResource AccentBrush}"
+                                                     Stroke="{StaticResource BgBrush}"
+                                                     StrokeThickness="1" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                        <TickBar x:Name="BottomTick"
+                                 Grid.Row="2"
+                                 Height="4"
+                                 Margin="0,3,0,0"
+                                 Placement="Bottom"
+                                 SnapsToDevicePixels="True"
+                                 Visibility="Collapsed"
+                                 Fill="{StaticResource TextDimBrush}"
+                                 ReservedSpace="16"
+                                 Minimum="{TemplateBinding Minimum}"
+                                 Maximum="{TemplateBinding Maximum}"
+                                 TickFrequency="{TemplateBinding TickFrequency}"
+                                 Ticks="{TemplateBinding Ticks}"
+                                 IsSelectionRangeEnabled="{TemplateBinding IsSelectionRangeEnabled}"
+                                 SelectionStart="{TemplateBinding SelectionStart}"
+                                 SelectionEnd="{TemplateBinding SelectionEnd}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="TickPlacement" Value="BottomRight">
+                            <Setter TargetName="BottomTick" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="TickPlacement" Value="Both">
+                            <Setter TargetName="BottomTick" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

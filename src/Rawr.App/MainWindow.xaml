@@ -924,7 +924,8 @@
                                     <DockPanel LastChildFill="True">
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding CopyQualityLabel}" VerticalAlignment="Center"
                                                    MinWidth="50" TextAlignment="Right" Margin="8,0,0,0" />
-                                        <Slider Minimum="0" Maximum="4" Value="{Binding CopyQualityIndex}"
+                                        <Slider Style="{StaticResource QualitySliderStyle}"
+                                                Minimum="0" Maximum="4" Value="{Binding CopyQualityIndex}"
                                                 IsSnapToTickEnabled="True" TickFrequency="1"
                                                 TickPlacement="BottomRight" SmallChange="1" LargeChange="1"
                                                 ToolTip="Slide left for smaller JPEGs, right for the original RAW" />

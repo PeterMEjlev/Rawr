@@ -14,8 +14,6 @@
 
 - ## Multi-shot HDR detection — bracket sequences, group separately from regular bursts. Detect if shot is HDR (maybe by same content, but with varying exposure levels = HDR?)
 
-- ## Copy / Export Detail setting
-
 - ## detect panorama? how to?
 
 - ## What does the export list button do? remove it? bundle it with the copy button to save space in the top panel?
