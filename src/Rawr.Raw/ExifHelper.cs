@@ -59,6 +59,7 @@ internal static class ExifHelper
             Aperture     = FltOr(meta, "/app1/ifd/exif/{ushort=33437}", "/ifd/exif/{ushort=33437}"),
             ShutterSpeed = FltOr(meta, "/app1/ifd/exif/{ushort=33434}", "/ifd/exif/{ushort=33434}"),
             FocalLength  = FltOr(meta, "/app1/ifd/exif/{ushort=37386}", "/ifd/exif/{ushort=37386}"),
+            ExposureBias = SignedRationalOrNull(meta, "/app1/ifd/exif/{ushort=37380}", "/ifd/exif/{ushort=37380}"),
             WidthPx      = widthPx,
             HeightPx     = heightPx,
             FileSizeBytes = fileSizeBytes,
@@ -136,6 +137,45 @@ internal static class ExifHelper
     {
         var v = Flt(meta, q1);
         return v > 0 ? v : Flt(meta, q2);
+    }
+
+    // ExposureBiasValue is an SRATIONAL (signed rational). Numerator and denominator are
+    // both signed 32-bit; WIC packs them low/high inside a 64-bit value but, unlike
+    // RATIONAL, the numerator may be negative (e.g. -2 EV). Returns null when the tag
+    // is absent so callers can distinguish "no compensation stamped" from "exactly 0 EV".
+    private static float? SignedRationalOrNull(BitmapMetadata? meta, string q1, string q2)
+    {
+        var v = SignedRational(meta, q1);
+        return v ?? SignedRational(meta, q2);
+    }
+
+    private static float? SignedRational(BitmapMetadata? meta, string query)
+    {
+        if (meta == null) return null;
+        try
+        {
+            var obj = meta.GetQuery(query);
+            return obj switch
+            {
+                null    => (float?)null,
+                double d => (float)d,
+                float f => f,
+                long l  => DecodeSignedRational(l),
+                ulong u => DecodeSignedRational(unchecked((long)u)),
+                int i   => i,
+                short s => s,
+                _       => null,
+            };
+        }
+        catch { return null; }
+    }
+
+    private static float? DecodeSignedRational(long packed)
+    {
+        int num = (int)(packed & 0xFFFFFFFF);
+        int den = (int)((packed >> 32) & 0xFFFFFFFF);
+        if (den == 0) return null;
+        return (float)((double)num / den);
     }
 
     private static float Flt(BitmapMetadata? meta, string query)

@@ -327,9 +327,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private PhotoTag? _tagFilter;
 
     public IEnumerable<TagAssignmentItem> SelectedPhotoTagAssignments =>
-        Tags.Select(t => new TagAssignmentItem(t, SelectedPhoto?.TagIds.Contains(t.Id) ?? false));
+        Tags.Where(t => !t.IsSystem)
+            .Select(t => new TagAssignmentItem(t, SelectedPhoto?.TagIds.Contains(t.Id) ?? false));
 
     public record TagAssignmentItem(PhotoTag Tag, bool IsAssigned);
+
+    private sealed record AssignedMetadataSnapshot(
+        PhotoItem Photo,
+        int Rating,
+        CullFlag Flag,
+        ColorLabel ColorLabel,
+        int[] TagIds);
 
     // Copy criteria state (independent of filter). Defaults to SelectedPhotos so the
     // currently highlighted photo (or multi-selection) is the source out-of-the-box —
@@ -1065,6 +1073,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
                 looseHammingThreshold: loose,
                 strictHammingThreshold: strict);
+            ApplyHdrDetection();
         });
 
         // Persist burst assignments and freshly-computed perceptual hashes so the
@@ -2653,7 +2662,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void RenameTag(PhotoTag tag)
     {
-        if (_db == null) return;
+        if (_db == null || tag.IsSystem) return;
         var name = InputDialog.Show(Application.Current.MainWindow, "Rename Tag", "New name:", tag.Name);
         if (string.IsNullOrWhiteSpace(name) || name == tag.Name) return;
         _db.RenameGroup(tag.Id, name);
@@ -2676,7 +2685,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void DeleteTag(PhotoTag tag)
     {
-        if (_db == null) return;
+        if (_db == null || tag.IsSystem) return;
         _db.DeleteGroup(tag.Id);
         foreach (var photo in AllPhotos.Where(p => p.TagIds.Contains(tag.Id)))
         {
@@ -2696,6 +2705,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleTagForSelected(PhotoTag tag)
     {
         if (SelectedPhoto == null || _db == null) return;
+        // System tags (HDR) are managed by RAWR's detectors and aren't user-toggleable.
+        if (tag.IsSystem) return;
         // Anchor's prior assignment decides direction; the same op is applied to
         // every selected photo, even those that already match the target state
         // (those become no-ops in ApplyTagEdit). Single compound undo entry.
@@ -2739,6 +2750,132 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ? $"{verb} tag “{tag.Name}”"
             : $"{verb} tag “{tag.Name}” ({changedPhotos.Count} photos)";
         History.Record(new EditOp(label, SelectedPhoto, ApplyAll, RevertAll));
+    }
+
+    [RelayCommand]
+    private void ClearAssignedMetadataForSelected()
+    {
+        if (SelectedPhoto == null) return;
+        ClearAssignedMetadata(SelectedPhotosSnapshot(), "selected photos");
+    }
+
+    [RelayCommand]
+    private void ClearAssignedMetadataForAll()
+    {
+        if (AllPhotos.Count == 0) return;
+        ClearAssignedMetadata(AllPhotos.ToList(), "photos in this folder");
+    }
+
+    private void ClearAssignedMetadata(IList<PhotoItem> photos, string scopeLabel)
+    {
+        var snapshots = photos
+            .Where(HasAssignedMetadata)
+            .Select(p => new AssignedMetadataSnapshot(
+                p,
+                p.Rating,
+                p.Flag,
+                p.ColorLabel,
+                p.TagIds.ToArray()))
+            .ToList();
+        if (snapshots.Count == 0)
+        {
+            StatusText = $"No assigned metadata to clear for {scopeLabel}.";
+            return;
+        }
+
+        var prompt = snapshots.Count == 1
+            ? $"Remove rating, flag, color label, and tags from \"{snapshots[0].Photo.FileName}\"?"
+            : $"Remove ratings, flags, color labels, and tags from {snapshots.Count} {scopeLabel}?";
+        var result = MessageBox.Show(
+            prompt + "\n\nThis can be undone with Undo.",
+            "Clear Assigned Metadata",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning);
+        if (result != MessageBoxResult.OK) return;
+
+        void ApplyAll()
+        {
+            foreach (var snapshot in snapshots)
+            {
+                var photo = snapshot.Photo;
+                photo.Rating = 0;
+                photo.Flag = CullFlag.Unflagged;
+                photo.ColorLabel = ColorLabel.None;
+                photo.TagIds.Clear();
+                UpdateTagDisplay(photo);
+            }
+            PersistMetadataSnapshotBatch(snapshots);
+            RefreshAfterAssignedMetadataChange();
+        }
+
+        void RevertAll()
+        {
+            foreach (var snapshot in snapshots)
+            {
+                var photo = snapshot.Photo;
+                photo.Rating = snapshot.Rating;
+                photo.Flag = snapshot.Flag;
+                photo.ColorLabel = snapshot.ColorLabel;
+                photo.TagIds.Clear();
+                foreach (var tagId in snapshot.TagIds)
+                    photo.TagIds.Add(tagId);
+                UpdateTagDisplay(photo);
+            }
+            PersistMetadataSnapshotBatch(snapshots);
+            RefreshAfterAssignedMetadataChange();
+        }
+
+        ApplyAll();
+        var label = snapshots.Count == 1
+            ? "Clear assigned metadata"
+            : $"Clear assigned metadata ({snapshots.Count} photos)";
+        History.Record(new EditOp(label, SelectedPhoto ?? snapshots[0].Photo, ApplyAll, RevertAll));
+        StatusText = snapshots.Count == 1
+            ? $"Cleared assigned metadata for {snapshots[0].Photo.FileName}."
+            : $"Cleared assigned metadata for {snapshots.Count} photos.";
+    }
+
+    private static bool HasAssignedMetadata(PhotoItem photo) =>
+        photo.Rating != 0
+        || photo.Flag != CullFlag.Unflagged
+        || photo.ColorLabel != ColorLabel.None
+        || photo.TagIds.Count > 0;
+
+    private void PersistMetadataSnapshotBatch(IList<AssignedMetadataSnapshot> snapshots)
+    {
+        if (_db != null)
+        {
+            _db.WithTransaction(() =>
+            {
+                foreach (var snapshot in snapshots)
+                {
+                    _db.ClearGroupsForPhoto(snapshot.Photo.FileName);
+                    foreach (var tagId in snapshot.Photo.TagIds)
+                        _db.AssignGroup(snapshot.Photo.FileName, tagId);
+                }
+            });
+        }
+
+        SavePhotoBatch(snapshots.Select(s => s.Photo).ToList());
+    }
+
+    private void RefreshAfterAssignedMetadataChange()
+    {
+        OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
+
+        if (RatingFilterMode != RatingFilterMode.Any
+            || FlagFilter.HasValue
+            || ColorLabelFilter.HasValue
+            || TagFilter != null)
+        {
+            ApplyFilter();
+        }
+        else
+        {
+            RefreshFilterBuckets();
+            OnPropertyChanged(nameof(CopyTargetCount));
+            UpdateStatus();
+        }
     }
 
     private void ApplyTagEdit(PhotoItem photo, PhotoTag tag, bool assign)
@@ -2888,11 +3025,81 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void UpdateTagDisplay(PhotoItem photo)
     {
-        photo.TagDisplay = photo.TagIds.Count == 0
-            ? ""
-            : string.Join("\n", photo.TagIds
-                .Select(id => Tags.FirstOrDefault(t => t.Id == id)?.Name)
-                .Where(n => n != null));
+        // System tags (currently just HDR) render in their own coloured pill, so
+        // they're filtered out of the regular tag display string. IsHdr drives
+        // the orange pill in the thumbnail and metadata templates.
+        bool isHdr = false;
+        var visibleNames = new List<string>(photo.TagIds.Count);
+        foreach (var id in photo.TagIds)
+        {
+            var t = Tags.FirstOrDefault(x => x.Id == id);
+            if (t == null) continue;
+            if (t.IsSystem)
+            {
+                if (string.Equals(t.Name, HdrTagName, StringComparison.Ordinal))
+                    isHdr = true;
+                continue;
+            }
+            visibleNames.Add(t.Name);
+        }
+        photo.IsHdr = isHdr;
+        photo.TagDisplay = visibleNames.Count == 0 ? "" : string.Join("\n", visibleNames);
+    }
+
+    private const string HdrTagName = "HDR";
+    private const string HdrTagColor = "#FF7A00";
+
+    /// <summary>
+    /// Re-runs HDR classification over already-grouped bursts and syncs the
+    /// auto-managed HDR tag in the database. Safe to call repeatedly — only
+    /// photos whose HDR state actually changed touch the DB.
+    /// </summary>
+    private void ApplyHdrDetection()
+    {
+        if (_db == null || AllPhotos.Count == 0) return;
+
+        var hdrFiles = HdrDetector.Detect(AllPhotos);
+
+        var hdrTag = Tags.FirstOrDefault(t => t.IsSystem && t.Name == HdrTagName);
+        if (hdrTag == null && hdrFiles.Count > 0)
+        {
+            hdrTag = _db.FindSystemGroup(HdrTagName)
+                  ?? _db.CreateGroup(HdrTagName, isSystem: true, color: HdrTagColor);
+            Tags.Add(hdrTag);
+        }
+        if (hdrTag == null) return;
+
+        int hdrId = hdrTag.Id;
+        var toAssign = new List<PhotoItem>();
+        var toUnassign = new List<PhotoItem>();
+        foreach (var photo in AllPhotos)
+        {
+            bool shouldHave = hdrFiles.Contains(photo.FileName);
+            bool has = photo.TagIds.Contains(hdrId);
+            if (shouldHave && !has) toAssign.Add(photo);
+            else if (!shouldHave && has) toUnassign.Add(photo);
+        }
+        if (toAssign.Count > 0 || toUnassign.Count > 0)
+        {
+            _db.WithTransaction(() =>
+            {
+                foreach (var p in toAssign)
+                {
+                    p.TagIds.Add(hdrId);
+                    _db.AssignGroup(p.FileName, hdrId);
+                }
+                foreach (var p in toUnassign)
+                {
+                    p.TagIds.Remove(hdrId);
+                    _db.UnassignGroup(p.FileName, hdrId);
+                }
+            });
+        }
+
+        // HdrDetector reset every IsHdr to false; reconcile from the now-correct
+        // TagIds membership so photos that retained their HDR status keep the pill.
+        foreach (var p in AllPhotos)
+            UpdateTagDisplay(p);
     }
 
     [RelayCommand]
@@ -3066,7 +3273,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (_xmpWriter == null || photo.IsVideo) return;
         // Tag IDs → names lookup is rebuilt per call. Tag count is small (typically
         // single digits) so the cost is negligible compared to the write itself.
-        var tagNames = Tags.ToDictionary(t => t.Id, t => t.Name);
+        // Exclude system tags (HDR) from XMP keywords — they're RAWR-internal and
+// would pollute the user's catalogue keyword list.
+var tagNames = Tags.Where(t => !t.IsSystem).ToDictionary(t => t.Id, t => t.Name);
         _xmpWriter.Schedule(photo.FilePath, XmpSidecar.Snapshot(photo, tagNames));
     }
 
@@ -3136,7 +3345,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var tagNames = Tags.ToDictionary(t => t.Id, t => t.Name);
+        // Exclude system tags (HDR) from XMP keywords — they're RAWR-internal and
+// would pollute the user's catalogue keyword list.
+var tagNames = Tags.Where(t => !t.IsSystem).ToDictionary(t => t.Id, t => t.Name);
         var snapshots = AllPhotos
             .Where(p => !p.IsVideo)
             .Select(p => (path: p.FilePath, data: XmpSidecar.Snapshot(p, tagNames)))
@@ -3168,6 +3379,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
             looseHammingThreshold: loose,
             strictHammingThreshold: strict);
+        ApplyHdrDetection();
         ApplyFilter();
     }
 

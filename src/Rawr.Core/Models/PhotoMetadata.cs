@@ -15,11 +15,36 @@ public sealed class PhotoMetadata
     public float Aperture { get; init; }
     public float ShutterSpeed { get; init; }
     public float FocalLength { get; init; }
+
+    // EXIF ExposureBiasValue (tag 0x9204), in stops. Null when the tag is absent
+    // — common for non-bracketed shots; cameras only stamp this when the user
+    // dialed in compensation or auto-bracketing offset the frame.
+    public float? ExposureBias { get; init; }
     public DateTime? CaptureTime { get; init; }
     public long FileSizeBytes { get; init; }
     public double? GpsLatitude { get; init; }
     public double? GpsLongitude { get; init; }
     public double? GpsAltitude { get; init; }
+
+    /// <summary>
+    /// Composite exposure score in stops, used by HDR detection to compare frames in a burst.
+    /// Returns ExposureBias when stamped (auto-bracket cameras write this directly), otherwise
+    /// derives EV from aperture, shutter, and ISO so manual brackets are still detectable.
+    /// Null when no exposure data is available at all.
+    /// </summary>
+    public float? ExposureScore
+    {
+        get
+        {
+            if (ExposureBias.HasValue) return ExposureBias.Value;
+            if (Aperture > 0 && ShutterSpeed > 0 && ISO > 0)
+            {
+                double ev = Math.Log2((Aperture * Aperture) / ShutterSpeed * (100.0 / ISO));
+                return (float)ev;
+            }
+            return null;
+        }
+    }
 
     public string ShutterSpeedFormatted =>
         ShutterSpeed >= 1 ? $"{ShutterSpeed:F1}s"

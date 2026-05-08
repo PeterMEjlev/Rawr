@@ -657,14 +657,52 @@
                                                         Margin="4,0,0,0"
                                                         Command="{Binding DataContext.DeleteTagCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"
-                                                        ToolTip="Delete tag" />
+                                                        ToolTip="Delete tag">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
                                                 <Button DockPanel.Dock="Right"
                                                         Content="✎"
                                                         Padding="6,2"
                                                         Margin="4,0,0,0"
                                                         Command="{Binding DataContext.RenameTagCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"
-                                                        ToolTip="Rename tag" />
+                                                        ToolTip="Rename tag">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="auto"
+                                                           Foreground="{StaticResource TextDimBrush}"
+                                                           FontSize="10"
+                                                           Margin="4,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           ToolTip="Automatically managed by RAWR — can't be renamed or deleted">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
                                             </DockPanel>
                                         </DataTemplate>
@@ -1649,6 +1687,13 @@
                                             <MenuItem Header="New Tag…"
                                                       Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                             <Separator />
+                                            <MenuItem Header="Clear assigned metadata">
+                                                <MenuItem Header="Selected photos..."
+                                                          Command="{Binding PlacementTarget.Tag.ClearAssignedMetadataForSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <MenuItem Header="All photos..."
+                                                          Command="{Binding PlacementTarget.Tag.ClearAssignedMetadataForAllCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            </MenuItem>
+                                            <Separator />
                                             <MenuItem Header="Delete…"
                                                       Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         </ContextMenu>
@@ -1719,16 +1764,28 @@
                                                            Foreground="{StaticResource StarBrush}"
                                                            FontSize="10" />
                                             </Border>
-                                            <!-- Tag indicator -->
-                                            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                    Background="#CC3B82F6"
-                                                    Padding="4,1" Margin="2"
-                                                    CornerRadius="2"
-                                                    Visibility="{Binding TagDisplay, Converter={StaticResource NullToVisibility}}">
-                                                <TextBlock Text="{Binding TagDisplay}"
-                                                           Foreground="White"
-                                                           FontSize="9" />
-                                            </Border>
+                                            <!-- Tag indicators (HDR system tag stacked above user tags) -->
+                                            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                        Margin="2" Orientation="Vertical">
+                                                <Border Background="#CCFF7A00"
+                                                        Padding="4,1" Margin="0,0,0,2"
+                                                        CornerRadius="2"
+                                                        ToolTip="HDR / auto-bracket"
+                                                        Visibility="{Binding IsHdr, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="HDR"
+                                                               Foreground="White"
+                                                               FontSize="9"
+                                                               FontWeight="Bold" />
+                                                </Border>
+                                                <Border Background="#CC3B82F6"
+                                                        Padding="4,1"
+                                                        CornerRadius="2"
+                                                        Visibility="{Binding TagDisplay, Converter={StaticResource NullToVisibility}}">
+                                                    <TextBlock Text="{Binding TagDisplay}"
+                                                               Foreground="White"
+                                                               FontSize="9" />
+                                                </Border>
+                                            </StackPanel>
                                             <!-- Burst position badge: only shown when expanded -->
                                             <Border HorizontalAlignment="Left" VerticalAlignment="Top"
                                                     Background="#CC9C27B0"
@@ -1840,6 +1897,13 @@
                             <MenuItem Header="New Tag…"
                                       Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                             <Separator />
+                            <MenuItem Header="Clear assigned metadata">
+                                <MenuItem Header="Selected photos..."
+                                          Command="{Binding PlacementTarget.Tag.ClearAssignedMetadataForSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="All photos..."
+                                          Command="{Binding PlacementTarget.Tag.ClearAssignedMetadataForAllCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            </MenuItem>
+                            <Separator />
                             <MenuItem Header="Delete…"
                                       Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                         </ContextMenu>
@@ -1948,6 +2012,17 @@
                         <TextBlock Text="{Binding SelectedPhoto.Rating, Converter={StaticResource RatingToStars}}"
                                    Foreground="{StaticResource StarBrush}"
                                    FontSize="18"
+                                   FontWeight="Bold" />
+                    </Border>
+                    <Border Background="#CCFF7A00"
+                            Padding="8,4"
+                            CornerRadius="3"
+                            Margin="0,0,0,4"
+                            ToolTip="HDR / auto-bracket"
+                            Visibility="{Binding SelectedPhoto.IsHdr, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="HDR"
+                                   Foreground="White"
+                                   FontSize="12"
                                    FontWeight="Bold" />
                     </Border>
                     <Border Background="#CC3B82F6"
@@ -2407,6 +2482,13 @@
                                     <MenuItem Header="New Tag…"
                                               Command="{Binding PlacementTarget.Tag.CreateTagCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                     <Separator />
+                                    <MenuItem Header="Clear assigned metadata">
+                                        <MenuItem Header="Selected photos..."
+                                                  Command="{Binding PlacementTarget.Tag.ClearAssignedMetadataForSelectedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        <MenuItem Header="All photos..."
+                                                  Command="{Binding PlacementTarget.Tag.ClearAssignedMetadataForAllCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    </MenuItem>
+                                    <Separator />
                                     <MenuItem Header="Delete…"
                                               Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 </ContextMenu>
@@ -2487,16 +2569,28 @@
                                                    Foreground="{StaticResource StarBrush}"
                                                    FontSize="10" />
                                     </Border>
-                                    <!-- Tag indicator (bottom-right) -->
-                                    <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                            Background="#CC3B82F6"
-                                            Padding="4,1" Margin="2"
-                                            CornerRadius="2"
-                                            Visibility="{Binding TagDisplay, Converter={StaticResource NullToVisibility}}">
-                                        <TextBlock Text="{Binding TagDisplay}"
-                                                   Foreground="White"
-                                                   FontSize="9" />
-                                    </Border>
+                                    <!-- Tag indicators (bottom-right): HDR system tag stacked above user tags -->
+                                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                Margin="2" Orientation="Vertical">
+                                        <Border Background="#CCFF7A00"
+                                                Padding="4,1" Margin="0,0,0,2"
+                                                CornerRadius="2"
+                                                ToolTip="HDR / auto-bracket"
+                                                Visibility="{Binding IsHdr, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="HDR"
+                                                       Foreground="White"
+                                                       FontSize="9"
+                                                       FontWeight="Bold" />
+                                        </Border>
+                                        <Border Background="#CC3B82F6"
+                                                Padding="4,1"
+                                                CornerRadius="2"
+                                                Visibility="{Binding TagDisplay, Converter={StaticResource NullToVisibility}}">
+                                            <TextBlock Text="{Binding TagDisplay}"
+                                                       Foreground="White"
+                                                       FontSize="9" />
+                                        </Border>
+                                    </StackPanel>
                                     <!-- Burst position badge: only shown when expanded -->
                                     <Border HorizontalAlignment="Left" VerticalAlignment="Top"
                                             Background="#CC9C27B0"

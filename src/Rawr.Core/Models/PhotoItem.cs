@@ -27,6 +27,10 @@ public sealed partial class PhotoItem : ObservableObject
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private string _tagDisplay = "";
 
+    // True when this photo is part of a detected HDR/auto-bracket burst. Drives
+    // the orange HDR pill on thumbnails. Set by HdrDetector during folder load.
+    [ObservableProperty] private bool _isHdr;
+
     public HashSet<int> TagIds { get; } = new();
 
     // Preview state (set by background workers, consumed by UI)

@@ -102,6 +102,21 @@ public sealed class CullingDatabase : IDisposable
             alter.CommandText = "ALTER TABLE photos ADD COLUMN min_eye_open_score REAL";
             alter.ExecuteNonQuery();
         }
+
+        // System tags (e.g. auto-generated HDR) are owned by RAWR — they can't be
+        // renamed or deleted from the UI and carry their own pill color.
+        if (!ColumnExists("custom_groups", "is_system"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE custom_groups ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0";
+            alter.ExecuteNonQuery();
+        }
+        if (!ColumnExists("custom_groups", "color"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE custom_groups ADD COLUMN color TEXT";
+            alter.ExecuteNonQuery();
+        }
     }
 
     private bool ColumnExists(string table, string column)
@@ -222,26 +237,57 @@ public sealed class CullingDatabase : IDisposable
     {
         var result = new List<PhotoTag>();
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT id, name FROM custom_groups ORDER BY id";
+        cmd.CommandText = "SELECT id, name, is_system, color FROM custom_groups ORDER BY id";
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
-            result.Add(new PhotoTag { Id = reader.GetInt32(0), Name = reader.GetString(1) });
+        {
+            result.Add(new PhotoTag
+            {
+                Id = reader.GetInt32(0),
+                Name = reader.GetString(1),
+                IsSystem = reader.GetInt32(2) != 0,
+                Color = reader.IsDBNull(3) ? null : reader.GetString(3),
+            });
+        }
         return result;
     }
 
-    public PhotoTag CreateGroup(string name)
+    public PhotoTag CreateGroup(string name, bool isSystem = false, string? color = null)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "INSERT INTO custom_groups (name) VALUES ($name) RETURNING id";
+        cmd.CommandText = "INSERT INTO custom_groups (name, is_system, color) VALUES ($name, $sys, $color) RETURNING id";
         cmd.Parameters.AddWithValue("$name", name);
+        cmd.Parameters.AddWithValue("$sys", isSystem ? 1 : 0);
+        cmd.Parameters.AddWithValue("$color", (object?)color ?? DBNull.Value);
         var id = Convert.ToInt32(cmd.ExecuteScalar());
-        return new PhotoTag { Id = id, Name = name };
+        return new PhotoTag { Id = id, Name = name, IsSystem = isSystem, Color = color };
+    }
+
+    /// <summary>
+    /// Look up a system-owned tag by its canonical name. Returns null if it hasn't
+    /// been created in this folder yet — caller is expected to call
+    /// <see cref="CreateGroup(string,bool,string?)"/> when needed.
+    /// </summary>
+    public PhotoTag? FindSystemGroup(string name)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, name, is_system, color FROM custom_groups WHERE is_system = 1 AND name = $name LIMIT 1";
+        cmd.Parameters.AddWithValue("$name", name);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read()) return null;
+        return new PhotoTag
+        {
+            Id = reader.GetInt32(0),
+            Name = reader.GetString(1),
+            IsSystem = reader.GetInt32(2) != 0,
+            Color = reader.IsDBNull(3) ? null : reader.GetString(3),
+        };
     }
 
     public void DeleteGroup(int id)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "DELETE FROM custom_groups WHERE id = $id";
+        cmd.CommandText = "DELETE FROM custom_groups WHERE id = $id AND is_system = 0";
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
     }
@@ -249,7 +295,7 @@ public sealed class CullingDatabase : IDisposable
     public void RenameGroup(int id, string name)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "UPDATE custom_groups SET name = $name WHERE id = $id";
+        cmd.CommandText = "UPDATE custom_groups SET name = $name WHERE id = $id AND is_system = 0";
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$name", name);
         cmd.ExecuteNonQuery();
@@ -286,6 +332,14 @@ public sealed class CullingDatabase : IDisposable
         cmd.CommandText = "DELETE FROM photo_groups WHERE file_name = $name AND group_id = $group";
         cmd.Parameters.AddWithValue("$name", fileName);
         cmd.Parameters.AddWithValue("$group", groupId);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void ClearGroupsForPhoto(string fileName)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "DELETE FROM photo_groups WHERE file_name = $name";
+        cmd.Parameters.AddWithValue("$name", fileName);
         cmd.ExecuteNonQuery();
     }
 

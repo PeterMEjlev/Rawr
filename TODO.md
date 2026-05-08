@@ -3,8 +3,6 @@
 ## OPUS:
 - ## Allow user to manually add location metadata to selected photos (using the map function)
 
-- ## Option to remove all assigned ratings, tags, labels etc from selected / all photos (have an "are you sure" warning to avoid accidents)
-
 - ## Make focus peaking more robust against high contrast area which arent sharp - the alternative I'd try next is the multi-scale ratio (LoG at σ≈1 vs σ≈2 — sharp edges concentrate at the small scale, soft ones spread). It's a different mechanism than contrast-normalization and may behave better for your shots
 
 - ## Subject classifier — small zero-shot model (CLIP-tiny or similar) tags photos with "person", "landscape", "food", "animal". Filterable. Surprisingly accurate even at small sizes.
@@ -13,8 +11,6 @@
 no frame shift
 different exposure levels
 high perceptual hash similarity
-
-- ## identify missing keyboard shortcuts that arent in settings and add them
 
 - ## detect panorama? 
 For each neighboring pair, estimate how the second image moved relative to the previous one:
