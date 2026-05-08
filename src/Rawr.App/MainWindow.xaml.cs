@@ -75,6 +75,10 @@ public partial class MainWindow : Window
     private TimeSpan _videoDuration;
     private bool _videoIsMuted;
 
+    // Cached lookup of (Key, ModifierKeys) → (Action, Command, CommandParameter) for
+    // fast shortcut matching in the fallback dead-key handler.
+    private Dictionary<(Key, ModifierKeys), (ShortcutAction Action, ICommand Cmd, object? Param)>? _shortcutMap;
+
     /// <summary>Toggles the tags popup. Bound by default to 'T' via the shortcut registry.</summary>
     public ICommand OpenTagsCommand { get; }
 
@@ -106,7 +110,13 @@ public partial class MainWindow : Window
         // before the window-level KeyBindings see them.
         PreviewKeyDown += OnWindowPreviewKeyDown;
 
-        ShortcutBinder.ApplyTo(this, AppSettings.Current);
+        // Fallback handler for dead-keys and IME-processed keys (common on non-US layouts)
+        // that don't match via InputBindings. Resolves the underlying key and tries
+        // matching shortcuts manually. Fires before InputBindings so we can prevent
+        // double-execution if both match.
+        PreviewKeyDown += OnWindowPreviewKeyDownResolveDeadKeys;
+
+        ApplyShortcuts(AppSettings.Current);
 
         if (DataContext is INotifyPropertyChanged inpc)
         {
@@ -498,6 +508,66 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    // Fallback handler for dead-keys and IME-processed keys. On non-US keyboard
+    // layouts, certain keys (Æ, Ø, Å, ´, etc.) may arrive as Key.DeadCharProcessed
+    // or Key.ImeProcessed, which don't match InputBindings. This handler resolves
+    // to the underlying key and tries matching against registered shortcuts.
+    private void OnWindowPreviewKeyDownResolveDeadKeys(object sender, KeyEventArgs e)
+    {
+        if (e.Handled) return;
+
+        // Don't trigger shortcuts while typing in text-input controls (text-input guards
+        // are applied in ShortcutBinder for InputBindings; apply same logic here).
+        if (Keyboard.FocusedElement is TextBox or PasswordBox or RichTextBox) return;
+
+        var key = e.Key;
+        if (key is not (Key.DeadCharProcessed or Key.ImeProcessed)) return;
+
+        // Resolve the underlying key.
+        key = KeySpec.ResolveKey(e);
+        if (key == Key.None) return;
+
+        var mods = Keyboard.Modifiers;
+
+        // Build the shortcut map on first use.
+        _shortcutMap ??= BuildShortcutMap();
+
+        // Try matching the resolved key.
+        if (_shortcutMap.TryGetValue((key, mods), out var match))
+        {
+            match.Cmd.Execute(match.Param);
+            e.Handled = true;
+        }
+    }
+
+    private Dictionary<(Key, ModifierKeys), (ShortcutAction, ICommand, object?)> BuildShortcutMap()
+    {
+        var map = new Dictionary<(Key, ModifierKeys), (ShortcutAction, ICommand, object?)>();
+        var settings = AppSettings.Current;
+
+        if (DataContext is not MainViewModel vm) return map;
+
+        foreach (var action in ShortcutRegistry.All)
+        {
+            var (spec, _) = ShortcutBinder.ResolveBinding(settings, action);
+            if (spec is null) continue;
+
+            var cmd = action.ResolveCommand(this);
+            if (cmd is null) continue;
+
+            map[(spec.Key, spec.Modifiers)] = (action, cmd, action.CommandParameter);
+        }
+
+        return map;
+    }
+
+    private void ApplyShortcuts(AppSettings settings)
+    {
+        ShortcutBinder.ApplyTo(this, settings);
+        // Invalidate the dead-key fallback map so it rebuilds with the new bindings.
+        _shortcutMap = null;
+    }
+
     private List<InputBinding>? _suspendedInputBindings;
 
     private void OnAnyGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -783,7 +853,7 @@ public partial class MainWindow : Window
         AppSettings.Current = dlg.Result;
         AppSettings.Current.Save();
 
-        ShortcutBinder.ApplyTo(this, AppSettings.Current);
+        ApplyShortcuts(AppSettings.Current);
 
         if (DataContext is not MainViewModel vm) return;
 

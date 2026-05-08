@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Input;
 
@@ -55,23 +56,36 @@ public sealed record KeySpec(Key Key, ModifierKeys Modifiers)
         return sb.ToString();
     }
 
-    public static string KeyDisplayName(Key key) => key switch
+    public static string KeyDisplayName(Key key)
     {
-        Key.D0 => "0", Key.D1 => "1", Key.D2 => "2", Key.D3 => "3", Key.D4 => "4",
-        Key.D5 => "5", Key.D6 => "6", Key.D7 => "7", Key.D8 => "8", Key.D9 => "9",
-        Key.OemPlus     => "=",
-        Key.OemMinus    => "-",
-        Key.OemComma    => ",",
-        Key.OemPeriod   => ".",
-        Key.OemQuestion => "/",
-        Key.OemTilde    => "`",
-        Key.OemSemicolon => ";",
-        Key.OemQuotes   => "'",
-        Key.OemOpenBrackets => "[",
-        Key.OemCloseBrackets => "]",
-        Key.OemPipe     => "\\",
-        _ => key.ToString()
-    };
+        var name = key switch
+        {
+            Key.D0 => "0", Key.D1 => "1", Key.D2 => "2", Key.D3 => "3", Key.D4 => "4",
+            Key.D5 => "5", Key.D6 => "6", Key.D7 => "7", Key.D8 => "8", Key.D9 => "9",
+            Key.OemPlus     => "=",
+            Key.OemMinus    => "-",
+            Key.OemComma    => ",",
+            Key.OemPeriod   => ".",
+            Key.OemQuestion => "/",
+            Key.OemTilde    => "`",
+            Key.OemSemicolon => ";",
+            Key.OemQuotes   => "'",
+            Key.OemOpenBrackets => "[",
+            Key.OemCloseBrackets => "]",
+            Key.OemPipe     => "\\",
+            _ => null
+        };
+
+        // For unmapped Oem keys, try to get the character from the current keyboard layout.
+        // This helps with non-US layouts (e.g., Danish Æ/Ø/Å).
+        if (name is null)
+        {
+            name = GetKeyCharInCurrentLayout(key);
+            if (name is not null) return name;
+        }
+
+        return name ?? key.ToString();
+    }
 
     public static bool IsModifierKey(Key k) =>
         k is Key.LeftCtrl or Key.RightCtrl
@@ -92,5 +106,24 @@ public sealed record KeySpec(Key Key, ModifierKeys Modifiers)
         if (key == Key.ImeProcessed) key = e.ImeProcessedKey;
         if (key == Key.DeadCharProcessed) key = e.DeadCharProcessedKey;
         return key;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int MapVirtualKey(uint uCode, uint uMapType);
+    private const uint MAPVK_VK_TO_CHAR = 2;
+
+    // Get the character that a key produces in the current keyboard layout.
+    // For display purposes only; returns null if the key doesn't produce a printable character.
+    public static string? GetKeyCharInCurrentLayout(Key key)
+    {
+        // Only works for keys that map to VK codes < 256.
+        var vk = KeyInterop.VirtualKeyFromKey(key);
+        if (vk > 255) return null;
+
+        var ch = MapVirtualKey((uint)vk, MAPVK_VK_TO_CHAR);
+        if (ch == 0) return null;
+
+        // High bit indicates dead key; mask it off for display.
+        return ((char)(ch & 0xFFFF)).ToString();
     }
 }

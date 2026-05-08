@@ -16,7 +16,10 @@
       "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\pejlev\\\\Desktop\\\\Misc\\\\Git\\\\RAWR\\\\src\" -Recurse -File | ForEach-Object { $_.FullName })",
       "Bash(powershell -Command \"Get-ChildItem -Path 'c:\\\\Users\\\\Torsten\\\\Desktop\\\\RAWR\\\\src\\\\Rawr.App\\\\ViewModels' -Filter '*.cs' | Select-Object -ExpandProperty FullName\")",
       "Bash(powershell -Command \"wc -l 'c:\\\\Users\\\\Torsten\\\\Desktop\\\\RAWR\\\\src\\\\Rawr.App\\\\ViewModels\\\\MainViewModel.cs'\")",
-      "Bash(powershell -Command \"Select-String -Path 'C:\\\\Users\\\\Torsten\\\\Desktop\\\\RAWR\\\\src\\\\Rawr.App\\\\MainWindow.xaml' -Pattern 'SidebarBucketButton|SidebarBucketStyle' -AllMatches | Measure-Object\")"
+      "Bash(powershell -Command \"Select-String -Path 'C:\\\\Users\\\\Torsten\\\\Desktop\\\\RAWR\\\\src\\\\Rawr.App\\\\MainWindow.xaml' -Pattern 'SidebarBucketButton|SidebarBucketStyle' -AllMatches | Measure-Object\")",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)"
     ]
   }
 }
