@@ -1033,8 +1033,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
                     // Compute the perceptual hash from the thumbnail once and reuse on every
                     // subsequent open via the SQLite cache. Used by BurstDetector below.
-                    if (photo.Phash == null && thumbBytes != null)
-                        photo.Phash = Rawr.App.Services.PerceptualHash.Compute(thumbBytes);
+                    // The grayscale strip is computed in the same decode and feeds
+                    // PanoramaDetector — it's transient (not persisted) so we always
+                    // refresh it when a thumbnail is available.
+                    if (thumbBytes != null && (photo.Phash == null || photo.GrayBuffer == null))
+                    {
+                        var (hash, strip) = Rawr.App.Services.PerceptualHash.ComputeWithStrip(thumbBytes);
+                        if (photo.Phash == null) photo.Phash = hash;
+                        if (photo.GrayBuffer == null) photo.GrayBuffer = strip;
+                    }
 
                     // Same lifecycle for clipping percentages — feeds the sidebar Exposure
                     // buckets. Recompute when the per-pixel threshold changes between sessions.
@@ -1074,6 +1081,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 looseHammingThreshold: loose,
                 strictHammingThreshold: strict);
             ApplyHdrDetection();
+            ApplyPanoramaDetection();
         });
 
         // Persist burst assignments and freshly-computed perceptual hashes so the
@@ -3025,10 +3033,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void UpdateTagDisplay(PhotoItem photo)
     {
-        // System tags (currently just HDR) render in their own coloured pill, so
-        // they're filtered out of the regular tag display string. IsHdr drives
-        // the orange pill in the thumbnail and metadata templates.
+        // System tags (HDR, Panorama) render in their own coloured pills, so
+        // they're filtered out of the regular tag display string. IsHdr and
+        // IsPanorama drive those pills in the thumbnail and metadata templates.
         bool isHdr = false;
+        bool isPanorama = false;
         var visibleNames = new List<string>(photo.TagIds.Count);
         foreach (var id in photo.TagIds)
         {
@@ -3038,16 +3047,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 if (string.Equals(t.Name, HdrTagName, StringComparison.Ordinal))
                     isHdr = true;
+                else if (string.Equals(t.Name, PanoramaTagName, StringComparison.Ordinal))
+                    isPanorama = true;
                 continue;
             }
             visibleNames.Add(t.Name);
         }
         photo.IsHdr = isHdr;
+        photo.IsPanorama = isPanorama;
         photo.TagDisplay = visibleNames.Count == 0 ? "" : string.Join("\n", visibleNames);
     }
 
     private const string HdrTagName = "HDR";
     private const string HdrTagColor = "#FF7A00";
+    private const string PanoramaTagName = "Panorama";
+    private const string PanoramaTagColor = "#00B8B8";
 
     /// <summary>
     /// Re-runs HDR classification over already-grouped bursts and syncs the
@@ -3058,7 +3072,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (_db == null || AllPhotos.Count == 0) return;
 
-        var hdrFiles = HdrDetector.Detect(AllPhotos);
+        // Detection disabled → produce an empty result so any previously-tagged
+        // photos get unassigned by the diff loop below. The system tag itself is
+        // left in the DB so re-enabling the detector picks it back up cleanly.
+        var hdrFiles = AppSettings.Current.HdrDetectionEnabled
+            ? HdrDetector.Detect(
+                AllPhotos,
+                AppSettings.Current.HdrMinBracketSize,
+                AppSettings.Current.HdrMinExposureSpread)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var hdrTag = Tags.FirstOrDefault(t => t.IsSystem && t.Name == HdrTagName);
         if (hdrTag == null && hdrFiles.Count > 0)
@@ -3098,6 +3120,109 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // HdrDetector reset every IsHdr to false; reconcile from the now-correct
         // TagIds membership so photos that retained their HDR status keep the pill.
+        foreach (var p in AllPhotos)
+            UpdateTagDisplay(p);
+    }
+
+    /// <summary>
+    /// Detects panorama sweeps and applies the auto-managed Panorama tag plus a
+    /// fresh GroupId/BurstBadge to each member so they collapse with the existing
+    /// burst toggle. Independent of HDR — runs on the same data after BurstDetector.
+    /// </summary>
+    private void ApplyPanoramaDetection()
+    {
+        if (_db == null || AllPhotos.Count == 0) return;
+
+        // Settings expose overlap %, but the detector talks shift fractions.
+        // overlap = 1 - shift, so a "max overlap" of 85% maps to a min shift
+        // of 0.15, and a "min overlap" of 20% maps to a max shift of 0.80.
+        var s = AppSettings.Current;
+        float minShift = Math.Clamp(1f - s.PanoramaMaxOverlapPct / 100f, 0f, 0.99f);
+        float maxShift = Math.Clamp(1f - s.PanoramaMinOverlapPct / 100f, minShift + 0.01f, 0.99f);
+
+        PanoramaDetector.Result result;
+        if (s.PanoramaDetectionEnabled)
+        {
+            result = PanoramaDetector.Detect(
+                AllPhotos,
+                Rawr.App.Services.PerceptualHash.StripWidth,
+                Rawr.App.Services.PerceptualHash.StripHeight,
+                minChainSize: s.PanoramaMinChainSize,
+                maxGapSeconds: s.PanoramaMaxGapSeconds,
+                minShift: minShift,
+                maxShift: maxShift,
+                maxDirectionDeltaDegrees: s.PanoramaDirectionToleranceDeg);
+        }
+        else
+        {
+            // Detection disabled — clear IsPanorama so any previous pill state
+            // doesn't linger, then take the no-op path through the diff loop.
+            foreach (var p in AllPhotos) p.IsPanorama = false;
+            result = new PanoramaDetector.Result(Array.Empty<IReadOnlyList<PhotoItem>>());
+        }
+
+        var panoFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var seq in result.Sequences)
+            foreach (var p in seq) panoFiles.Add(p.FileName);
+
+        var panoTag = Tags.FirstOrDefault(t => t.IsSystem && t.Name == PanoramaTagName);
+        if (panoTag == null && panoFiles.Count > 0)
+        {
+            panoTag = _db.FindSystemGroup(PanoramaTagName)
+                  ?? _db.CreateGroup(PanoramaTagName, isSystem: true, color: PanoramaTagColor);
+            Tags.Add(panoTag);
+        }
+
+        // Assign each detected sequence its own GroupId so the Collapse Bursts
+        // toggle stacks the panorama into a single tile. Numbering picks up
+        // above whatever BurstDetector already used.
+        if (result.Sequences.Count > 0)
+        {
+            int nextGroupId = 0;
+            foreach (var p in AllPhotos)
+                if (p.GroupId > nextGroupId) nextGroupId = p.GroupId;
+
+            foreach (var seq in result.Sequences)
+            {
+                nextGroupId++;
+                for (int i = 0; i < seq.Count; i++)
+                {
+                    seq[i].GroupId = nextGroupId;
+                    seq[i].BurstBadge = $"{i + 1}/{seq.Count}";
+                }
+            }
+        }
+
+        if (panoTag != null)
+        {
+            int panoId = panoTag.Id;
+            var toAssign = new List<PhotoItem>();
+            var toUnassign = new List<PhotoItem>();
+            foreach (var photo in AllPhotos)
+            {
+                bool shouldHave = panoFiles.Contains(photo.FileName);
+                bool has = photo.TagIds.Contains(panoId);
+                if (shouldHave && !has) toAssign.Add(photo);
+                else if (!shouldHave && has) toUnassign.Add(photo);
+            }
+            if (toAssign.Count > 0 || toUnassign.Count > 0)
+            {
+                _db.WithTransaction(() =>
+                {
+                    foreach (var p in toAssign)
+                    {
+                        p.TagIds.Add(panoId);
+                        _db.AssignGroup(p.FileName, panoId);
+                    }
+                    foreach (var p in toUnassign)
+                    {
+                        p.TagIds.Remove(panoId);
+                        _db.UnassignGroup(p.FileName, panoId);
+                    }
+                });
+            }
+        }
+
         foreach (var p in AllPhotos)
             UpdateTagDisplay(p);
     }
@@ -3376,6 +3501,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             looseHammingThreshold: loose,
             strictHammingThreshold: strict);
         ApplyHdrDetection();
+        ApplyPanoramaDetection();
         ApplyFilter();
     }
 

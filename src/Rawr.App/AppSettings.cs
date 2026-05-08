@@ -20,6 +20,28 @@ public sealed class AppSettings
     public int BurstSimilarityStrictness { get; set; } = 50;
 
     public BurstThumbnailMode BurstThumbnailMode { get; set; } = BurstThumbnailMode.HighestRated;
+
+    // ── HDR auto-grouping ──
+    // Detector classifies tightly-aligned bursts that span a meaningful exposure
+    // range as HDR / auto-bracket sequences and applies the system "HDR" tag.
+    public bool HdrDetectionEnabled { get; set; } = true;
+    public int HdrMinBracketSize { get; set; } = 3;          // frames in a bracket
+    public float HdrMinExposureSpread { get; set; } = 0.9f;  // total EV range across the bracket
+
+    // ── Panorama auto-grouping ──
+    // Detector chains adjacent same-camera frames whose inter-frame shift looks
+    // like a coherent camera pan, applies the system "Panorama" tag, and assigns
+    // a fresh GroupId so the burst-collapse toggle stacks the sweep.
+    public bool PanoramaDetectionEnabled { get; set; } = true;
+    public int PanoramaMinChainSize { get; set; } = 3;
+    public int PanoramaMaxGapSeconds { get; set; } = 20;
+    // Frame-to-frame overlap range, in percent. Below the minimum the detector
+    // assumes unrelated shots; above the maximum it assumes a regular burst.
+    public int PanoramaMinOverlapPct { get; set; } = 20;
+    public int PanoramaMaxOverlapPct { get; set; } = 85;
+    // Maximum allowed direction change between consecutive panorama edges.
+    public int PanoramaDirectionToleranceDeg { get; set; } = 30;
+
     public string DateFormat { get; set; } = "dd-MM-yyyy  HH:mm:ss";
     public bool CollapseBurstsOnOpen { get; set; } = true;
     public SortField DefaultSortField { get; set; } = SortField.FileName;
@@ -87,6 +109,15 @@ public sealed class AppSettings
         BurstMaxGapSeconds = BurstMaxGapSeconds,
         BurstSimilarityStrictness = BurstSimilarityStrictness,
         BurstThumbnailMode = BurstThumbnailMode,
+        HdrDetectionEnabled = HdrDetectionEnabled,
+        HdrMinBracketSize = HdrMinBracketSize,
+        HdrMinExposureSpread = HdrMinExposureSpread,
+        PanoramaDetectionEnabled = PanoramaDetectionEnabled,
+        PanoramaMinChainSize = PanoramaMinChainSize,
+        PanoramaMaxGapSeconds = PanoramaMaxGapSeconds,
+        PanoramaMinOverlapPct = PanoramaMinOverlapPct,
+        PanoramaMaxOverlapPct = PanoramaMaxOverlapPct,
+        PanoramaDirectionToleranceDeg = PanoramaDirectionToleranceDeg,
         DateFormat = DateFormat,
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,
         DefaultSortField = DefaultSortField,

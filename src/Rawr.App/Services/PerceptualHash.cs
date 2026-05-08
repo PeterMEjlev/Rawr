@@ -15,9 +15,23 @@ public static class PerceptualHash
     private const int HashHeight = 8;
     private const int DecodeWidth = 64;
 
+    // Larger grayscale buffer used by FrameShiftEstimator. Chosen to match the
+    // decode width above so a single decode produces both outputs, and large
+    // enough that 2D cross-correlation can resolve panorama-scale shifts.
+    public const int StripWidth = 32;
+    public const int StripHeight = 24;
+
     public static ulong? Compute(byte[]? jpegBytes)
+        => ComputeWithStrip(jpegBytes).Hash;
+
+    /// <summary>
+    /// Decodes the thumbnail once and returns both the dHash and a downsampled
+    /// grayscale buffer (<see cref="StripWidth"/>×<see cref="StripHeight"/>) for
+    /// inter-frame shift estimation. Either field may be null on decode failure.
+    /// </summary>
+    public static (ulong? Hash, byte[]? Strip) ComputeWithStrip(byte[]? jpegBytes)
     {
-        if (jpegBytes == null || jpegBytes.Length == 0) return null;
+        if (jpegBytes == null || jpegBytes.Length == 0) return (null, null);
         try
         {
             var bi = new BitmapImage();
@@ -34,7 +48,7 @@ public static class PerceptualHash
 
             int w = gray.PixelWidth;
             int h = gray.PixelHeight;
-            if (w < HashWidth || h < HashHeight) return null;
+            if (w < HashWidth || h < HashHeight) return (null, null);
 
             int stride = (w + 3) & ~3; // Gray8 stride is rounded up to 4 bytes
             var src = new byte[stride * h];
@@ -54,11 +68,16 @@ public static class PerceptualHash
                     bit++;
                 }
             }
-            return hash;
+
+            byte[]? strip = null;
+            if (w >= StripWidth && h >= StripHeight)
+                strip = Resample(src, stride, w, h, StripWidth, StripHeight);
+
+            return (hash, strip);
         }
         catch
         {
-            return null;
+            return (null, null);
         }
     }
 

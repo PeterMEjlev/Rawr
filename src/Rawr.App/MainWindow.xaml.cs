@@ -882,7 +882,16 @@ public partial class MainWindow : Window
         bool burstSettingsChanged =
             prev.BurstMaxGapSeconds != AppSettings.Current.BurstMaxGapSeconds ||
             prev.BurstSimilarityStrictness != AppSettings.Current.BurstSimilarityStrictness ||
-            prev.BurstThumbnailMode != AppSettings.Current.BurstThumbnailMode;
+            prev.BurstThumbnailMode != AppSettings.Current.BurstThumbnailMode ||
+            prev.HdrDetectionEnabled != AppSettings.Current.HdrDetectionEnabled ||
+            prev.HdrMinBracketSize != AppSettings.Current.HdrMinBracketSize ||
+            Math.Abs(prev.HdrMinExposureSpread - AppSettings.Current.HdrMinExposureSpread) > 0.001f ||
+            prev.PanoramaDetectionEnabled != AppSettings.Current.PanoramaDetectionEnabled ||
+            prev.PanoramaMinChainSize != AppSettings.Current.PanoramaMinChainSize ||
+            prev.PanoramaMaxGapSeconds != AppSettings.Current.PanoramaMaxGapSeconds ||
+            prev.PanoramaMinOverlapPct != AppSettings.Current.PanoramaMinOverlapPct ||
+            prev.PanoramaMaxOverlapPct != AppSettings.Current.PanoramaMaxOverlapPct ||
+            prev.PanoramaDirectionToleranceDeg != AppSettings.Current.PanoramaDirectionToleranceDeg;
 
         if (burstSettingsChanged)
             vm.ApplyBurstSettings();

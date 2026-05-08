@@ -90,13 +90,18 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- ── BURSTS TAB ── -->
-            <TabItem Header="Bursts">
+            <!-- ── AUTO GROUPING TAB ── -->
+            <TabItem Header="Auto Grouping">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               PreviewMouseWheel="TabScroll_PreviewMouseWheel">
                     <StackPanel Margin="16,14">
 
-                        <!-- Max gap -->
+                        <!-- ─── Bursts ─── -->
+                        <TextBlock Text="BURSTS"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="0,0,0,10" />
+
                         <TextBlock Text="Max gap between shots" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <Slider x:Name="GapSlider"
@@ -116,25 +121,16 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14" />
 
-                        <!-- Visual similarity strictness -->
                         <TextBlock Text="Visual similarity" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="Looser"
-                                       Foreground="{StaticResource TextDimBrush}"
-                                       FontSize="10"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0" />
+                            <TextBlock Text="Looser" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <Slider x:Name="SimilaritySlider"
                                     Minimum="0" Maximum="100"
                                     SmallChange="5" LargeChange="10"
                                     TickFrequency="5" IsSnapToTickEnabled="True"
                                     Width="220"
                                     VerticalAlignment="Center" />
-                            <TextBlock Text="Stricter"
-                                       Foreground="{StaticResource TextDimBrush}"
-                                       FontSize="10"
-                                       VerticalAlignment="Center"
-                                       Margin="6,0,0,0" />
+                            <TextBlock Text="Stricter" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
                             <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
                                 <Run Text="{Binding ElementName=SimilaritySlider, Path=Value, StringFormat={}{0:F0}}" />
                             </TextBlock>
@@ -145,7 +141,6 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14" />
 
-                        <!-- Burst thumbnail -->
                         <TextBlock Text="Group thumbnail" Margin="0,0,0,6" />
                         <RadioButton x:Name="ThumbHighestRated"
                                      Content="Highest rated  (falls back to first chronological)"
@@ -156,11 +151,174 @@
                                      GroupName="BurstThumb"
                                      Margin="0,0,0,14" />
 
-                        <!-- Collapse on open -->
                         <CheckBox x:Name="CollapseOnOpen"
                                   Content="Collapse bursts when opening a folder"
                                   Margin="0,0,0,4" />
                         <TextBlock Text="When enabled, each burst shows as a single stacked tile on folder load."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,18" />
+
+                        <!-- ─── HDR ─── -->
+                        <Separator Margin="0,0,0,16" />
+                        <TextBlock Text="HDR / AUTO-BRACKET"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="0,0,0,10" />
+
+                        <CheckBox x:Name="HdrEnabledCheck"
+                                  Content="Detect HDR / auto-bracket sequences"
+                                  Margin="0,0,0,4" />
+                        <TextBlock Text="Tags brackets shot of the same scene at different exposures with the system HDR tag and groups them like a burst."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
+
+                        <TextBlock Text="Minimum frames in a bracket" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="HdrMinBracketSizeSlider"
+                                    Minimum="2" Maximum="7"
+                                    SmallChange="1" LargeChange="1"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=HdrMinBracketSizeSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text=" frames" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Most cameras shoot 3-, 5-, or 7-frame brackets. Higher values reject short brackets."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
+
+                        <TextBlock Text="Minimum exposure spread" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Looser" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <Slider x:Name="HdrExposureSpreadSlider"
+                                    Minimum="0.3" Maximum="3.0"
+                                    SmallChange="0.1" LargeChange="0.5"
+                                    TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="Stricter" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=HdrExposureSpreadSlider, Path=Value, StringFormat={}{0:F1}}" />
+                                <Run Text=" EV" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Total exposure range that must span the bracket. Lower catches subtle ±⅓ EV brackets; higher only flags wide ±2 EV sweeps."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,18" />
+
+                        <!-- ─── Panorama ─── -->
+                        <Separator Margin="0,0,0,16" />
+                        <TextBlock Text="PANORAMA"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="0,0,0,10" />
+
+                        <CheckBox x:Name="PanoEnabledCheck"
+                                  Content="Detect panorama sweeps"
+                                  Margin="0,0,0,4" />
+                        <TextBlock Text="Chains adjacent shots whose camera-pan shift is consistent in direction. Detected sequences get the system Panorama tag and stack as a burst."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
+
+                        <TextBlock Text="Minimum frames in a panorama" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="PanoMinChainSlider"
+                                    Minimum="2" Maximum="7"
+                                    SmallChange="1" LargeChange="1"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=PanoMinChainSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text=" frames" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Reject sequences shorter than this. 3 catches most panoramas; 5+ avoids stray two-frame matches."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
+
+                        <TextBlock Text="Max gap between shots" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Slider x:Name="PanoGapSlider"
+                                    Minimum="1" Maximum="60"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="280"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=PanoGapSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text=" s" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Photographers often pace panoramas slowly. Raise this if your panos take longer between frames; lower it to avoid chaining unrelated shots."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
+
+                        <TextBlock Text="Frame overlap range" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Min" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <Slider x:Name="PanoMinOverlapSlider"
+                                    Minimum="5" Maximum="50"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=PanoMinOverlapSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text="%" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Max" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <Slider x:Name="PanoMaxOverlapSlider"
+                                    Minimum="50" Maximum="95"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=PanoMaxOverlapSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text="%" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Frames must overlap within this range. Above max = treated as a regular burst; below min = unrelated shots."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
+
+                        <TextBlock Text="Direction tolerance" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Stricter" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <Slider x:Name="PanoDirectionSlider"
+                                    Minimum="5" Maximum="90"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="Looser" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=PanoDirectionSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text="°" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Allowed direction change between consecutive panorama frames. Lower forces a near-perfect sweep; higher tolerates handheld drift."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"

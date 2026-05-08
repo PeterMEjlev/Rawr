@@ -1764,7 +1764,7 @@
                                                            Foreground="{StaticResource StarBrush}"
                                                            FontSize="10" />
                                             </Border>
-                                            <!-- Tag indicators (HDR system tag stacked above user tags) -->
+                                            <!-- Tag indicators (system tags stacked above user tags) -->
                                             <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                                         Margin="2" Orientation="Vertical">
                                                 <Border Background="#CCFF7A00"
@@ -1773,6 +1773,16 @@
                                                         ToolTip="HDR / auto-bracket"
                                                         Visibility="{Binding IsHdr, Converter={StaticResource BoolToVisibility}}">
                                                     <TextBlock Text="HDR"
+                                                               Foreground="White"
+                                                               FontSize="9"
+                                                               FontWeight="Bold" />
+                                                </Border>
+                                                <Border Background="#CC00B8B8"
+                                                        Padding="4,1" Margin="0,0,0,2"
+                                                        CornerRadius="2"
+                                                        ToolTip="Panorama"
+                                                        Visibility="{Binding IsPanorama, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="PANO"
                                                                Foreground="White"
                                                                FontSize="9"
                                                                FontWeight="Bold" />
@@ -2021,6 +2031,17 @@
                             ToolTip="HDR / auto-bracket"
                             Visibility="{Binding SelectedPhoto.IsHdr, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="HDR"
+                                   Foreground="White"
+                                   FontSize="12"
+                                   FontWeight="Bold" />
+                    </Border>
+                    <Border Background="#CC00B8B8"
+                            Padding="8,4"
+                            CornerRadius="3"
+                            Margin="0,0,0,4"
+                            ToolTip="Panorama"
+                            Visibility="{Binding SelectedPhoto.IsPanorama, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="PANO"
                                    Foreground="White"
                                    FontSize="12"
                                    FontWeight="Bold" />
@@ -2569,7 +2590,7 @@
                                                    Foreground="{StaticResource StarBrush}"
                                                    FontSize="10" />
                                     </Border>
-                                    <!-- Tag indicators (bottom-right): HDR system tag stacked above user tags -->
+                                    <!-- Tag indicators (bottom-right): system tags stacked above user tags -->
                                     <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                                 Margin="2" Orientation="Vertical">
                                         <Border Background="#CCFF7A00"
@@ -2578,6 +2599,16 @@
                                                 ToolTip="HDR / auto-bracket"
                                                 Visibility="{Binding IsHdr, Converter={StaticResource BoolToVisibility}}">
                                             <TextBlock Text="HDR"
+                                                       Foreground="White"
+                                                       FontSize="9"
+                                                       FontWeight="Bold" />
+                                        </Border>
+                                        <Border Background="#CC00B8B8"
+                                                Padding="4,1" Margin="0,0,0,2"
+                                                CornerRadius="2"
+                                                ToolTip="Panorama"
+                                                Visibility="{Binding IsPanorama, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="PANO"
                                                        Foreground="White"
                                                        FontSize="9"
                                                        FontWeight="Bold" />

@@ -77,6 +77,31 @@ public partial class SettingsWindow : Window
         DateFormatBox.Text = current.DateFormat;
         DoubleClickZoomSlider.Value = Math.Clamp(current.DoubleClickZoom, 1.5, 16.0);
 
+        // HDR detection
+        HdrEnabledCheck.IsChecked = current.HdrDetectionEnabled;
+        HdrMinBracketSizeSlider.Value = Math.Clamp(current.HdrMinBracketSize, 2, 7);
+        HdrExposureSpreadSlider.Value = Math.Clamp(current.HdrMinExposureSpread, 0.3f, 3.0f);
+
+        // Panorama detection
+        PanoEnabledCheck.IsChecked = current.PanoramaDetectionEnabled;
+        PanoMinChainSlider.Value = Math.Clamp(current.PanoramaMinChainSize, 2, 7);
+        PanoGapSlider.Value = Math.Clamp(current.PanoramaMaxGapSeconds, 1, 60);
+        PanoMinOverlapSlider.Value = Math.Clamp(current.PanoramaMinOverlapPct, 5, 50);
+        PanoMaxOverlapSlider.Value = Math.Clamp(current.PanoramaMaxOverlapPct, 50, 95);
+        PanoDirectionSlider.Value = Math.Clamp(current.PanoramaDirectionToleranceDeg, 5, 90);
+
+        // Keep min-overlap < max-overlap so the user can't invert the range.
+        PanoMinOverlapSlider.ValueChanged += (_, _) =>
+        {
+            if (PanoMinOverlapSlider.Value >= PanoMaxOverlapSlider.Value)
+                PanoMaxOverlapSlider.Value = Math.Min(95, PanoMinOverlapSlider.Value + 5);
+        };
+        PanoMaxOverlapSlider.ValueChanged += (_, _) =>
+        {
+            if (PanoMaxOverlapSlider.Value <= PanoMinOverlapSlider.Value)
+                PanoMinOverlapSlider.Value = Math.Max(5, PanoMaxOverlapSlider.Value - 5);
+        };
+
         var sortIdx = Array.FindIndex(SortOptions, o => o.Value == current.DefaultSortField);
         SortFieldBox.SelectedIndex = sortIdx >= 0 ? sortIdx : 0;
 
@@ -314,6 +339,15 @@ public partial class SettingsWindow : Window
             ClippedAreaThreshold = (byte)ClippedAreaThresholdSlider.Value,
             ClosedEyeThreshold = (byte)ClosedEyeThresholdSlider.Value,
             DoubleClickZoom     = DoubleClickZoomSlider.Value,
+            HdrDetectionEnabled = HdrEnabledCheck.IsChecked == true,
+            HdrMinBracketSize   = (int)HdrMinBracketSizeSlider.Value,
+            HdrMinExposureSpread = (float)HdrExposureSpreadSlider.Value,
+            PanoramaDetectionEnabled = PanoEnabledCheck.IsChecked == true,
+            PanoramaMinChainSize = (int)PanoMinChainSlider.Value,
+            PanoramaMaxGapSeconds = (int)PanoGapSlider.Value,
+            PanoramaMinOverlapPct = (int)PanoMinOverlapSlider.Value,
+            PanoramaMaxOverlapPct = (int)PanoMaxOverlapSlider.Value,
+            PanoramaDirectionToleranceDeg = (int)PanoDirectionSlider.Value,
             KeyBindings         = new Dictionary<string, string>(_editedBindings),
             Macros              = _editedMacros.Select(m => new KeyboardMacro
             {

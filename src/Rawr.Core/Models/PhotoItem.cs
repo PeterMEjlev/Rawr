@@ -31,6 +31,10 @@ public sealed partial class PhotoItem : ObservableObject
     // the orange HDR pill on thumbnails. Set by HdrDetector during folder load.
     [ObservableProperty] private bool _isHdr;
 
+    // True when this photo is part of a detected panorama sweep. Drives the
+    // teal Panorama pill. Set by PanoramaDetector during folder load.
+    [ObservableProperty] private bool _isPanorama;
+
     public HashSet<int> TagIds { get; } = new();
 
     // Preview state (set by background workers, consumed by UI)
@@ -41,6 +45,11 @@ public sealed partial class PhotoItem : ObservableObject
     // 64-bit dHash over the embedded thumbnail. Used by BurstDetector to gate
     // grouping on visual similarity. Null until computed; persisted in culling.db.
     public ulong? Phash { get; set; }
+
+    // Small grayscale buffer (~32×24, 768 bytes) computed from the thumbnail
+    // alongside the dHash and used by PanoramaDetector to estimate frame-to-frame
+    // shift. Transient — recomputed on next folder open, not persisted.
+    public byte[]? GrayBuffer { get; set; }
 
     // Share of thumbnail pixels (0-100) classified as clipped highlights or
     // crushed shadows respectively. Computed once from the cached thumbnail JPEG
