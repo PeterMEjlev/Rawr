@@ -7,3 +7,5 @@
 
 - ## Subject classifier — small zero-shot model (CLIP-tiny or similar) tags photos with "person", "landscape", "food", "animal". Filterable. Surprisingly accurate even at small sizes.
 
+- ## the tooltip for shortcuts with special characters like ÆØÅ just show up as \ and not the actual keyboard shortcut
+

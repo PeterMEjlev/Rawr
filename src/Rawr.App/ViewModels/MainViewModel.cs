@@ -45,11 +45,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // overwrite the file with transient null state.
     private string? _sessionFolder;
     private bool _suppressSessionSave;
+    private CancellationTokenSource? _sessionSaveCts;
+    private CancellationTokenSource? _rawPrefetchCts;
 
     // Photos within this radius of the current selection keep their PreviewJpeg /
     // FullJpeg bytes in memory for instant browsing. Photos outside the window are
     // evicted on selection change to keep memory bounded.
     private const int KeepRadius = 2;
+    private readonly HashSet<PhotoItem> _retainedPreviewPhotos = [];
+    private const int SessionSaveDebounceMs = 600;
+    private const int CachedRawDecodeSettleDelayMs = 45;
+    private const int RawDecodeSettleDelayMs = 180;
+    private const int FullJpegPreloadSettleDelayMs = 350;
+    private const int RawPrefetchSettleDelayMs = 650;
 
     // ── Observable state ──
 
@@ -790,8 +798,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public async Task LoadFolderAsync(string folderPath)
     {
+        FlushSessionSave();
+
         // Cancel any in-progress indexing
         _indexCts?.Cancel();
+        _previewCts?.Cancel();
+        _rawDecodeCts?.Cancel();
+        _rawPrefetchCts?.Cancel();
         _indexCts = new CancellationTokenSource();
         var ct = _indexCts.Token;
 
@@ -825,6 +838,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         VideoSourceUri = null;
         SelectedPhoto = null;
         SelectedIndex = -1;
+        ClearRetainedPreviewPhotos();
         // History references PhotoItem instances that won't survive a folder switch.
         History.Clear();
 
@@ -1119,6 +1133,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         _exposureCts?.Cancel();
         _rawDecodeCts?.Cancel();
+        _rawPrefetchCts?.Cancel();
         _basePreviewImage = null;
         _baseRawImage = null;
         IsLinearRawReady = false;
@@ -1134,6 +1149,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         EvictFarPhotos(value);
         _ = LoadPreviewForSelectedAsync(ct);
         _ = PrefetchNeighborsAsync(value, ct);
+        QueueRawNeighborPrefetch(value);
         UpdateStatus();
     }
 
@@ -1157,7 +1173,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Persist last-selected so reopening this folder jumps straight back here.
         // Skip when value is null — that's almost always the transient clear during
         // folder load or filter rebuild, not a real "user deselected everything".
-        if (value != null) SaveSessionIfNeeded();
+        if (value != null) QueueSessionSave();
     }
 
     private void OnSelectedPhotoPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1730,21 +1746,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            // Fast path: a previous decode already wrote the linear-RAW buffer to
-            // disk, so we can skip the JPEG-first paint entirely. Reading + sRGB-
-            // encoding the cached buffer is fast enough (~30-80ms) that we don't
-            // need a placeholder at all — leaving the previous photo's RAW render
-            // on screen for that interval looks far smoother than flashing the
-            // small thumbnail or a black gap. PreviewImage is only replaced once
-            // LoadLinearRawAsync finishes rendering the new buffer.
-            if (photo.IsRaw && _libRaw != null && _cache != null
-                && _cache.HasLinearRaw(photo.FileName))
-            {
-                StartRawDecode(photo);
-                _ = LoadPreviewJpegInBackgroundAsync(photo, ct);
-                return;
-            }
-
             // Already-resident bytes (set by an earlier prefetch) — skip the disk read.
             var cached = photo.PreviewJpeg ?? _cache?.LoadPreview(photo.FileName);
             if (cached != null)
@@ -1757,6 +1758,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
                 _ = PreloadFullJpegAsync(photo, ct);
                 StartRawDecode(photo);
+                return;
+            }
+
+            // Fast path: a previous decode already wrote the linear-RAW buffer to
+            // disk. If no JPEG preview is cached yet, keep the previous frame up
+            // briefly and let the delayed RAW path replace it once navigation settles.
+            if (photo.IsRaw && _libRaw != null && _cache != null
+                && _cache.HasLinearRaw(photo.FileName))
+            {
+                StartRawDecode(photo);
+                _ = LoadPreviewJpegInBackgroundAsync(photo, ct);
                 return;
             }
 
@@ -1799,7 +1811,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!photo.IsRaw || photo.IsVideo) return;
         _rawDecodeCts?.Cancel();
         _rawDecodeCts = new CancellationTokenSource();
-        _ = LoadLinearRawAsync(photo, _rawDecodeCts.Token);
+        _ = StartRawDecodeAfterSettleAsync(photo, _rawDecodeCts.Token);
+    }
+
+    private async Task StartRawDecodeAfterSettleAsync(PhotoItem photo, CancellationToken ct)
+    {
+        try
+        {
+            var hasCachedRaw = _cache?.HasLinearRaw(photo.FileName) == true;
+            await Task.Delay(hasCachedRaw ? CachedRawDecodeSettleDelayMs : RawDecodeSettleDelayMs, ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+            await LoadLinearRawAsync(photo, ct);
+        }
+        catch (OperationCanceledException) { /* selection moved on before RAW work started */ }
     }
 
     /// <summary>
@@ -1878,6 +1902,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (photo.IsVideo || photo.FullJpeg != null) return;
         try
         {
+            await Task.Delay(FullJpegPreloadSettleDelayMs, ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo || photo.FullJpeg != null) return;
+
             var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractFullJpeg(photo.FilePath), ct);
             if (!ct.IsCancellationRequested && jpeg != null)
             {
@@ -1890,16 +1917,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Warm the disk/memory preview cache for photos adjacent to the current selection
-    /// so Next/Previous feels instant. Two layers:
-    ///   1. JPEG preview — cached in memory on PhotoItem so the swap is instant.
-    ///   2. Linear RAW — written to disk only; the buffer is ~50MB so we don't hold
-    ///      it in RAM, but persisting it means the next selection skips LibRaw.
-    ///
-    /// Each photo's RAW decode takes ~1-3s and is single-threaded inside LibRaw,
-    /// but multiple LibRaw handles run independently — so we fan out across cores
-    /// rather than serialising. ProcessorCount/2 leaves headroom for the UI thread,
-    /// the active-photo decode, and the JPEG codec.
+    /// Warm JPEG previews for photos adjacent to the current selection so
+    /// Next/Previous can paint from memory. RAW prefetch is deliberately delayed
+    /// until navigation settles; LibRaw work cannot be interrupted mid-decode and
+    /// should not compete with rapid arrow-key browsing.
     /// </summary>
     private async Task PrefetchNeighborsAsync(int currentIndex, CancellationToken ct)
     {
@@ -1915,7 +1936,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         if (targets.Count == 0) return;
 
-        int parallelism = Math.Max(1, Math.Min(targets.Count, Math.Max(2, Environment.ProcessorCount / 2)));
+        int parallelism = Math.Max(1, Math.Min(targets.Count, 2));
         using var gate = new SemaphoreSlim(parallelism);
 
         var tasks = new List<Task>(targets.Count);
@@ -1936,9 +1957,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Warm both the JPEG preview cache and the linear-RAW disk cache for a single
-    /// photo. Safe to call concurrently for different photos. Synchronous — caller
-    /// wraps in Task.Run so multiple photos can decode in parallel.
+    /// Warm the JPEG preview cache for a single photo. Safe to call concurrently
+    /// for different photos. Synchronous — caller wraps in Task.Run.
     /// </summary>
     private void PrefetchPhoto(PhotoItem photo, CancellationToken ct)
     {
@@ -1962,10 +1982,53 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 }
             }
         }
+    }
 
-        // Warm the linear-RAW disk cache so the slow unpack+process runs while
-        // the user is looking at the current photo, not when they hit Next. Skip
-        // if a valid cache file already exists.
+    private void QueueRawNeighborPrefetch(int currentIndex)
+    {
+        _rawPrefetchCts?.Cancel();
+        if (_libRaw == null || _cache == null) return;
+
+        var cts = new CancellationTokenSource();
+        _rawPrefetchCts = cts;
+        _ = PrefetchRawNeighborsAfterSettleAsync(currentIndex, cts);
+    }
+
+    private async Task PrefetchRawNeighborsAfterSettleAsync(int currentIndex, CancellationTokenSource cts)
+    {
+        var ct = cts.Token;
+        try
+        {
+            await Task.Delay(RawPrefetchSettleDelayMs, ct);
+            if (ct.IsCancellationRequested || SelectedIndex != currentIndex) return;
+
+            var targets = new List<PhotoItem>(2);
+            foreach (var offset in new[] { 1, -1 })
+            {
+                var i = currentIndex + offset;
+                if (i < 0 || i >= FilteredPhotos.Count) continue;
+                var photo = FilteredPhotos[i];
+                if (photo.IsRaw && !photo.IsVideo)
+                    targets.Add(photo);
+            }
+
+            foreach (var photo in targets)
+            {
+                if (ct.IsCancellationRequested || SelectedIndex != currentIndex) return;
+                await Task.Run(() => PrefetchLinearRaw(photo, ct), ct);
+            }
+        }
+        catch (OperationCanceledException) { /* navigation moved on */ }
+        finally
+        {
+            if (ReferenceEquals(_rawPrefetchCts, cts))
+                _rawPrefetchCts = null;
+            cts.Dispose();
+        }
+    }
+
+    private void PrefetchLinearRaw(PhotoItem photo, CancellationToken ct)
+    {
         if (_libRaw != null && photo.IsRaw && _cache != null
             && _cache.LoadLinearRaw(photo.FileName, photo.FilePath) == null)
         {
@@ -2213,13 +2276,38 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private void EvictFarPhotos(int currentIndex)
     {
-        for (int i = 0; i < FilteredPhotos.Count; i++)
+        if (currentIndex < 0 || currentIndex >= FilteredPhotos.Count)
         {
-            if (Math.Abs(i - currentIndex) <= KeepRadius) continue;
-            var photo = FilteredPhotos[i];
-            if (photo.PreviewJpeg != null) photo.PreviewJpeg = null;
-            if (photo.FullJpeg != null) photo.FullJpeg = null;
+            ClearRetainedPreviewPhotos();
+            return;
         }
+
+        var nextWindow = new HashSet<PhotoItem>();
+        int start = Math.Max(0, currentIndex - KeepRadius);
+        int end = Math.Min(FilteredPhotos.Count - 1, currentIndex + KeepRadius);
+        for (int i = start; i <= end; i++)
+            nextWindow.Add(FilteredPhotos[i]);
+
+        foreach (var photo in _retainedPreviewPhotos)
+        {
+            if (nextWindow.Contains(photo)) continue;
+            photo.PreviewJpeg = null;
+            photo.FullJpeg = null;
+        }
+
+        _retainedPreviewPhotos.Clear();
+        foreach (var photo in nextWindow)
+            _retainedPreviewPhotos.Add(photo);
+    }
+
+    private void ClearRetainedPreviewPhotos()
+    {
+        foreach (var photo in _retainedPreviewPhotos)
+        {
+            photo.PreviewJpeg = null;
+            photo.FullJpeg = null;
+        }
+        _retainedPreviewPhotos.Clear();
     }
 
     // Default screen-size decode for the main preview. LibRaw always extracts the
@@ -3836,6 +3924,41 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         CaptureSessionState().Save(_sessionFolder);
     }
 
+    private void QueueSessionSave()
+    {
+        if (_suppressSessionSave) return;
+        if (string.IsNullOrEmpty(_sessionFolder)) return;
+
+        _sessionSaveCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _sessionSaveCts = cts;
+        _ = SaveSessionAfterDelayAsync(cts);
+    }
+
+    private async Task SaveSessionAfterDelayAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(SessionSaveDebounceMs, cts.Token);
+            if (!cts.IsCancellationRequested)
+                SaveSessionIfNeeded();
+        }
+        catch (OperationCanceledException) { /* superseded by a newer selection */ }
+        finally
+        {
+            if (ReferenceEquals(_sessionSaveCts, cts))
+                _sessionSaveCts = null;
+            cts.Dispose();
+        }
+    }
+
+    private void FlushSessionSave()
+    {
+        _sessionSaveCts?.Cancel();
+        _sessionSaveCts = null;
+        SaveSessionIfNeeded();
+    }
+
     private void RestoreSelection(PhotoItem? previousSelection)
     {
         if (previousSelection != null)
@@ -4336,6 +4459,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _indexCts?.Dispose();
         _previewCts?.Cancel();
         _previewCts?.Dispose();
+        _rawPrefetchCts?.Cancel();
         _analyzeFacesCts?.Cancel();
         _analyzeFacesCts?.Dispose();
         _faceAnalyzer?.Dispose();
