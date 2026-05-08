@@ -55,6 +55,8 @@
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="FilterToggleButton"
                                   IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}"
+                                  PreviewMouseLeftButtonDown="FilterToggleButton_PreviewMouseLeftButtonDown"
+                                  PreviewMouseLeftButtonUp="FilterToggleButton_PreviewMouseLeftButtonUp"
                                   ToolTip="Filter photos by rating, flag, color, burst, or tag  —  Ctrl+Shift+X to clear all filters">
                         <ToggleButton.Style>
                             <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
@@ -72,6 +74,7 @@
                            StaysOpen="False"
                            Placement="Bottom"
                            PlacementTarget="{Binding ElementName=FilterToggleButton}"
+                           Closed="FilterPopup_Closed"
                            AllowsTransparency="True">
                         <Border Background="{StaticResource BgControlBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"

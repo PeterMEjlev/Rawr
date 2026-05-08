@@ -74,6 +74,7 @@ public partial class MainWindow : Window
     private bool _videoSuppressSliderEvent;
     private TimeSpan _videoDuration;
     private bool _videoIsMuted;
+    private bool _suppressFilterToggleMouseUp;
 
     // Cached lookup of (Key, ModifierKeys) → (Action, Command, CommandParameter) for
     // fast shortcut matching in the fallback dead-key handler. Action is null for
@@ -485,6 +486,32 @@ public partial class MainWindow : Window
     {
         if (sender is not ListBox lb || lb.SelectedItem is null) return;
         lb.ScrollIntoView(lb.SelectedItem);
+    }
+
+    private void FilterToggleButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!FilterPopup.IsOpen) return;
+
+        _suppressFilterToggleMouseUp = true;
+        FilterPopup.IsOpen = false;
+        FilterToggleButton.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void FilterToggleButton_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_suppressFilterToggleMouseUp) return;
+
+        _suppressFilterToggleMouseUp = false;
+        FilterPopup.IsOpen = false;
+        FilterToggleButton.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void FilterPopup_Closed(object? sender, EventArgs e)
+    {
+        if (FilterToggleButton.IsMouseOver && Mouse.LeftButton == MouseButtonState.Pressed)
+            _suppressFilterToggleMouseUp = true;
     }
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
