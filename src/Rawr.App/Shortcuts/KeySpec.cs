@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Input;
@@ -43,9 +44,33 @@ public sealed record KeySpec(Key Key, ModifierKeys Modifiers)
         return key.HasValue ? new KeySpec(key.Value, mods) : null;
     }
 
+    /// <summary>
+    /// Canonical, round-trippable string form. Always uses the Key enum's name
+    /// (e.g. "Oem3", "OemTilde") so KeySpec.TryParse can read it back. This is
+    /// what gets persisted to settings JSON; do NOT use for UI.
+    /// </summary>
     public override string ToString() => Format(Key, Modifiers);
 
     public static string Format(Key key, ModifierKeys mods)
+    {
+        var sb = new StringBuilder();
+        if (mods.HasFlag(ModifierKeys.Control)) sb.Append("Ctrl+");
+        if (mods.HasFlag(ModifierKeys.Shift))   sb.Append("Shift+");
+        if (mods.HasFlag(ModifierKeys.Alt))     sb.Append("Alt+");
+        if (mods.HasFlag(ModifierKeys.Windows)) sb.Append("Win+");
+        sb.Append(CanonicalKeyName(key));
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Human-readable form for UI: digits as-is, Oem* keys translated to their
+    /// current-layout character (so Danish users see Æ/Ø/Å instead of "Oem3" or
+    /// the wrong-layout fallback). NEVER use this for serialization — the result
+    /// can't be round-tripped through TryParse on a different layout.
+    /// </summary>
+    public string FormatForDisplay() => FormatForDisplay(Key, Modifiers);
+
+    public static string FormatForDisplay(Key key, ModifierKeys mods)
     {
         var sb = new StringBuilder();
         if (mods.HasFlag(ModifierKeys.Control)) sb.Append("Ctrl+");
@@ -56,35 +81,51 @@ public sealed record KeySpec(Key Key, ModifierKeys Modifiers)
         return sb.ToString();
     }
 
+    private static string CanonicalKeyName(Key key) => key switch
+    {
+        Key.D0 => "0", Key.D1 => "1", Key.D2 => "2", Key.D3 => "3", Key.D4 => "4",
+        Key.D5 => "5", Key.D6 => "6", Key.D7 => "7", Key.D8 => "8", Key.D9 => "9",
+        _ => key.ToString(),
+    };
+
     public static string KeyDisplayName(Key key)
     {
-        var name = key switch
+        // Digits are stable across layouts.
+        var digit = key switch
         {
             Key.D0 => "0", Key.D1 => "1", Key.D2 => "2", Key.D3 => "3", Key.D4 => "4",
             Key.D5 => "5", Key.D6 => "6", Key.D7 => "7", Key.D8 => "8", Key.D9 => "9",
-            Key.OemPlus     => "=",
-            Key.OemMinus    => "-",
-            Key.OemComma    => ",",
-            Key.OemPeriod   => ".",
-            Key.OemQuestion => "/",
-            Key.OemTilde    => "`",
-            Key.OemSemicolon => ";",
-            Key.OemQuotes   => "'",
-            Key.OemOpenBrackets => "[",
+            _ => null
+        };
+        if (digit is not null) return digit;
+
+        // Oem* keys produce different characters on different layouts. Prefer the
+        // current-layout character (e.g. Æ/Ø/Å on Danish) over the US-layout
+        // fallback so the user sees what they actually typed.
+        if (key.ToString().StartsWith("Oem", StringComparison.Ordinal))
+        {
+            var ch = GetKeyCharInCurrentLayout(key);
+            if (!string.IsNullOrEmpty(ch)) return ch;
+        }
+
+        // US-layout fallback for keys whose layout-aware character lookup failed.
+        var fallback = key switch
+        {
+            Key.OemPlus          => "=",
+            Key.OemMinus         => "-",
+            Key.OemComma         => ",",
+            Key.OemPeriod        => ".",
+            Key.OemQuestion      => "/",
+            Key.OemTilde         => "`",
+            Key.OemSemicolon     => ";",
+            Key.OemQuotes        => "'",
+            Key.OemOpenBrackets  => "[",
             Key.OemCloseBrackets => "]",
-            Key.OemPipe     => "\\",
+            Key.OemPipe          => "\\",
             _ => null
         };
 
-        // For unmapped Oem keys, try to get the character from the current keyboard layout.
-        // This helps with non-US layouts (e.g., Danish Æ/Ø/Å).
-        if (name is null)
-        {
-            name = GetKeyCharInCurrentLayout(key);
-            if (name is not null) return name;
-        }
-
-        return name ?? key.ToString();
+        return fallback ?? key.ToString();
     }
 
     public static bool IsModifierKey(Key k) =>
@@ -111,6 +152,34 @@ public sealed record KeySpec(Key Key, ModifierKeys Modifiers)
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int MapVirtualKey(uint uCode, uint uMapType);
     private const uint MAPVK_VK_TO_CHAR = 2;
+
+    // Diagnostic log written to %APPDATA%\RAWR\shortcut-keys.log so non-US-layout
+    // capture issues can be inspected after the fact. Each entry records the raw
+    // KeyEventArgs fields plus the layout-aware character we resolved.
+    private static readonly string DiagLogPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "RAWR", "shortcut-keys.log");
+
+    public static void LogKeyDiagnostic(string source, KeyEventArgs e)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(DiagLogPath)!);
+            var resolved = ResolveKey(e);
+            var vk = KeyInterop.VirtualKeyFromKey(resolved);
+            var ch = GetKeyCharInCurrentLayout(resolved);
+            var line =
+                $"{DateTime.Now:HH:mm:ss.fff} [{source}] " +
+                $"Key={e.Key} SystemKey={e.SystemKey} ImeKey={e.ImeProcessedKey} " +
+                $"DeadKey={e.DeadCharProcessedKey} Resolved={resolved} VK=0x{vk:X2} " +
+                $"LayoutChar='{ch}' Mods={Keyboard.Modifiers}";
+            File.AppendAllText(DiagLogPath, line + Environment.NewLine);
+        }
+        catch
+        {
+            // Diagnostic logging is best-effort; never throw to caller.
+        }
+    }
 
     // Get the character that a key produces in the current keyboard layout.
     // For display purposes only; returns null if the key doesn't produce a printable character.

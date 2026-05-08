@@ -183,7 +183,7 @@ public partial class SettingsWindow : Window
         }
 
         var (spec, unbound) = ShortcutBinder.ResolveBinding(SettingsSnapshot(), action);
-        btn.Content = unbound ? "(unbound)" : (spec?.ToString() ?? "(unbound)");
+        btn.Content = unbound ? "(unbound)" : (spec?.FormatForDisplay() ?? "(unbound)");
     }
 
     private AppSettings SettingsSnapshot() => new()
@@ -229,8 +229,16 @@ public partial class SettingsWindow : Window
 
     private void OnPreviewKeyDownCapture(object sender, KeyEventArgs e)
     {
-        if (_recordingActionId is not null) HandleShortcutKeyRecording(e);
-        else if (_recordingMacroId is not null) HandleMacroKeyRecording(e);
+        if (_recordingActionId is not null)
+        {
+            KeySpec.LogKeyDiagnostic($"shortcut:{_recordingActionId}", e);
+            HandleShortcutKeyRecording(e);
+        }
+        else if (_recordingMacroId is not null)
+        {
+            KeySpec.LogKeyDiagnostic($"macro:{_recordingMacroId}", e);
+            HandleMacroKeyRecording(e);
+        }
     }
 
     private void HandleShortcutKeyRecording(KeyEventArgs e)
@@ -532,7 +540,7 @@ public partial class SettingsWindow : Window
         }
 
         var spec = KeySpec.TryParse(macro.KeyBinding);
-        btn.Content = spec?.ToString() ?? "(unbound)";
+        btn.Content = spec?.FormatForDisplay() ?? "(unbound)";
     }
 
     private void AddMacro_Click(object sender, RoutedEventArgs e)

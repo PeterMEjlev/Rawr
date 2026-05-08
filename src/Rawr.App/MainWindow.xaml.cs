@@ -76,8 +76,9 @@ public partial class MainWindow : Window
     private bool _videoIsMuted;
 
     // Cached lookup of (Key, ModifierKeys) → (Action, Command, CommandParameter) for
-    // fast shortcut matching in the fallback dead-key handler.
-    private Dictionary<(Key, ModifierKeys), (ShortcutAction Action, ICommand Cmd, object? Param)>? _shortcutMap;
+    // fast shortcut matching in the fallback dead-key handler. Action is null for
+    // macro entries since macros aren't part of the ShortcutRegistry.
+    private Dictionary<(Key, ModifierKeys), (ShortcutAction? Action, ICommand Cmd, object? Param)>? _shortcutMap;
 
     /// <summary>Toggles the tags popup. Bound by default to 'T' via the shortcut registry.</summary>
     public ICommand OpenTagsCommand { get; }
@@ -508,10 +509,12 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    // Fallback handler for dead-keys and IME-processed keys. On non-US keyboard
-    // layouts, certain keys (Æ, Ø, Å, ´, etc.) may arrive as Key.DeadCharProcessed
-    // or Key.ImeProcessed, which don't match InputBindings. This handler resolves
-    // to the underlying key and tries matching against registered shortcuts.
+    // Fallback handler that tries to match shortcuts via the resolved key, covering
+    // cases InputBindings miss: dead-key/IME-processed keys (Key.DeadCharProcessed,
+    // Key.ImeProcessed) on non-US layouts, and any other situation where e.Key is a
+    // placeholder. We run this for every key down — if InputBindings would have
+    // fired first (synchronous tunnelling order), e.Handled is already true and we
+    // bail out, so no double-execution.
     private void OnWindowPreviewKeyDownResolveDeadKeys(object sender, KeyEventArgs e)
     {
         if (e.Handled) return;
@@ -520,37 +523,54 @@ public partial class MainWindow : Window
         // are applied in ShortcutBinder for InputBindings; apply same logic here).
         if (Keyboard.FocusedElement is TextBox or PasswordBox or RichTextBox) return;
 
-        var key = e.Key;
-        if (key is not (Key.DeadCharProcessed or Key.ImeProcessed)) return;
+        // Resolve the underlying key (unwraps System/Ime/DeadCharProcessed).
+        var resolved = KeySpec.ResolveKey(e);
+        if (resolved == Key.None || KeySpec.IsModifierKey(resolved)) return;
 
-        // Resolve the underlying key.
-        key = KeySpec.ResolveKey(e);
-        if (key == Key.None) return;
+        // Diagnostic — only log when the resolved key differs from e.Key (i.e. WPF
+        // gave us a placeholder), so the log doesn't fill up on normal keystrokes.
+        if (resolved != e.Key)
+            KeySpec.LogKeyDiagnostic("runtime", e);
 
         var mods = Keyboard.Modifiers;
 
         // Build the shortcut map on first use.
         _shortcutMap ??= BuildShortcutMap();
 
-        // Try matching the resolved key.
-        if (_shortcutMap.TryGetValue((key, mods), out var match))
+        if (_shortcutMap.TryGetValue((resolved, mods), out var match))
         {
             match.Cmd.Execute(match.Param);
             e.Handled = true;
         }
     }
 
-    private Dictionary<(Key, ModifierKeys), (ShortcutAction, ICommand, object?)> BuildShortcutMap()
+    private Dictionary<(Key, ModifierKeys), (ShortcutAction? Action, ICommand Cmd, object? Param)> BuildShortcutMap()
     {
-        var map = new Dictionary<(Key, ModifierKeys), (ShortcutAction, ICommand, object?)>();
+        var map = new Dictionary<(Key, ModifierKeys), (ShortcutAction? Action, ICommand Cmd, object? Param)>();
         var settings = AppSettings.Current;
 
         if (DataContext is not MainViewModel vm) return map;
+
+        // Macros take priority over built-in shortcuts on the same combo, matching
+        // ShortcutBinder.ApplyTo's collision policy.
+        var macroKeys = new HashSet<(Key, ModifierKeys)>();
+        foreach (var macro in settings.Macros)
+        {
+            if (!macro.HasAnyAction) continue;
+            var spec = KeySpec.TryParse(macro.KeyBinding);
+            if (spec is null) continue;
+            if (!macroKeys.Add((spec.Key, spec.Modifiers))) continue;
+
+            var capturedMacro = macro;
+            ICommand cmd = new RelayCommand(() => vm.ExecuteMacro(capturedMacro));
+            map[(spec.Key, spec.Modifiers)] = (null, cmd, null);
+        }
 
         foreach (var action in ShortcutRegistry.All)
         {
             var (spec, _) = ShortcutBinder.ResolveBinding(settings, action);
             if (spec is null) continue;
+            if (macroKeys.Contains((spec.Key, spec.Modifiers))) continue;
 
             var cmd = action.ResolveCommand(this);
             if (cmd is null) continue;
