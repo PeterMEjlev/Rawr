@@ -184,7 +184,7 @@ public partial class MainWindow : Window
                 vm.GridColumnCount = Math.Clamp(layout.GridColumnCount, 1, 8);
                 vm.ExpandedGridColumnCount = Math.Clamp(layout.ExpandedGridColumnCount, 1, 16);
                 _savedFilmstripHeight = new GridLength(Math.Clamp(layout.FilmstripRowHeight, 80, 400));
-                RootGrid.RowDefinitions[3].Height = _savedFilmstripHeight;
+                RootGrid.RowDefinitions[4].Height = _savedFilmstripHeight;
                 vm.ShowGrid = layout.ShowGrid;
                 vm.ShowFilmstrip = layout.ShowFilmstrip;
                 vm.IsGridExpanded = layout.IsGridExpanded;
@@ -219,7 +219,7 @@ public partial class MainWindow : Window
             if (DataContext is not MainViewModel vm) return;
             Directory.CreateDirectory(SettingsDir);
             var height = vm.ShowFilmstrip
-                ? RootGrid.RowDefinitions[3].ActualHeight
+                ? RootGrid.RowDefinitions[4].ActualHeight
                 : _savedFilmstripHeight.Value;
 
             // Carry forward the second-monitor bounds so the next session restores
@@ -384,18 +384,18 @@ public partial class MainWindow : Window
         var rows = RootGrid.RowDefinitions;
         if (show)
         {
-            rows[2].Height = new GridLength(4);
-            rows[3].MinHeight = 80;
-            rows[3].Height = _savedFilmstripHeight;
+            rows[3].Height = new GridLength(4);
+            rows[4].MinHeight = 80;
+            rows[4].Height = _savedFilmstripHeight;
         }
         else
         {
-            var current = rows[3].ActualHeight;
+            var current = rows[4].ActualHeight;
             if (current > 0)
                 _savedFilmstripHeight = new GridLength(current);
-            rows[2].Height = new GridLength(0);
-            rows[3].MinHeight = 0;
             rows[3].Height = new GridLength(0);
+            rows[4].MinHeight = 0;
+            rows[4].Height = new GridLength(0);
         }
     }
 

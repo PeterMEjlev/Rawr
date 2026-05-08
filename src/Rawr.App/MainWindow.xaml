@@ -24,6 +24,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />                              <!-- Toolbar -->
             <RowDefinition Height="*" />                                 <!-- Main split: preview + metadata -->
+            <RowDefinition Height="Auto" />                              <!-- Preview action bar -->
             <RowDefinition Height="4" />                                 <!-- Filmstrip splitter -->
             <RowDefinition Height="148" MinHeight="80" MaxHeight="400"/> <!-- Filmstrip -->
             <RowDefinition Height="Auto" />                              <!-- Status bar -->
@@ -2217,8 +2218,34 @@
                                      SetHistogramModeCommand="{Binding SetHistogramModeCommand}" />
         </Grid>
         </Grid>
+        <!-- ================ PREVIEW ACTION BAR ================ -->
+        <Border Grid.Row="2"
+                Background="{StaticResource BgToolbarBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="6,3">
+            <StackPanel Orientation="Horizontal">
+                <ToggleButton IsChecked="{Binding IsGridExpanded}"
+                              Padding="8,2"
+                              FontSize="11"
+                              MinWidth="0"
+                              ToolTip="Toggle full grid view — hide the preview pane and expand the thumbnail grid (\)">
+                    <ToggleButton.Style>
+                        <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                            <Setter Property="Content" Value="⛶ Full Grid" />
+                            <Style.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter Property="Content" Value="⛶ Exit Full Grid" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ToggleButton.Style>
+                </ToggleButton>
+            </StackPanel>
+        </Border>
+
         <!-- ================ FILMSTRIP SPLITTER ================ -->
-        <GridSplitter Grid.Row="2"
+        <GridSplitter Grid.Row="3"
                       Height="4"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"
@@ -2226,7 +2253,7 @@
                       Cursor="SizeNS" />
 
         <!-- ================ FILMSTRIP ================ -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Background="{StaticResource BgFilmstripBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,1">
@@ -2458,7 +2485,7 @@
         </Border>
 
         <!-- ================ STATUS BAR ================ -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Background="{StaticResource BgToolbarBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"

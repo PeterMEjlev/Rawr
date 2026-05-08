@@ -19,7 +19,8 @@
       "Bash(powershell -Command \"Select-String -Path 'C:\\\\Users\\\\Torsten\\\\Desktop\\\\RAWR\\\\src\\\\Rawr.App\\\\MainWindow.xaml' -Pattern 'SidebarBucketButton|SidebarBucketStyle' -AllMatches | Measure-Object\")",
       "Bash(git fetch *)",
       "Bash(git pull *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(awk 'NR>=1134 && NR<=2220' src/Rawr.App/MainWindow.xaml)"
     ]
   }
 }
