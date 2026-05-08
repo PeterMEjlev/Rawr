@@ -74,11 +74,37 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public Visibility GridFilenameVisibility => GridThumbnailSize >= 60 ? Visibility.Visible : Visibility.Collapsed;
 
-    [ObservableProperty] private int _gridColumnCount = 2;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveGridColumnCount))]
+    private int _gridColumnCount = 2;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveGridColumnCount))]
+    private int _expandedGridColumnCount = 6;
     [ObservableProperty] private double _filmstripItemWidth = 140.0; // derived in code-behind from filmstrip height
     [ObservableProperty] private bool _showGrid = true;
     [ObservableProperty] private bool _showFilmstrip = true;
     [ObservableProperty] private bool _showSecondMonitor;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveGridColumnCount))]
+    [NotifyPropertyChangedFor(nameof(MaxGridColumnCount))]
+    private bool _isGridExpanded;
+
+    // Single value the GRID slider binds to; routes to whichever underlying field
+    // matches the current mode so that normal- and expanded-mode column counts
+    // stay independent.
+    public int ActiveGridColumnCount
+    {
+        get => IsGridExpanded ? ExpandedGridColumnCount : GridColumnCount;
+        set
+        {
+            if (IsGridExpanded) ExpandedGridColumnCount = value;
+            else GridColumnCount = value;
+        }
+    }
+
+    // Expanded mode has far more horizontal space, so it gets a higher cap to
+    // let users squeeze in smaller thumbnails for fast triage.
+    public int MaxGridColumnCount => IsGridExpanded ? 16 : 8;
 
     public ObservableCollection<FolderNode> FolderTreeRoots { get; } = [];
     [ObservableProperty] private HistogramData? _histogramData;
@@ -1328,6 +1354,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void SetSidePanelView(SidePanelView view) => SidePanelView = view;
+
+    [RelayCommand]
+    private void ToggleGridExpanded() => IsGridExpanded = !IsGridExpanded;
 
     [RelayCommand]
     private void ToggleFocusPeaking()

@@ -1561,6 +1561,25 @@
                                        VerticalAlignment="Center"
                                        DockPanel.Dock="Left"
                                        Margin="0,0,8,0" />
+                            <ToggleButton DockPanel.Dock="Right"
+                                          IsChecked="{Binding IsGridExpanded}"
+                                          Margin="6,0,0,0"
+                                          Padding="6,1"
+                                          FontSize="12"
+                                          MinWidth="0">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                        <Setter Property="Content" Value="⇥" />
+                                        <Setter Property="ToolTip" Value="Expand grid — hide preview pane (\)" />
+                                        <Style.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter Property="Content" Value="⇤" />
+                                                <Setter Property="ToolTip" Value="Restore preview pane (\)" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
                             <TextBlock Text="+"
                                        Foreground="{StaticResource TextDimBrush}"
                                        FontSize="12"
@@ -1573,8 +1592,9 @@
                                        VerticalAlignment="Center"
                                        DockPanel.Dock="Left"
                                        Margin="0,0,4,0" />
-                            <Slider Minimum="1" Maximum="8"
-                                    Value="{Binding GridColumnCount}"
+                            <Slider Minimum="1"
+                                    Maximum="{Binding MaxGridColumnCount}"
+                                    Value="{Binding ActiveGridColumnCount}"
                                     IsDirectionReversed="True"
                                     VerticalAlignment="Center"
                                     SmallChange="1"

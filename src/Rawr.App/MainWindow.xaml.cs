@@ -33,6 +33,8 @@ public partial class MainWindow : Window
         bool ShowGrid = true,
         bool ShowFilmstrip = true,
         bool ShowSecondMonitor = false,
+        bool IsGridExpanded = false,
+        int ExpandedGridColumnCount = 6,
         double? SecondMonitorLeft = null,
         double? SecondMonitorTop = null,
         double? SecondMonitorWidth = null,
@@ -120,10 +122,12 @@ public partial class MainWindow : Window
                     if (!sameGroup)
                         ResetPreviewZoom();
                 }
-                if (e.PropertyName == nameof(MainViewModel.GridColumnCount))
+                if (e.PropertyName == nameof(MainViewModel.ActiveGridColumnCount))
                     RecalcGridThumbnailSize();
                 if (e.PropertyName == nameof(MainViewModel.ShowGrid) && DataContext is MainViewModel vmG)
                     ApplyGridVisibility(vmG.ShowGrid);
+                if (e.PropertyName == nameof(MainViewModel.IsGridExpanded) && DataContext is MainViewModel vmE)
+                    ApplyGridExpanded(vmE.IsGridExpanded);
                 if (e.PropertyName == nameof(MainViewModel.ShowFilmstrip) && DataContext is MainViewModel vmF)
                     ApplyFilmstripVisibility(vmF.ShowFilmstrip);
                 if (e.PropertyName == nameof(MainViewModel.ShowSecondMonitor) && DataContext is MainViewModel vmS)
@@ -163,12 +167,15 @@ public partial class MainWindow : Window
                 var layout = await LoadLayoutSettingsAsync();
                 _loadedLayout = layout;
                 vm.GridColumnCount = Math.Clamp(layout.GridColumnCount, 1, 8);
+                vm.ExpandedGridColumnCount = Math.Clamp(layout.ExpandedGridColumnCount, 1, 16);
                 _savedFilmstripHeight = new GridLength(Math.Clamp(layout.FilmstripRowHeight, 80, 400));
                 RootGrid.RowDefinitions[3].Height = _savedFilmstripHeight;
                 vm.ShowGrid = layout.ShowGrid;
                 vm.ShowFilmstrip = layout.ShowFilmstrip;
+                vm.IsGridExpanded = layout.IsGridExpanded;
                 ApplyGridVisibility(vm.ShowGrid);
                 ApplyFilmstripVisibility(vm.ShowFilmstrip);
+                ApplyGridExpanded(vm.IsGridExpanded);
                 vm.ShowSecondMonitor = layout.ShowSecondMonitor;
                 await vm.RestoreLastFolderAsync();
             }
@@ -221,6 +228,8 @@ public partial class MainWindow : Window
                 vm.ShowGrid,
                 vm.ShowFilmstrip,
                 vm.ShowSecondMonitor,
+                vm.IsGridExpanded,
+                vm.ExpandedGridColumnCount,
                 smLeft, smTop, smWidth, smHeight);
             File.WriteAllText(LayoutSettingsFile, JsonSerializer.Serialize(settings));
         }
@@ -231,20 +240,50 @@ public partial class MainWindow : Window
 
     private void ApplyGridVisibility(bool show)
     {
+        var vm = DataContext as MainViewModel;
+        ApplyMainSplitLayout(show, vm?.IsGridExpanded ?? false);
+    }
+
+    // Expand mode collapses the preview pane so the grid can fill the full
+    // horizontal area between the filmstrip and the metadata sidebar — useful
+    // for pure-sorting passes where the user only needs thumbnails.
+    private void ApplyGridExpanded(bool expanded)
+    {
+        var vm = DataContext as MainViewModel;
+        ApplyMainSplitLayout(vm?.ShowGrid ?? true, expanded);
+    }
+
+    private void ApplyMainSplitLayout(bool showGrid, bool isExpanded)
+    {
         var cols = MainSplitGrid.ColumnDefinitions;
-        if (show)
+
+        // Preserve the user-sized grid width when leaving the pixel-sized state.
+        if (cols[0].Width.GridUnitType == GridUnitType.Pixel && cols[0].ActualWidth > 0)
+            _savedGridWidth = new GridLength(cols[0].ActualWidth);
+
+        if (!showGrid)
+        {
+            cols[0].MinWidth = 0;
+            cols[0].MaxWidth = double.PositiveInfinity;
+            cols[0].Width = new GridLength(0);
+            cols[1].Width = new GridLength(0);
+            cols[2].Width = new GridLength(1, GridUnitType.Star);
+        }
+        else if (isExpanded)
         {
             cols[0].MinWidth = 100;
-            cols[0].Width = _savedGridWidth;
-            cols[1].Width = new GridLength(4);
+            cols[0].MaxWidth = double.PositiveInfinity;
+            cols[0].Width = new GridLength(1, GridUnitType.Star);
+            cols[1].Width = new GridLength(0);
+            cols[2].Width = new GridLength(0);
         }
         else
         {
-            if (cols[0].ActualWidth > 0)
-                _savedGridWidth = new GridLength(cols[0].ActualWidth);
-            cols[0].MinWidth = 0;
-            cols[0].Width = new GridLength(0);
-            cols[1].Width = new GridLength(0);
+            cols[0].MinWidth = 100;
+            cols[0].MaxWidth = 500;
+            cols[0].Width = _savedGridWidth;
+            cols[1].Width = new GridLength(4);
+            cols[2].Width = new GridLength(1, GridUnitType.Star);
         }
     }
 
@@ -362,7 +401,7 @@ public partial class MainWindow : Window
 
         var available = GridView.ActualWidth - 12;
         if (available <= 0) return;
-        vm.GridThumbnailSize = Math.Max(20, Math.Floor(available / vm.GridColumnCount) - 8);
+        vm.GridThumbnailSize = Math.Max(20, Math.Floor(available / vm.ActiveGridColumnCount) - 8);
     }
 
     private void GridView_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -371,9 +410,9 @@ public partial class MainWindow : Window
         if (DataContext is not MainViewModel vm) return;
 
         // Scroll up = zoom in = fewer columns; scroll down = zoom out = more columns.
-        vm.GridColumnCount = Math.Clamp(vm.GridColumnCount + (e.Delta > 0 ? -1 : 1), 1, 8);
+        vm.ActiveGridColumnCount = Math.Clamp(vm.ActiveGridColumnCount + (e.Delta > 0 ? -1 : 1), 1, vm.MaxGridColumnCount);
         e.Handled = true;
-        // RecalcGridThumbnailSize is called via the PropertyChanged → GridColumnCount handler.
+        // RecalcGridThumbnailSize is called via the PropertyChanged → ActiveGridColumnCount handler.
     }
 
     private void GridView_SelectionChanged(object sender, SelectionChangedEventArgs e)

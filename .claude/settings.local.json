@@ -12,7 +12,8 @@
       "Bash(grep -E \"\\\\.\\(xaml|cs\\)$\")",
       "Bash(xargs grep *)",
       "WebFetch(domain:www.fastrawviewer.com)",
-      "Bash(awk 'match\\($0, /^\\( *\\)<\\\\/Button>$/, a\\) && length\\(a[1]\\)==28 {print NR \": \" $0}' src/Rawr.App/MainWindow.xaml)"
+      "Bash(awk 'match\\($0, /^\\( *\\)<\\\\/Button>$/, a\\) && length\\(a[1]\\)==28 {print NR \": \" $0}' src/Rawr.App/MainWindow.xaml)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\pejlev\\\\Desktop\\\\Misc\\\\Git\\\\RAWR\\\\src\" -Recurse -File | ForEach-Object { $_.FullName })"
     ]
   }
 }

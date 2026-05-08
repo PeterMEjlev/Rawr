@@ -236,8 +236,8 @@ public partial class SettingsWindow : Window
     private void HandleShortcutKeyRecording(KeyEventArgs e)
     {
         // Ignore standalone modifier keys; wait for the actual character/function key.
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if (KeySpec.IsModifierKey(key)) return;
+        var key = KeySpec.ResolveKey(e);
+        if (KeySpec.IsModifierKey(key) || key == Key.None) return;
 
         var actionId = _recordingActionId!;
         var action = ShortcutRegistry.All.FirstOrDefault(a => a.Id == actionId);
@@ -575,8 +575,8 @@ public partial class SettingsWindow : Window
 
     private void HandleMacroKeyRecording(KeyEventArgs e)
     {
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if (KeySpec.IsModifierKey(key)) return;
+        var key = KeySpec.ResolveKey(e);
+        if (KeySpec.IsModifierKey(key) || key == Key.None) return;
 
         var macroId = _recordingMacroId!;
         var macro = _editedMacros.FirstOrDefault(m => m.Id == macroId);

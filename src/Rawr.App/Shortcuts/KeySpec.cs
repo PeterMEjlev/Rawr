@@ -79,4 +79,18 @@ public sealed record KeySpec(Key Key, ModifierKeys Modifiers)
            or Key.LeftAlt or Key.RightAlt
            or Key.LWin or Key.RWin
            or Key.System;
+
+    // Resolve the "real" Key from a KeyEventArgs, transparently unwrapping the
+    // placeholder values WPF substitutes for Alt-combos, IME-routed keys and
+    // dead-character composition (common on European keyboard layouts where
+    // pressing e.g. ´/¨/^ for an accent surfaces as Key.DeadCharProcessed
+    // rather than the underlying physical key).
+    public static Key ResolveKey(KeyEventArgs e)
+    {
+        var key = e.Key;
+        if (key == Key.System) key = e.SystemKey;
+        if (key == Key.ImeProcessed) key = e.ImeProcessedKey;
+        if (key == Key.DeadCharProcessed) key = e.DeadCharProcessedKey;
+        return key;
+    }
 }
