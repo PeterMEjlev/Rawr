@@ -75,6 +75,9 @@ public partial class MainWindow : Window
     private TimeSpan _videoDuration;
     private bool _videoIsMuted;
     private bool _suppressFilterToggleMouseUp;
+    private bool _suppressTagsToggleMouseUp;
+    private bool _suppressCopyToggleMouseUp;
+    private bool _suppressViewToggleMouseUp;
 
     // Cached lookup of (Key, ModifierKeys) → (Action, Command, CommandParameter) for
     // fast shortcut matching in the fallback dead-key handler. Action is null for
@@ -512,6 +515,84 @@ public partial class MainWindow : Window
     {
         if (FilterToggleButton.IsMouseOver && Mouse.LeftButton == MouseButtonState.Pressed)
             _suppressFilterToggleMouseUp = true;
+    }
+
+    private void TagsToggleButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!TagsPopup.IsOpen) return;
+
+        _suppressTagsToggleMouseUp = true;
+        TagsPopup.IsOpen = false;
+        TagsToggleButton.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void TagsToggleButton_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_suppressTagsToggleMouseUp) return;
+
+        _suppressTagsToggleMouseUp = false;
+        TagsPopup.IsOpen = false;
+        TagsToggleButton.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void TagsPopup_Closed(object? sender, EventArgs e)
+    {
+        if (TagsToggleButton.IsMouseOver && Mouse.LeftButton == MouseButtonState.Pressed)
+            _suppressTagsToggleMouseUp = true;
+    }
+
+    private void CopyToggleButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!CopyPopup.IsOpen) return;
+
+        _suppressCopyToggleMouseUp = true;
+        CopyPopup.IsOpen = false;
+        CopyToggleButton.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void CopyToggleButton_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_suppressCopyToggleMouseUp) return;
+
+        _suppressCopyToggleMouseUp = false;
+        CopyPopup.IsOpen = false;
+        CopyToggleButton.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void CopyPopup_Closed(object? sender, EventArgs e)
+    {
+        if (CopyToggleButton.IsMouseOver && Mouse.LeftButton == MouseButtonState.Pressed)
+            _suppressCopyToggleMouseUp = true;
+    }
+
+    private void ViewToggleButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!ViewPopup.IsOpen) return;
+
+        _suppressViewToggleMouseUp = true;
+        ViewPopup.IsOpen = false;
+        ViewToggleButton.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void ViewToggleButton_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_suppressViewToggleMouseUp) return;
+
+        _suppressViewToggleMouseUp = false;
+        ViewPopup.IsOpen = false;
+        ViewToggleButton.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void ViewPopup_Closed(object? sender, EventArgs e)
+    {
+        if (ViewToggleButton.IsMouseOver && Mouse.LeftButton == MouseButtonState.Pressed)
+            _suppressViewToggleMouseUp = true;
     }
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)

@@ -636,12 +636,15 @@
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="TagsToggleButton"
                                   IsChecked="{Binding IsOpen, ElementName=TagsPopup, Mode=TwoWay}"
+                                  PreviewMouseLeftButtonDown="TagsToggleButton_PreviewMouseLeftButtonDown"
+                                  PreviewMouseLeftButtonUp="TagsToggleButton_PreviewMouseLeftButtonUp"
                                   Content="🏷 Tags"
                                   ToolTip="Create and filter by tags  —  Shift+1 through Shift+0 to assign tags to selected photo" />
                     <Popup x:Name="TagsPopup"
                            StaysOpen="False"
                            Placement="Bottom"
                            PlacementTarget="{Binding ElementName=TagsToggleButton}"
+                           Closed="TagsPopup_Closed"
                            AllowsTransparency="True">
                         <Border Background="{StaticResource BgControlBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
@@ -747,12 +750,15 @@
                 <Grid DockPanel.Dock="Left" Margin="0,0,4,0">
                     <ToggleButton x:Name="CopyToggleButton"
                                   IsChecked="{Binding IsOpen, ElementName=CopyPopup, Mode=TwoWay}"
+                                  PreviewMouseLeftButtonDown="CopyToggleButton_PreviewMouseLeftButtonDown"
+                                  PreviewMouseLeftButtonUp="CopyToggleButton_PreviewMouseLeftButtonUp"
                                   Content="📋 Copy…"
                                   ToolTip="Choose which photos to copy" />
                     <Popup x:Name="CopyPopup"
                            StaysOpen="False"
                            Placement="Bottom"
                            PlacementTarget="{Binding ElementName=CopyToggleButton}"
+                           Closed="CopyPopup_Closed"
                            AllowsTransparency="True">
                         <Border Background="{StaticResource BgControlBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
@@ -1046,6 +1052,8 @@
                 <Grid DockPanel.Dock="Left" Margin="0,0,8,0">
                     <ToggleButton x:Name="ViewToggleButton"
                                   IsChecked="{Binding IsOpen, ElementName=ViewPopup, Mode=TwoWay}"
+                                  PreviewMouseLeftButtonDown="ViewToggleButton_PreviewMouseLeftButtonDown"
+                                  PreviewMouseLeftButtonUp="ViewToggleButton_PreviewMouseLeftButtonUp"
                                   ToolTip="Show or hide the thumbnail grid and filmstrip panels">
                         View
                     </ToggleButton>
@@ -1053,6 +1061,7 @@
                            StaysOpen="False"
                            Placement="Bottom"
                            PlacementTarget="{Binding ElementName=ViewToggleButton}"
+                           Closed="ViewPopup_Closed"
                            AllowsTransparency="True">
                         <Border Background="{StaticResource BgControlBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
