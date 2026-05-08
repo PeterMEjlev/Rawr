@@ -78,9 +78,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _visibleCount;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(GridFilenameVisibility))]
+    [NotifyPropertyChangedFor(nameof(GridCellHeight))]
+    [NotifyPropertyChangedFor(nameof(GridItemWidth))]
+    [NotifyPropertyChangedFor(nameof(GridItemHeight))]
     private double _gridThumbnailSize = 90.0; // derived in code-behind from GridColumnCount
 
     public Visibility GridFilenameVisibility => GridThumbnailSize >= 60 ? Visibility.Visible : Visibility.Collapsed;
+    public double GridCellHeight => GridThumbnailSize + (GridThumbnailSize >= 60 ? 16.0 : 0.0);
+    public double GridItemWidth => GridThumbnailSize + 8.0;
+    public double GridItemHeight => GridCellHeight + 8.0;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveGridColumnCount))]

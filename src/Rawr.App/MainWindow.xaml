@@ -1144,7 +1144,8 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
+                              HorizontalScrollBarVisibility="Disabled"
+                              PreviewMouseWheel="VerticalScrollViewer_PreviewMouseWheel">
                     <StackPanel Margin="0,4,0,12">
 
                         <!-- ── FOLDERS section ── -->
@@ -1671,16 +1672,21 @@
                              PreviewMouseRightButtonDown="PhotoList_PreviewMouseRightButtonDown"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
-                             ScrollViewer.CanContentScroll="False"
-                             VirtualizingPanel.IsVirtualizing="False">
+                             ScrollViewer.CanContentScroll="True"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             VirtualizingPanel.ScrollUnit="Pixel">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel x:Name="GridItemsPanel" Orientation="Horizontal" />
+                                <controls:VirtualizingWrapPanel
+                                    ItemWidth="{Binding DataContext.GridItemWidth, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                    ItemHeight="{Binding DataContext.GridItemHeight, RelativeSource={RelativeSource AncestorType=ListBox}}" />
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type models:PhotoItem}">
                                 <StackPanel Width="{Binding DataContext.GridThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            Height="{Binding DataContext.GridCellHeight, RelativeSource={RelativeSource AncestorType=Window}}"
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                                     <StackPanel.ContextMenu>
                                         <ContextMenu>

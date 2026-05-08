@@ -9,7 +9,9 @@
     <Border Background="{StaticResource BgBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1,0,0,0">
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,6,10">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      Padding="10,10,6,10"
+                      PreviewMouseWheel="ScrollViewer_PreviewMouseWheel">
             <StackPanel>
 
                 <Border Style="{StaticResource SectionCard}">

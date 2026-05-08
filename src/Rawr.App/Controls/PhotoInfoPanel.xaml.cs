@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
 
@@ -76,5 +77,28 @@ public partial class PhotoInfoPanel : UserControl
     {
         get => (ICommand?)GetValue(SetSidePanelViewCommandProperty);
         set => SetValue(SetSidePanelViewCommandProperty, value);
+    }
+
+    private void ScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (IsWithinPixelPeek(e.OriginalSource as DependencyObject))
+            return;
+
+        if (sender is not ScrollViewer sv) return;
+        ScrollSpeed.ScrollVertical(sv, e);
+        e.Handled = true;
+    }
+
+    private bool IsWithinPixelPeek(DependencyObject? source)
+    {
+        while (source != null)
+        {
+            if (source == PixelPeekViewControl)
+                return true;
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return false;
     }
 }

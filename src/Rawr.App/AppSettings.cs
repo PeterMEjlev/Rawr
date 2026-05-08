@@ -68,6 +68,7 @@ public sealed class AppSettings
     public byte ClosedEyeThreshold { get; set; } = 50;
 
     public double DoubleClickZoom { get; set; } = 3.0;
+    public int ScrollSpeedPercent { get; set; } = Rawr.App.Controls.ScrollSpeed.DefaultPercent;
 
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
@@ -127,6 +128,7 @@ public sealed class AppSettings
         ClippedAreaThreshold = ClippedAreaThreshold,
         ClosedEyeThreshold = ClosedEyeThreshold,
         DoubleClickZoom = DoubleClickZoom,
+        ScrollSpeedPercent = ScrollSpeedPercent,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
         Macros = Macros.Select(m => new KeyboardMacro
         {

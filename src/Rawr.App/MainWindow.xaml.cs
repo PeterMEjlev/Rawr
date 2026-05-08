@@ -44,7 +44,6 @@ public partial class MainWindow : Window
     private Point _panStart;
     private double _panStartTx;
     private double _panStartTy;
-    private WrapPanel? _gridItemsPanel;
     private GridLength _savedFilmstripHeight = new GridLength(148);
     private GridLength _savedGridWidth = new GridLength(200);
     private PhotoItem? _prevSelectedPhoto;
@@ -403,16 +402,12 @@ public partial class MainWindow : Window
 
     private void GridView_SizeChanged(object sender, SizeChangedEventArgs e) => RecalcGridThumbnailSize();
 
-    // GridThumbnailSize drives both the width and height of each thumbnail cell.
-    // WrapPanel arranges items at their natural size; the column count is implied
-    // by item width fitting into the available row width.
+    // GridThumbnailSize drives the fixed tile size used by the virtualizing grid.
     // Subtract 12 to reserve space for the slim scrollbar (10 px) plus rounding buffer,
     // and subtract 8 for the 2 px item margin + 2 px border on each side (FilmstripItemStyle).
     private void RecalcGridThumbnailSize()
     {
         if (DataContext is not MainViewModel vm) return;
-
-        _gridItemsPanel ??= FindDescendant<WrapPanel>(GridView);
 
         var available = GridView.ActualWidth - 12;
         if (available <= 0) return;
@@ -481,7 +476,7 @@ public partial class MainWindow : Window
         var sv = FindScrollViewer(lb);
         if (sv == null) return;
 
-        sv.ScrollToHorizontalOffset(sv.HorizontalOffset + e.Delta);
+        ScrollSpeed.ScrollHorizontal(sv, e);
         e.Handled = true;
     }
 
@@ -489,6 +484,13 @@ public partial class MainWindow : Window
     {
         if (sender is not ListBox lb || lb.SelectedItem is null) return;
         lb.ScrollIntoView(lb.SelectedItem);
+    }
+
+    private void VerticalScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer sv) return;
+        ScrollSpeed.ScrollVertical(sv, e);
+        e.Handled = true;
     }
 
     private void FilterToggleButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -928,16 +930,32 @@ public partial class MainWindow : Window
     private void HandleTileClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe || fe.DataContext is not PhotoItem photo) return;
-        if (photo.CollapsedBurstCount <= 0) return; // not a collapsed burst rep
 
         var now = DateTime.UtcNow;
-        if (_lastClickedPhoto == photo && (now - _lastClickTime) <= DoubleClickThreshold)
+        var isDoubleClick = e.ClickCount >= 2
+            || (_lastClickedPhoto == photo && (now - _lastClickTime) <= DoubleClickThreshold);
+
+        if (isDoubleClick)
         {
             _lastClickedPhoto = null;
-            OpenBurstFocus(photo);
-            e.Handled = true;
+
+            if (DataContext is MainViewModel { IsGridExpanded: true } vm)
+            {
+                vm.SelectSinglePhoto(photo);
+                vm.IsGridExpanded = false;
+                e.Handled = true;
+                return;
+            }
+
+            if (photo.CollapsedBurstCount > 0)
+            {
+                OpenBurstFocus(photo);
+                e.Handled = true;
+            }
+
             return;
         }
+
         _lastClickedPhoto = photo;
         _lastClickTime = now;
     }

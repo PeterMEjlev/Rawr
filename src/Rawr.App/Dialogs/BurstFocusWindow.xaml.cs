@@ -592,7 +592,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         if (sender is not ListBox lb) return;
         var sv = FindScrollViewer(lb);
         if (sv == null) return;
-        sv.ScrollToHorizontalOffset(sv.HorizontalOffset + e.Delta);
+        ScrollSpeed.ScrollHorizontal(sv, e);
         e.Handled = true;
     }
 

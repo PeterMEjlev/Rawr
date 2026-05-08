@@ -77,6 +77,33 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,20" />
 
+                        <!-- Scrolling -->
+                        <Separator Margin="0,0,0,16" />
+                        <TextBlock Text="SCROLLING"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="0,0,0,10" />
+                        <TextBlock Text="Mouse wheel scroll speed" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Slower" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <Slider x:Name="ScrollSpeedSlider"
+                                    Minimum="25" Maximum="200"
+                                    SmallChange="5" LargeChange="25"
+                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="Faster" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=ScrollSpeedSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text="%" Foreground="{StaticResource TextDimBrush}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Affects wheel scrolling in the grid, filmstrips, and settings panels."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,20" />
+
                         <!-- Sorting -->
                         <Separator Margin="0,0,0,16" />
                         <TextBlock Text="SORTING"

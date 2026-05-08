@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Rawr.App.Controls;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
@@ -76,6 +77,7 @@ public partial class SettingsWindow : Window
         CollapseOnOpen.IsChecked = current.CollapseBurstsOnOpen;
         DateFormatBox.Text = current.DateFormat;
         DoubleClickZoomSlider.Value = Math.Clamp(current.DoubleClickZoom, 1.5, 16.0);
+        ScrollSpeedSlider.Value = Math.Clamp(current.ScrollSpeedPercent, ScrollSpeed.MinPercent, ScrollSpeed.MaxPercent);
 
         // HDR detection
         HdrEnabledCheck.IsChecked = current.HdrDetectionEnabled;
@@ -339,6 +341,7 @@ public partial class SettingsWindow : Window
             ClippedAreaThreshold = (byte)ClippedAreaThresholdSlider.Value,
             ClosedEyeThreshold = (byte)ClosedEyeThresholdSlider.Value,
             DoubleClickZoom     = DoubleClickZoomSlider.Value,
+            ScrollSpeedPercent  = (int)ScrollSpeedSlider.Value,
             HdrDetectionEnabled = HdrEnabledCheck.IsChecked == true,
             HdrMinBracketSize   = (int)HdrMinBracketSizeSlider.Value,
             HdrMinExposureSpread = (float)HdrExposureSpreadSlider.Value,
@@ -693,10 +696,7 @@ public partial class SettingsWindow : Window
     private void TabScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (sender is not ScrollViewer sv) return;
-        // WPF forwards trackpad scroll events at full native delta which feels too fast.
-        // Scale it down to ~25 % of the raw delta (still responds to large swipes).
-        const double scale = 0.25;
-        sv.ScrollToVerticalOffset(sv.VerticalOffset - e.Delta * scale);
+        ScrollSpeed.ScrollVertical(sv, e);
         e.Handled = true;
     }
 }
