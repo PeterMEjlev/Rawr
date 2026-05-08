@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using Rawr.App.Controls;
+using Rawr.App.Services;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
@@ -27,8 +28,55 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     public PhotoItem? CurrentPhoto
     {
         get => _currentPhoto;
-        private set { _currentPhoto = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CurrentPhoto))); }
+        private set
+        {
+            if (_currentPhoto == value) return;
+            _currentPhoto = value;
+            OnPropertyChanged(nameof(CurrentPhoto));
+            OnPropertyChanged(nameof(CurrentPhotoCaptureDateFormatted));
+        }
     }
+
+    private HistogramData? _histogramData;
+    public HistogramData? HistogramData
+    {
+        get => _histogramData;
+        private set
+        {
+            if (_histogramData == value) return;
+            _histogramData = value;
+            OnPropertyChanged(nameof(HistogramData));
+        }
+    }
+
+    private HistogramMode _histogramMode = HistogramMode.Rgb;
+    public HistogramMode HistogramMode
+    {
+        get => _histogramMode;
+        private set
+        {
+            if (_histogramMode == value) return;
+            _histogramMode = value;
+            OnPropertyChanged(nameof(HistogramMode));
+        }
+    }
+
+    private SidePanelView _sidePanelView = SidePanelView.Histogram;
+    public SidePanelView SidePanelView
+    {
+        get => _sidePanelView;
+        private set
+        {
+            if (_sidePanelView == value) return;
+            _sidePanelView = value;
+            OnPropertyChanged(nameof(SidePanelView));
+        }
+    }
+
+    public string CurrentPhotoCaptureDateFormatted =>
+        CurrentPhoto?.Metadata?.CaptureTime is DateTime captureTime
+            ? captureTime.ToString(AppSettings.Current.DateFormat)
+            : "";
 
     private const double MinZoom = 1.0;
     private const double MaxZoom = 64.0;
@@ -55,6 +103,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     public IRelayCommand SetAsThumbnailCommand  { get; }
     public IRelayCommand<int> SetRatingCommand  { get; }
     public IRelayCommand<ColorLabel> SetColorLabelCommand { get; }
+    public IRelayCommand<HistogramMode> SetHistogramModeCommand { get; }
+    public IRelayCommand<SidePanelView> SetSidePanelViewCommand { get; }
 
     /// <summary>Optional initial peek anchor + zoom carried over from the
     /// caller so opening a burst doesn't lose the inspection point.</summary>
@@ -78,6 +128,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         SetAsThumbnailCommand  = new RelayCommand(SetAsThumbnail);
         SetRatingCommand       = new RelayCommand<int>(r => MutateCurrent(p => p.Rating = Math.Clamp(r, 0, 5)));
         SetColorLabelCommand = new RelayCommand<ColorLabel>(l => MutateCurrent(p => p.ColorLabel = p.ColorLabel == l ? ColorLabel.None : l));
+        SetHistogramModeCommand = new RelayCommand<HistogramMode>(mode => HistogramMode = mode);
+        SetSidePanelViewCommand = new RelayCommand<SidePanelView>(view => SidePanelView = view);
 
         InitializeComponent();
         DataContext = this;
@@ -93,7 +145,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
 
         Loaded += (_, _) =>
         {
-            _peek?.AttachView(PixelPeekViewControl);
+            _peek?.AttachView(PhotoInfoPanelControl.PixelPeekView);
             if (InitialPeekState is { HasAnchor: true } s) _peek?.RestoreState(s);
             MoveTo(Math.Clamp(startIndex, 0, _photos.Count - 1));
             _ = PreloadAllFullJpegsAsync();
@@ -115,11 +167,13 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         CurrentPhoto = _photos[index];
         Strip.SelectedIndex = index;
         Strip.ScrollIntoView(_photos[index]);
+        HistogramData = null;
         if (!keepZoom)
             ResetZoom();
         else
             _highResLoaded = false;
         UpdateOverlays();
+        _ = ComputeHistogramAsync(_photos[index]);
         _ = LoadPreviewAsync(_photos[index]);
         _ = LoadFullJpegIfNeededAsync();
     }
@@ -269,10 +323,43 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             if (ct.IsCancellationRequested || jpeg == null) return;
             photo.PreviewJpeg = jpeg;
             if (_currentIndex >= 0 && _photos[_currentIndex] == photo)
+            {
                 PreviewImageElement.Source = LoadBitmap(jpeg);
+                _ = ComputeHistogramAsync(photo);
+            }
         }
         catch (OperationCanceledException) { }
     }
+
+    private async Task ComputeHistogramAsync(PhotoItem photo)
+    {
+        var index = _currentIndex;
+        var jpeg = photo.FullJpeg ?? photo.PreviewJpeg ?? photo.ThumbnailJpeg;
+        if (jpeg == null)
+        {
+            if (IsCurrentPhoto(photo, index))
+                HistogramData = null;
+            return;
+        }
+
+        try
+        {
+            var data = await Task.Run(() => HistogramComputer.Compute(jpeg));
+            if (IsCurrentPhoto(photo, index))
+                HistogramData = data;
+        }
+        catch
+        {
+            if (IsCurrentPhoto(photo, index))
+                HistogramData = null;
+        }
+    }
+
+    private bool IsCurrentPhoto(PhotoItem photo, int index) =>
+        index >= 0
+        && _currentIndex == index
+        && _currentIndex < _photos.Count
+        && ReferenceEquals(_photos[_currentIndex], photo);
 
     private static BitmapSource? LoadBitmap(byte[] jpeg, int decodePixelWidth = 1920)
     {
@@ -482,6 +569,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             if (_currentIndex < 0 || _photos[_currentIndex] != photo) return;
 
             photo.FullJpeg ??= jpeg;
+            _ = ComputeHistogramAsync(photo);
             var bs = await Task.Run(() => LoadBitmap(jpeg, decodePixelWidth: 0), ct);
             if (ct.IsCancellationRequested || bs == null) return;
             if (_currentIndex < 0 || _photos[_currentIndex] != photo) return;
@@ -519,4 +607,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         }
         return null;
     }
+
+    private void OnPropertyChanged(string propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

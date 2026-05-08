@@ -67,7 +67,7 @@
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- Preview area -->
@@ -134,106 +134,16 @@
             </Grid>
 
             <!-- Metadata panel -->
-            <Border Grid.Column="1"
-                    Background="{StaticResource BgPanelBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1,0,0,0"
-                    Padding="12">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <TextBlock Text="PEEK" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <controls:PixelPeekView x:Name="PixelPeekViewControl"
-                                                Height="220"
-                                                Margin="0,0,0,12" />
-
-                        <TextBlock Text="PHOTO" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding CurrentPhoto.FileName, FallbackValue='—'}"
-                                   FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8" />
-
-                        <!-- Flag + color label -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                            <Border Width="14" Height="14" CornerRadius="2"
-                                    Background="{Binding CurrentPhoto.Flag, Converter={StaticResource FlagToBrush}}"
-                                    Margin="0,0,8,0" />
-                            <TextBlock Text="{Binding CurrentPhoto.Flag, FallbackValue=''}" Margin="0,0,12,0" />
-                            <Ellipse Width="10" Height="10"
-                                     Fill="{Binding CurrentPhoto.ColorLabel, Converter={StaticResource LabelToBrush}}"
-                                     Margin="0,0,6,0" />
-                            <TextBlock Text="{Binding CurrentPhoto.ColorLabel, FallbackValue=''}" />
-                        </StackPanel>
-
-                        <TextBlock Text="CAMERA" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding CurrentPhoto.Metadata.CameraFormatted, FallbackValue='—'}" Margin="0,0,0,2" />
-                        <TextBlock Text="{Binding CurrentPhoto.Metadata.LensModel,       FallbackValue=''}"
-                                   Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,12" />
-
-                        <TextBlock Text="EXPOSURE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="ISO " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CurrentPhoto.Metadata.ISOFormatted, FallbackValue='—'}" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Aperture " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CurrentPhoto.Metadata.ApertureFormatted, FallbackValue='—'}" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Shutter " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding CurrentPhoto.Metadata.ShutterSpeedFormatted, FallbackValue='—'}" />
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Focal " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CurrentPhoto.Metadata.FocalLengthFormatted, FallbackValue='—'}" />
-                        </Grid>
-
-                        <TextBlock Text="BURST" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6"
-                                   Visibility="{Binding CurrentPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
-                        <TextBlock Text="{Binding CurrentPhoto.BurstBadge, FallbackValue=''}" Margin="0,0,0,12"
-                                   Visibility="{Binding CurrentPhoto.BurstBadge, Converter={StaticResource NullToVisibility}}" />
-
-                        <TextBlock Text="DATE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding CurrentPhoto.Metadata.CaptureDateFormatted, FallbackValue='—'}" Margin="0,0,0,12" />
-
-                        <TextBlock Text="FILE" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Type "       Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CurrentPhoto.Extension, FallbackValue=''}" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Dimensions " Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CurrentPhoto.Metadata.DimensionsFormatted, FallbackValue='—'}" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Size "       Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding CurrentPhoto.Metadata.FileSizeFormatted, FallbackValue='—'}" />
-                        </Grid>
-                        <TextBlock Text="{Binding CurrentPhoto.FilePath, FallbackValue=''}"
-                                   Foreground="{StaticResource TextDimBrush}"
-                                   TextWrapping="Wrap" FontSize="10" Margin="0,4,0,0" />
-
-                        <Separator Margin="0,16" />
-
-                        <TextBlock Text="SHORTCUTS" Foreground="{StaticResource TextDimBrush}" FontSize="10" Margin="0,0,0,6" />
-                        <TextBlock Text="←/→  Navigate" Margin="0,1" />
-                        <TextBlock Text="0–5  Rating" Margin="0,1" />
-                        <TextBlock Text="6–9  Color label" Margin="0,1" />
-                        <TextBlock Text="P / X  Pick / Reject" Margin="0,1" />
-                        <TextBlock Text="U  Unflag" Margin="0,1" />
-                        <TextBlock Text="T  Set/clear thumbnail" Margin="0,1" />
-                        <TextBlock Text="Esc  Close" Margin="0,1" />
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
+            <controls:PhotoInfoPanel x:Name="PhotoInfoPanelControl"
+                                     Grid.Column="1"
+                                     Photo="{Binding CurrentPhoto, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     CaptureDateText="{Binding CurrentPhotoCaptureDateFormatted, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     HistogramData="{Binding HistogramData, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     HistogramMode="{Binding HistogramMode, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     SidePanelView="{Binding SidePanelView, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     SetSidePanelViewCommand="{Binding SetSidePanelViewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     SetHistogramModeCommand="{Binding SetHistogramModeCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
         </Grid>
-
         <!-- Filmstrip -->
         <Border Grid.Row="2"
                 Background="{StaticResource BgFilmstripBrush}"

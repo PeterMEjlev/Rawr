@@ -10,11 +10,11 @@ none
 false
 TRACE;RELEASE;NET;NET9_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_OR_GREATER;NET7_0_OR_GREATER;NET8_0_OR_GREATER;NET9_0_OR_GREATER;NETCOREAPP3_0_OR_GREATER;NETCOREAPP3_1_OR_GREATER;WINDOWS7_0_OR_GREATER
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\App.xaml
-8-708183504
+9-1152358383
 9-1944026211
-39-268181042
+40384882902
 2131703827358
-Controls\PixelPeekView.xaml;Dialogs\BurstFocusWindow.xaml;Dialogs\InputDialog.xaml;Dialogs\MapWindow.xaml;Dialogs\SecondMonitorWindow.xaml;Dialogs\SettingsWindow.xaml;MainWindow.xaml;Themes\DarkTheme.xaml;
+Controls\PhotoInfoPanel.xaml;Controls\PixelPeekView.xaml;Dialogs\BurstFocusWindow.xaml;Dialogs\InputDialog.xaml;Dialogs\MapWindow.xaml;Dialogs\SecondMonitorWindow.xaml;Dialogs\SettingsWindow.xaml;MainWindow.xaml;Themes\DarkTheme.xaml;
 
 False
 

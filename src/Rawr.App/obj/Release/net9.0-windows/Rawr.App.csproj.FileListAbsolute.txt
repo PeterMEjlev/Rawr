@@ -266,3 +266,5 @@ C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\Se
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PixelPeekView.g.cs
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\MapWindow.g.cs
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SecondMonitorWindow.g.cs
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PhotoInfoPanel.g.cs
+C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PhotoInfoPanel.baml

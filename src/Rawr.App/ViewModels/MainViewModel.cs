@@ -3468,12 +3468,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        var folderPhotos = AllPhotos.ToList();
         var tagNames = Tags.ToDictionary(t => t.Id, t => t.Name);
-        var snapshots = AllPhotos
+        var snapshots = folderPhotos
             .Where(p => !p.IsVideo)
             .Select(p => (path: p.FilePath, data: XmpSidecar.Snapshot(p, tagNames)))
             .ToList();
-        StatusText = $"Writing XMP for {snapshots.Count} photos...";
+        StatusText = $"Writing XMP for {snapshots.Count}/{folderPhotos.Count} photos in this folder...";
 
         int written = 0;
         await Task.Run(() =>
@@ -3485,7 +3486,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
         });
 
-        StatusText = $"Wrote {written}/{snapshots.Count} XMP sidecars.";
+        StatusText = $"Wrote {written}/{snapshots.Count} XMP sidecars for this folder.";
     }
 
     /// <summary>

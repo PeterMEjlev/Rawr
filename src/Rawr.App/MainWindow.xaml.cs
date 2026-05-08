@@ -171,7 +171,7 @@ public partial class MainWindow : Window
             loadHighResAsync: () => (DataContext as MainViewModel)?.LoadHighResPreviewAsync() ?? Task.CompletedTask);
 
         // The peek view is in the right-hand panel — attach once it's loaded.
-        Loaded += (_, _) => _peek?.AttachView(PixelPeekViewControl);
+        Loaded += (_, _) => _peek?.AttachView(PhotoInfoPanelControl.PixelPeekView);
 
         Closing += (_, _) => { SaveLayoutSettings(); _peek?.Dispose(); _peek = null; };
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
