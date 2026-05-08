@@ -1,7 +1,6 @@
 <Window x:Class="Rawr.App.Dialogs.BurstFocusWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         xmlns:models="clr-namespace:Rawr.Core.Models;assembly=Rawr.Core"
         xmlns:controls="clr-namespace:Rawr.App.Controls"
         Title="Burst"
@@ -14,27 +13,11 @@
         FontFamily="Segoe UI"
         FontSize="12">
 
+    <!-- Per-frame shortcuts (P, X, U, T, ratings, colors, navigation) and macros are
+         applied programmatically in code-behind so they honour user customisation
+         from Settings. Only Escape stays here as a window-close convention. -->
     <Window.InputBindings>
         <KeyBinding Key="Escape" Command="{Binding CloseCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-        <KeyBinding Key="Right"  Command="{Binding NextCommand,  RelativeSource={RelativeSource AncestorType=Window}}" />
-        <KeyBinding Key="Left"   Command="{Binding PrevCommand,  RelativeSource={RelativeSource AncestorType=Window}}" />
-
-        <KeyBinding Key="P"      Command="{Binding TogglePickCommand,    RelativeSource={RelativeSource AncestorType=Window}}" />
-        <KeyBinding Key="X"      Command="{Binding ToggleRejectCommand,  RelativeSource={RelativeSource AncestorType=Window}}" />
-        <KeyBinding Key="U"      Command="{Binding UnflagCommand,        RelativeSource={RelativeSource AncestorType=Window}}" />
-        <KeyBinding Key="T"      Command="{Binding SetAsThumbnailCommand,RelativeSource={RelativeSource AncestorType=Window}}" />
-
-        <KeyBinding Key="D0" Command="{Binding SetRatingCommand, RelativeSource={RelativeSource AncestorType=Window}}"><KeyBinding.CommandParameter><sys:Int32>0</sys:Int32></KeyBinding.CommandParameter></KeyBinding>
-        <KeyBinding Key="D1" Command="{Binding SetRatingCommand, RelativeSource={RelativeSource AncestorType=Window}}"><KeyBinding.CommandParameter><sys:Int32>1</sys:Int32></KeyBinding.CommandParameter></KeyBinding>
-        <KeyBinding Key="D2" Command="{Binding SetRatingCommand, RelativeSource={RelativeSource AncestorType=Window}}"><KeyBinding.CommandParameter><sys:Int32>2</sys:Int32></KeyBinding.CommandParameter></KeyBinding>
-        <KeyBinding Key="D3" Command="{Binding SetRatingCommand, RelativeSource={RelativeSource AncestorType=Window}}"><KeyBinding.CommandParameter><sys:Int32>3</sys:Int32></KeyBinding.CommandParameter></KeyBinding>
-        <KeyBinding Key="D4" Command="{Binding SetRatingCommand, RelativeSource={RelativeSource AncestorType=Window}}"><KeyBinding.CommandParameter><sys:Int32>4</sys:Int32></KeyBinding.CommandParameter></KeyBinding>
-        <KeyBinding Key="D5" Command="{Binding SetRatingCommand, RelativeSource={RelativeSource AncestorType=Window}}"><KeyBinding.CommandParameter><sys:Int32>5</sys:Int32></KeyBinding.CommandParameter></KeyBinding>
-
-        <KeyBinding Key="D6" Command="{Binding SetColorLabelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{x:Static models:ColorLabel.Red}" />
-        <KeyBinding Key="D7" Command="{Binding SetColorLabelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{x:Static models:ColorLabel.Yellow}" />
-        <KeyBinding Key="D8" Command="{Binding SetColorLabelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{x:Static models:ColorLabel.Green}" />
-        <KeyBinding Key="D9" Command="{Binding SetColorLabelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{x:Static models:ColorLabel.Blue}" />
     </Window.InputBindings>
 
     <Grid>

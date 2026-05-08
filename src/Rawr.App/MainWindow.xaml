@@ -1192,8 +1192,9 @@
                         <TextBlock Text="FILTERS" Style="{StaticResource SidebarSectionHeader}" />
 
                         <!-- Rated subsection -->
-                        <TextBlock Text="Rated" Style="{StaticResource SidebarSubsectionHeader}" />
-                        <StackPanel Margin="6,0,6,4">
+                        <ToggleButton x:Name="RatedToggle" Content="Rated" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <StackPanel Margin="6,0,6,4"
+                                    Visibility="{Binding IsChecked, ElementName=RatedToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetRatingBucketCommand}"
                                     IsActive="{Binding IsRating5Active}">
@@ -1275,8 +1276,9 @@
                         </StackPanel>
 
                         <!-- Flagged subsection -->
-                        <TextBlock Text="Flagged" Style="{StaticResource SidebarSubsectionHeader}" />
-                        <StackPanel Margin="6,0,6,4">
+                        <ToggleButton x:Name="FlaggedToggle" Content="Flagged" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <StackPanel Margin="6,0,6,4"
+                                    Visibility="{Binding IsChecked, ElementName=FlaggedToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarFlagCommand}" CommandParameter="{x:Static models:CullFlag.Pick}"
                                     IsActive="{Binding IsFlagPickActive}">
@@ -1344,8 +1346,9 @@
                              directional triangles pointing at the rail (right = upper rail,
                              left = lower rail) so they read as "pixels pushed past the edge"
                              rather than being mistaken for color labels. -->
-                        <TextBlock Text="Exposure" Style="{StaticResource SidebarSubsectionHeader}" />
-                        <StackPanel Margin="6,0,6,4">
+                        <ToggleButton x:Name="ExposureToggle" Content="Exposure" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <StackPanel Margin="6,0,6,4"
+                                    Visibility="{Binding IsChecked, ElementName=ExposureToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarExposureCommand}"
                                     CommandParameter="{x:Static vm:ExposureFilterMode.ClippedHighlights}"
@@ -1394,8 +1397,9 @@
                              Threshold lives in Settings → Faces. Photos that
                              haven't been analysed yet don't appear in either side
                              of the chip's include/exclude split. -->
-                        <TextBlock Text="Faces" Style="{StaticResource SidebarSubsectionHeader}" />
-                        <StackPanel Margin="6,0,6,4">
+                        <ToggleButton x:Name="FacesToggle" Content="Faces" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <StackPanel Margin="6,0,6,4"
+                                    Visibility="{Binding IsChecked, ElementName=FacesToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarFaceCommand}"
                                     CommandParameter="{x:Static vm:FaceFilterMode.ClosedEyes}"
@@ -1419,8 +1423,9 @@
                         </StackPanel>
 
                         <!-- Labelled subsection — least frequently used, parked at the bottom. -->
-                        <TextBlock Text="Labelled" Style="{StaticResource SidebarSubsectionHeader}" />
-                        <StackPanel Margin="6,0,6,4">
+                        <ToggleButton x:Name="LabelledToggle" Content="Labelled" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <StackPanel Margin="6,0,6,4"
+                                    Visibility="{Binding IsChecked, ElementName=LabelledToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
                                     Command="{Binding SetSidebarColorLabelCommand}" CommandParameter="{x:Static models:ColorLabel.Red}"
                                     IsActive="{Binding IsLabelRedActive}">
@@ -1494,8 +1499,9 @@
                         </StackPanel>
 
                         <!-- ── TAGS section ── -->
-                        <TextBlock Text="TAGS" Style="{StaticResource SidebarSectionHeader}" />
-                        <ItemsControl x:Name="SidebarTagsList" ItemsSource="{Binding Tags}" Margin="6,0,6,4">
+                        <ToggleButton x:Name="TagsToggle" Content="Tags" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <ItemsControl x:Name="SidebarTagsList" ItemsSource="{Binding Tags}" Margin="6,0,6,4"
+                                      Visibility="{Binding IsChecked, ElementName=TagsToggle, Converter={StaticResource BoolToVisibility}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
