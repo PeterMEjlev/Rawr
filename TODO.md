@@ -7,10 +7,6 @@
 
 - ## Subject classifier — small zero-shot model (CLIP-tiny or similar) tags photos with "person", "landscape", "food", "animal". Filterable. Surprisingly accurate even at small sizes.
 
-- ## Multi-shot HDR detection — bracket sequences, group separately from regular bursts. Detect if shot is HDR (maybe by same content, but with varying exposure levels = HDR?)
-no frame shift
-different exposure levels
-high perceptual hash similarity
 
 - ## detect panorama? 
 For each neighboring pair, estimate how the second image moved relative to the previous one:

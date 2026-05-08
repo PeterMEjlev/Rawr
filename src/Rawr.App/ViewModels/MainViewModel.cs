@@ -3273,9 +3273,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (_xmpWriter == null || photo.IsVideo) return;
         // Tag IDs → names lookup is rebuilt per call. Tag count is small (typically
         // single digits) so the cost is negligible compared to the write itself.
-        // Exclude system tags (HDR) from XMP keywords — they're RAWR-internal and
-// would pollute the user's catalogue keyword list.
-var tagNames = Tags.Where(t => !t.IsSystem).ToDictionary(t => t.Id, t => t.Name);
+        var tagNames = Tags.ToDictionary(t => t.Id, t => t.Name);
         _xmpWriter.Schedule(photo.FilePath, XmpSidecar.Snapshot(photo, tagNames));
     }
 
@@ -3345,9 +3343,7 @@ var tagNames = Tags.Where(t => !t.IsSystem).ToDictionary(t => t.Id, t => t.Name)
             return;
         }
 
-        // Exclude system tags (HDR) from XMP keywords — they're RAWR-internal and
-// would pollute the user's catalogue keyword list.
-var tagNames = Tags.Where(t => !t.IsSystem).ToDictionary(t => t.Id, t => t.Name);
+        var tagNames = Tags.ToDictionary(t => t.Id, t => t.Name);
         var snapshots = AllPhotos
             .Where(p => !p.IsVideo)
             .Select(p => (path: p.FilePath, data: XmpSidecar.Snapshot(p, tagNames)))

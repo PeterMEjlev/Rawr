@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "zT0UrfDrCX8=",
+  "dgSpecHash": "7dRgq7DpWec=",
   "success": true,
-  "projectFilePath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj",
+  "projectFilePath": "c:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.Core\\Rawr.Core.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\pejlev\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.2\\communitytoolkit.mvvm.8.4.2.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.data.sqlite\\9.0.15\\microsoft.data.sqlite.9.0.15.nupkg.sha512",
