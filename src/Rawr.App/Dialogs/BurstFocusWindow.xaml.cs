@@ -70,8 +70,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         _photos = photos;
 
         CloseCommand        = new RelayCommand(Close);
-        NextCommand         = new RelayCommand(() => MoveTo(_currentIndex + 1, keepZoom: true));
-        PrevCommand         = new RelayCommand(() => MoveTo(_currentIndex - 1, keepZoom: true));
+        NextCommand         = new RelayCommand(() => MoveBy(1));
+        PrevCommand         = new RelayCommand(() => MoveBy(-1));
         TogglePickCommand      = new RelayCommand(() => MutateCurrent(p => p.Flag = p.Flag == CullFlag.Pick   ? CullFlag.Unflagged : CullFlag.Pick));
         ToggleRejectCommand    = new RelayCommand(() => MutateCurrent(p => p.Flag = p.Flag == CullFlag.Reject ? CullFlag.Unflagged : CullFlag.Reject));
         UnflagCommand          = new RelayCommand(() => MutateCurrent(p => p.Flag = CullFlag.Unflagged));
@@ -122,6 +122,14 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         UpdateOverlays();
         _ = LoadPreviewAsync(_photos[index]);
         _ = LoadFullJpegIfNeededAsync();
+    }
+
+    private void MoveBy(int delta)
+    {
+        if (_photos.Count == 0) return;
+        var current = _currentIndex < 0 ? 0 : _currentIndex;
+        var next = (current + delta + _photos.Count) % _photos.Count;
+        MoveTo(next, keepZoom: true);
     }
 
     private void MutateCurrent(Action<PhotoItem> mutate)
