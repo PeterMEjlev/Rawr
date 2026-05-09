@@ -69,7 +69,7 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
 
             // Selection
             new("SelectAllVisible",   "Select all visible photos", CatNav, Key.A,      ModifierKeys.Control, Vm(vm => vm.SelectAllVisibleCommand)),
-            new("ClearMultiSelection","Clear multi-selection",     CatNav, Key.Escape, ModifierKeys.None,    Vm(vm => vm.ClearMultiSelectionCommand)),
+            new("ClearMultiSelection","Close preview / clear multi-selection", CatNav, Key.Escape, ModifierKeys.None, Vm(vm => vm.ClearMultiSelectionCommand)),
 
             // View
             new("ToggleFocusPeaking", "Toggle focus peaking",    CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ToggleFocusPeakingCommand)),

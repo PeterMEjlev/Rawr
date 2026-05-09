@@ -1366,6 +1366,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ClearMultiSelection()
     {
+        if (SelectedPhotos.Count <= 1 && SelectedPhoto != null && !IsGridExpanded)
+        {
+            ShowGrid = true;
+            IsGridExpanded = true;
+            return;
+        }
+
         // Esc collapses the multi-selection back to just the anchor — there is
         // always exactly one selected photo (user requirement #4).
         ReconcileSingleSelection(SelectedPhoto);
