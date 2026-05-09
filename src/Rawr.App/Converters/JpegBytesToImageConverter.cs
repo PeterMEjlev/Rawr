@@ -12,28 +12,58 @@ namespace Rawr.App.Converters;
 /// </summary>
 public sealed class JpegBytesToImageConverter : IValueConverter
 {
+    private const int DefaultDecodePixelWidth = 240;
+
     /// <summary>Target decode width in pixels. 0 = full resolution.</summary>
-    public int DecodePixelWidth { get; set; } = 240;
+    public int DecodePixelWidth { get; set; } = DefaultDecodePixelWidth;
 
     /// <summary>Maximum decoded images kept hot for virtualized thumbnail views.</summary>
-    public int MaxCachedImages { get; set; } = 512;
+    public int MaxCachedImages
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return _maxCachedImages;
+            }
+        }
+        set
+        {
+            lock (Gate)
+            {
+                _maxCachedImages = Math.Max(0, value);
+                TrimCache();
+            }
+        }
+    }
 
-    private readonly Dictionary<byte[], LinkedListNode<CacheEntry>> _cache = new(ReferenceEqualityComparer.Instance);
-    private readonly LinkedList<CacheEntry> _lru = new();
-    private readonly object _gate = new();
+    private static readonly Dictionary<CacheKey, LinkedListNode<CacheEntry>> Cache = new();
+    private static readonly LinkedList<CacheEntry> Lru = new();
+    private static readonly object Gate = new();
+    private static int _maxCachedImages = 2048;
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is not byte[] bytes || bytes.Length == 0)
             return null;
 
-        if (TryGetCached(bytes, out var cached))
+        return Preload(bytes, DecodePixelWidth);
+    }
+
+    public static BitmapSource? Preload(byte[]? bytes, int decodePixelWidth = DefaultDecodePixelWidth)
+    {
+        if (bytes is not { Length: > 0 })
+            return null;
+
+        var key = new CacheKey(bytes, Math.Max(0, decodePixelWidth));
+
+        if (TryGetCached(key, out var cached))
             return cached;
 
         try
         {
-            var image = Decode(bytes);
-            AddCached(bytes, image);
+            var image = Decode(key.Bytes, key.DecodePixelWidth);
+            AddCached(key, image);
             return image;
         }
         catch
@@ -42,27 +72,28 @@ public sealed class JpegBytesToImageConverter : IValueConverter
         }
     }
 
-    private BitmapSource Decode(byte[] bytes)
+    private static BitmapSource Decode(byte[] bytes, int decodePixelWidth)
     {
+        using var stream = new MemoryStream(bytes);
         var image = new BitmapImage();
         image.BeginInit();
-        image.StreamSource = new MemoryStream(bytes);
+        image.StreamSource = stream;
         image.CacheOption = BitmapCacheOption.OnLoad;
-        if (DecodePixelWidth > 0)
-            image.DecodePixelWidth = DecodePixelWidth;
+        if (decodePixelWidth > 0)
+            image.DecodePixelWidth = decodePixelWidth;
         image.EndInit();
         image.Freeze();
         return image;
     }
 
-    private bool TryGetCached(byte[] bytes, out BitmapSource? image)
+    private static bool TryGetCached(CacheKey key, out BitmapSource? image)
     {
-        lock (_gate)
+        lock (Gate)
         {
-            if (_cache.TryGetValue(bytes, out var node))
+            if (Cache.TryGetValue(key, out var node))
             {
-                _lru.Remove(node);
-                _lru.AddFirst(node);
+                Lru.Remove(node);
+                Lru.AddFirst(node);
                 image = node.Value.Image;
                 return true;
             }
@@ -72,29 +103,34 @@ public sealed class JpegBytesToImageConverter : IValueConverter
         return false;
     }
 
-    private void AddCached(byte[] bytes, BitmapSource image)
+    private static void AddCached(CacheKey key, BitmapSource image)
     {
-        if (MaxCachedImages <= 0) return;
-
-        lock (_gate)
+        lock (Gate)
         {
-            if (_cache.ContainsKey(bytes)) return;
+            if (_maxCachedImages <= 0 || Cache.ContainsKey(key)) return;
 
-            var node = new LinkedListNode<CacheEntry>(new CacheEntry(bytes, image));
-            _lru.AddFirst(node);
-            _cache[bytes] = node;
+            var node = new LinkedListNode<CacheEntry>(new CacheEntry(key, image));
+            Lru.AddFirst(node);
+            Cache[key] = node;
 
-            while (_cache.Count > MaxCachedImages && _lru.Last != null)
-            {
-                var victim = _lru.Last;
-                _lru.RemoveLast();
-                _cache.Remove(victim.Value.Bytes);
-            }
+            TrimCache();
         }
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 
-    private sealed record CacheEntry(byte[] Bytes, BitmapSource Image);
+    private static void TrimCache()
+    {
+        while (Cache.Count > _maxCachedImages && Lru.Last != null)
+        {
+            var victim = Lru.Last;
+            Lru.RemoveLast();
+            Cache.Remove(victim.Value.Key);
+        }
+    }
+
+    private readonly record struct CacheKey(byte[] Bytes, int DecodePixelWidth);
+
+    private sealed record CacheEntry(CacheKey Key, BitmapSource Image);
 }

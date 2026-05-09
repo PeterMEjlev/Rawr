@@ -27,3 +27,6 @@ C:\Users\Torsten\Desktop\RAWR\src\Rawr.Core\obj\Release\net9.0\Rawr.Core.sourcel
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\bin-tmp\Release\Rawr.Core.deps.json
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\bin-tmp\Release\Rawr.Core.dll
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.Core\bin-tmp\Release\Rawr.Core.pdb
+C:\Users\Torsten\Desktop\RAWR\.codex-build\Rawr.App\Rawr.Core.deps.json
+C:\Users\Torsten\Desktop\RAWR\.codex-build\Rawr.App\Rawr.Core.dll
+C:\Users\Torsten\Desktop\RAWR\.codex-build\Rawr.App\Rawr.Core.pdb

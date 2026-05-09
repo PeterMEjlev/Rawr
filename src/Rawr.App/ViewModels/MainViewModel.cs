@@ -1967,6 +1967,40 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         catch (OperationCanceledException) { /* selection moved on */ }
     }
 
+    public async Task<byte[]?> LoadPreviewJpegForPhotoAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (photo.PreviewJpeg != null) return photo.PreviewJpeg;
+
+        var cached = _cache?.LoadPreview(photo.FileName);
+        if (cached != null)
+        {
+            photo.PreviewJpeg = cached;
+            return cached;
+        }
+
+        var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractPreview(photo.FilePath), ct);
+        if (ct.IsCancellationRequested || jpeg == null) return null;
+
+        var processed = await Task.Run(() => ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg, ct);
+        if (ct.IsCancellationRequested) return null;
+
+        _cache?.SavePreview(photo.FileName, processed);
+        photo.PreviewJpeg = processed;
+        return processed;
+    }
+
+    public async Task<byte[]?> LoadFullJpegForPhotoAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (photo.IsVideo) return null;
+        if (photo.FullJpeg != null) return photo.FullJpeg;
+
+        var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractFullJpeg(photo.FilePath), ct);
+        if (ct.IsCancellationRequested || jpeg == null) return null;
+
+        photo.FullJpeg = jpeg;
+        return jpeg;
+    }
+
     private void StartRawDecode(PhotoItem photo)
     {
         if (!photo.IsRaw || photo.IsVideo) return;
