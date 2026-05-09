@@ -601,7 +601,7 @@ public partial class MainWindow : Window
     {
         if (e.Handled) return;
         if (Keyboard.Modifiers != ModifierKeys.None) return;
-        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down)) return;
+        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Enter)) return;
 
         // Let text-input controls keep arrow keys for caret movement / selection.
         if (Keyboard.FocusedElement is TextBox or PasswordBox or RichTextBox or ComboBox) return;
@@ -611,6 +611,16 @@ public partial class MainWindow : Window
 
         if (DataContext is not MainViewModel vm) return;
         if (vm.FilteredPhotos.Count == 0) return;
+
+        if (e.Key is Key.Enter)
+        {
+            if (vm.SelectedPhoto is { CollapsedBurstCount: > 0 } burst)
+            {
+                OpenBurstFocus(burst);
+                e.Handled = true;
+            }
+            return;
+        }
 
         if (e.Key is Key.Right or Key.Down)
             vm.NextPhotoCommand.Execute(null);

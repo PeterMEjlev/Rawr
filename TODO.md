@@ -9,3 +9,5 @@
 
 - ## the tooltip for shortcuts with special characters like ÆØÅ just show up as \ and not the actual keyboard shortcut
 
+- ## "Failed to open video"
+
