@@ -41,8 +41,29 @@ internal static partial class LibRawInterop
 
     // ── File I/O ──
 
+    internal static int OpenFile(nint handle, string fileName)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                return OpenWFile(handle, fileName);
+            }
+            catch (EntryPointNotFoundException)
+            {
+                // Older/custom LibRaw builds may not export the Windows wide-char API.
+                // Fall back to the narrow path for ASCII-compatible file names.
+            }
+        }
+
+        return OpenFileUtf8(handle, fileName);
+    }
+
     [LibraryImport(LibName, EntryPoint = "libraw_open_file", StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial int OpenFile(nint handle, string fileName);
+    private static partial int OpenFileUtf8(nint handle, string fileName);
+
+    [LibraryImport(LibName, EntryPoint = "libraw_open_wfile", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int OpenWFile(nint handle, string fileName);
 
     // ── Thumbnail extraction ──
 
