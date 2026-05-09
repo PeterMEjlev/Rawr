@@ -76,6 +76,7 @@ public partial class MainWindow : Window
     private bool _videoSuppressSliderEvent;
     private TimeSpan _videoDuration;
     private bool _videoIsMuted;
+    private float _videoPlaybackRate = 1.0f;
     private Uri? _pendingVideoSource;
     private bool _suppressFilterToggleMouseUp;
     private bool _suppressTagsToggleMouseUp;
@@ -190,7 +191,6 @@ public partial class MainWindow : Window
             if (VideoPlayer.IsVisible)
             {
                 AttachVlcPlayerToView(force: true);
-                Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(PlayPendingVideoSource));
             }
         };
 
@@ -1198,6 +1198,7 @@ public partial class MainWindow : Window
         {
             _videoIsPlaying = false;
             SetPlayPauseGlyph(playing: false);
+            SetVideoSurfaceVisible(false);
             _pendingVideoSource = null;
             _vlcPlayer?.Stop();
             _videoDuration = TimeSpan.Zero;
@@ -1211,6 +1212,7 @@ public partial class MainWindow : Window
         {
             _videoIsPlaying = true;
             SetPlayPauseGlyph(playing: true);
+            SetVideoSurfaceVisible(true);
             _pendingVideoSource = vm.VideoSourceUri;
             Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(PlayPendingVideoSource));
         }
@@ -1231,12 +1233,14 @@ public partial class MainWindow : Window
         if (source == null || _libVlc == null || _vlcPlayer == null) return;
         if (DataContext is not MainViewModel vm || vm.VideoSourceUri != source) return;
 
+        SetVideoSurfaceVisible(true);
         AttachVlcPlayerToView(force: true);
         VideoPlayer.UpdateLayout();
 
         using var media = new Media(_libVlc, source);
         _vlcPlayer.Mute = _videoIsMuted;
         _vlcPlayer.Play(media);
+        ApplyVideoPlaybackRate();
         _videoTick.Start();
     }
 
@@ -1247,6 +1251,7 @@ public partial class MainWindow : Window
         {
             if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
             if (_vlcPlayer != null) _vlcPlayer.Mute = _videoIsMuted;
+            ApplyVideoPlaybackRate();
             _videoIsPlaying = true;
             _videoTick.Start();
             SetPlayPauseGlyph(playing: true);
@@ -1276,6 +1281,7 @@ public partial class MainWindow : Window
             _videoIsPlaying = false;
             _videoTick.Stop();
             SetPlayPauseGlyph(playing: false);
+            SetVideoSurfaceVisible(false);
             _videoSuppressSliderEvent = true;
             VideoSlider.Value = 0;
             _videoSuppressSliderEvent = false;
@@ -1317,9 +1323,11 @@ public partial class MainWindow : Window
             else
             {
                 // Stopped or ended — reload from beginning
+                SetVideoSurfaceVisible(true);
                 AttachVlcPlayerToView();
                 using var media = new Media(_libVlc, vm.VideoSourceUri);
                 _vlcPlayer.Play(media);
+                ApplyVideoPlaybackRate();
             }
             _videoTick.Start();
         }
@@ -1332,6 +1340,26 @@ public partial class MainWindow : Window
         if (_vlcPlayer != null) _vlcPlayer.Mute = _videoIsMuted;
         VideoMuteButton.Content = _videoIsMuted ? "🔇" : "🔊";
     }
+
+    private void VideoSpeedBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ComboBox box) return;
+        if (box.SelectedItem is not ComboBoxItem item) return;
+        if (item.Tag is not string value) return;
+        if (!float.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var rate)) return;
+
+        _videoPlaybackRate = Math.Clamp(rate, 0.25f, 2.0f);
+        ApplyVideoPlaybackRate();
+    }
+
+    private void ApplyVideoPlaybackRate()
+    {
+        if (_vlcPlayer == null) return;
+        _vlcPlayer.SetRate(_videoPlaybackRate);
+    }
+
+    private void SetVideoSurfaceVisible(bool visible) =>
+        VideoPlayer.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
     private void VideoSlider_DragStarted(object sender, DragStartedEventArgs e) => _videoSliderIsDragging = true;
 

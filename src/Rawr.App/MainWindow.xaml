@@ -1956,7 +1956,7 @@
                         </Image>
                         <vlc:VideoView x:Name="VideoPlayer"
                                        Margin="8"
-                                       Visibility="{Binding VideoSourceUri, Converter={StaticResource NullToVisibility}}" />
+                                       Visibility="Collapsed" />
 
                         <!-- Focus Peaking overlay — shares transforms with PreviewImageElement via binding -->
                         <Image x:Name="FocusPeakingOverlayImage"
@@ -2192,6 +2192,19 @@
                                 Margin="8,0,0,0"
                                 Click="VideoMute_Click"
                                 ToolTip="Mute / Unmute" />
+                        <ComboBox x:Name="VideoSpeedBox"
+                                  DockPanel.Dock="Right"
+                                  Width="72"
+                                  Margin="8,0,0,0"
+                                  SelectedIndex="2"
+                                  SelectionChanged="VideoSpeedBox_SelectionChanged"
+                                  ToolTip="Playback speed">
+                            <ComboBoxItem Content="0.25x" Tag="0.25" />
+                            <ComboBoxItem Content="0.5x" Tag="0.5" />
+                            <ComboBoxItem Content="1x" Tag="1" />
+                            <ComboBoxItem Content="1.5x" Tag="1.5" />
+                            <ComboBoxItem Content="2x" Tag="2" />
+                        </ComboBox>
                         <Slider x:Name="VideoSlider"
                                 Minimum="0"
                                 Maximum="1"

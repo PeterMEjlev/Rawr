@@ -9,3 +9,4 @@
 
 - ## the tooltip for shortcuts with special characters like ÆØÅ just show up as \ and not the actual keyboard shortcut
 
+- ## When a file is deleted, the selected photo goes to the first photo. it needs to go to the next photo instead
