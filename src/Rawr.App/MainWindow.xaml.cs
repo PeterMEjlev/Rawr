@@ -631,15 +631,22 @@ public partial class MainWindow : Window
     {
         if (e.Handled) return;
         if (Keyboard.Modifiers != ModifierKeys.None) return;
-        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Enter)) return;
-
-        // Let text-input controls keep arrow keys for caret movement / selection.
+        // Let text-input controls keep navigation keys for caret movement / selection.
         if (Keyboard.FocusedElement is TextBox or PasswordBox or RichTextBox or ComboBox) return;
 
         // Don't hijack arrow keys while a menu is open — let it navigate items.
         if (Keyboard.FocusedElement is MenuItem) return;
 
         if (DataContext is not MainViewModel vm) return;
+
+        if (e.Key == Key.Space && vm.VideoSourceUri != null)
+        {
+            ToggleVideoPlayPause();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Enter)) return;
         if (vm.FilteredPhotos.Count == 0) return;
 
         if (e.Key is Key.Enter)
@@ -1184,13 +1191,13 @@ public partial class MainWindow : Window
     private void OnVideoSourceChanged()
     {
         _videoTick.Stop();
-        _videoIsPlaying = false;
         _videoSliderIsDragging = false;
-        SetPlayPauseGlyph(playing: false);
 
         var vm = DataContext as MainViewModel;
         if (vm?.VideoSourceUri == null)
         {
+            _videoIsPlaying = false;
+            SetPlayPauseGlyph(playing: false);
             _pendingVideoSource = null;
             _vlcPlayer?.Stop();
             _videoDuration = TimeSpan.Zero;
@@ -1202,7 +1209,8 @@ public partial class MainWindow : Window
         }
         else if (_libVlc != null && _vlcPlayer != null)
         {
-            // _videoIsPlaying is false → VlcPlayer_Playing will auto-pause to show first frame
+            _videoIsPlaying = true;
+            SetPlayPauseGlyph(playing: true);
             _pendingVideoSource = vm.VideoSourceUri;
             Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(PlayPendingVideoSource));
         }
@@ -1226,24 +1234,23 @@ public partial class MainWindow : Window
         AttachVlcPlayerToView(force: true);
         VideoPlayer.UpdateLayout();
 
-        // _videoIsPlaying is false: VlcPlayer_Playing will auto-pause to show first frame.
         using var media = new Media(_libVlc, source);
+        _vlcPlayer.Mute = _videoIsMuted;
         _vlcPlayer.Play(media);
+        _videoTick.Start();
     }
 
     // Fires on VLC background thread when playback starts (including on initial load).
     private void VlcPlayer_Playing(object? sender, EventArgs e)
     {
-        if (!_videoIsPlaying)
+        Dispatcher.BeginInvoke(() =>
         {
-            // Initial load: pause immediately to show the first frame.
-            _vlcPlayer?.SetPause(true);
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (_vlcPlayer != null) _vlcPlayer.Mute = _videoIsMuted;
-                SetPlayPauseGlyph(playing: false);
-            });
-        }
+            if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+            if (_vlcPlayer != null) _vlcPlayer.Mute = _videoIsMuted;
+            _videoIsPlaying = true;
+            _videoTick.Start();
+            SetPlayPauseGlyph(playing: true);
+        });
     }
 
     // Fires on VLC background thread when the stream duration is known (may fire after Playing).
@@ -1287,7 +1294,9 @@ public partial class MainWindow : Window
         });
     }
 
-    private void VideoPlayPause_Click(object sender, RoutedEventArgs e)
+    private void VideoPlayPause_Click(object sender, RoutedEventArgs e) => ToggleVideoPlayPause();
+
+    private void ToggleVideoPlayPause()
     {
         if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
         if (_vlcPlayer == null || _libVlc == null) return;

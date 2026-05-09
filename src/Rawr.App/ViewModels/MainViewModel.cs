@@ -1747,10 +1747,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (photo.IsVideo)
         {
-            // Hand the file to the MediaElement; clear any still-image preview so the
-            // image control doesn't peek through behind the player.
-            PreviewImage = null;
-            VideoSourceUri = new Uri(photo.FilePath);
+            await LoadVideoPreviewForSelectedAsync(photo, ct);
             return;
         }
 
@@ -1815,6 +1812,48 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
             _ = PreloadFullJpegAsync(photo, ct);
             StartRawDecode(photo);
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+    }
+
+    private async Task LoadVideoPreviewForSelectedAsync(PhotoItem photo, CancellationToken ct)
+    {
+        try
+        {
+            var sourceUri = new Uri(photo.FilePath);
+            var cachedPreview = photo.PreviewJpeg ?? _cache?.LoadPreview(photo.FileName);
+            var cached = cachedPreview ?? photo.ThumbnailJpeg ?? _cache?.LoadThumbnail(photo.FileName);
+
+            if (cached != null)
+            {
+                var bs = await Task.Run(() => LoadBitmapFromJpeg(cached), ct);
+                if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+
+                if (cachedPreview != null) photo.PreviewJpeg = cachedPreview;
+                if (bs != null) PreviewImage = bs;
+            }
+            else
+            {
+                PreviewImage = null;
+            }
+
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+            VideoSourceUri = sourceUri;
+
+            if (photo.PreviewJpeg != null) return;
+
+            var jpeg = await Task.Run(() => ExtractorFor(photo).ExtractPreview(photo.FilePath), ct);
+            if (ct.IsCancellationRequested || jpeg == null || SelectedPhoto != photo) return;
+
+            var processed = await Task.Run(() => ProcessJpegForCache(jpeg, PreviewDecodeWidth) ?? jpeg, ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+
+            _cache?.SavePreview(photo.FileName, processed);
+            photo.PreviewJpeg = processed;
+
+            var fullBs = await Task.Run(() => LoadBitmapFromJpeg(processed), ct);
+            if (!ct.IsCancellationRequested && SelectedPhoto == photo && fullBs != null)
+                PreviewImage = fullBs;
         }
         catch (OperationCanceledException) { /* selection moved on */ }
     }

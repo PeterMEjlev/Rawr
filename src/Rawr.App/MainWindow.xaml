@@ -1946,7 +1946,7 @@
                                RenderOptions.BitmapScalingMode="Linear"
                                Margin="8"
                                RenderTransformOrigin="0,0"
-                               Visibility="{Binding VideoSourceUri, Converter={StaticResource NotNullToCollapsed}}">
+                               Visibility="{Binding PreviewImage, Converter={StaticResource NullToVisibility}}">
                             <Image.RenderTransform>
                                 <TransformGroup>
                                     <ScaleTransform x:Name="PreviewScale" ScaleX="1" ScaleY="1" />
