@@ -7,6 +7,7 @@
         xmlns:vm="clr-namespace:Rawr.App.ViewModels"
         xmlns:models="clr-namespace:Rawr.Core.Models;assembly=Rawr.Core"
         xmlns:controls="clr-namespace:Rawr.App.Controls"
+        xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
         mc:Ignorable="d"
         Title="RAWR — RAW Photo Culling"
         Icon="Assets/rawr.ico"
@@ -1953,17 +1954,9 @@
                                 </TransformGroup>
                             </Image.RenderTransform>
                         </Image>
-                        <MediaElement x:Name="VideoPlayer"
-                                      Source="{Binding VideoSourceUri}"
-                                      LoadedBehavior="Manual"
-                                      UnloadedBehavior="Manual"
-                                      ScrubbingEnabled="True"
-                                      Stretch="Uniform"
-                                      Margin="8"
-                                      MediaOpened="VideoPlayer_MediaOpened"
-                                      MediaEnded="VideoPlayer_MediaEnded"
-                                      MediaFailed="VideoPlayer_MediaFailed"
-                                      Visibility="{Binding VideoSourceUri, Converter={StaticResource NullToVisibility}}" />
+                        <vlc:VideoView x:Name="VideoPlayer"
+                                       Margin="8"
+                                       Visibility="{Binding VideoSourceUri, Converter={StaticResource NullToVisibility}}" />
 
                         <!-- Focus Peaking overlay — shares transforms with PreviewImageElement via binding -->
                         <Image x:Name="FocusPeakingOverlayImage"

@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
+using LibVLCSharp.Shared;
 using Rawr.App.Controls;
 using Rawr.App.Dialogs;
 using Rawr.App.Shortcuts;
@@ -48,10 +49,12 @@ public partial class MainWindow : Window
     private GridLength _savedGridWidth = new GridLength(200);
     private PhotoItem? _prevSelectedPhoto;
 
-    // Video playback state. The DispatcherTimer pulls VideoPlayer.Position into the
+    // Video playback state. The DispatcherTimer pulls _vlcPlayer.Time into the
     // slider while playing; the suppress flag prevents the timer-driven slider update
     // from being interpreted as a user scrub.
     private readonly DispatcherTimer _videoTick = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private LibVLC? _libVlc;
+    private LibVLCSharp.Shared.MediaPlayer? _vlcPlayer;
 
     // Debounces the high-res preview load triggered by the zoom wheel. Swapping in a
     // full-resolution bitmap mid-scroll stalls the render thread when WPF uploads the
@@ -99,6 +102,13 @@ public partial class MainWindow : Window
 
         InitializeComponent();
         WindowHelper.ApplyDarkTitleBar(this);
+
+        _libVlc = new LibVLC();
+        _vlcPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVlc);
+        _vlcPlayer.Playing += VlcPlayer_Playing;
+        _vlcPlayer.LengthChanged += VlcPlayer_LengthChanged;
+        _vlcPlayer.EndReached += VlcPlayer_EndReached;
+        _vlcPlayer.EncounteredError += VlcPlayer_EncounteredError;
 
         // Text-input controls take precedence over window shortcuts: while a TextBox
         // has keyboard focus, we suspend InputBindings so keys like P/T/G/Ctrl+C type
@@ -172,7 +182,18 @@ public partial class MainWindow : Window
         // The peek view is in the right-hand panel — attach once it's loaded.
         Loaded += (_, _) => _peek?.AttachView(PhotoInfoPanelControl.PixelPeekView);
 
-        Closing += (_, _) => { SaveLayoutSettings(); _peek?.Dispose(); _peek = null; };
+        // VideoView must have its MediaPlayer set after the control is loaded.
+        Loaded += (_, _) => VideoPlayer.MediaPlayer = _vlcPlayer;
+
+        Closing += (_, _) =>
+        {
+            SaveLayoutSettings();
+            _peek?.Dispose();
+            _peek = null;
+            _vlcPlayer?.Stop();
+            _vlcPlayer?.Dispose();
+            _libVlc?.Dispose();
+        };
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
         Loaded += async (_, _) =>
         {
@@ -1153,10 +1174,6 @@ public partial class MainWindow : Window
 
     private void OnVideoSourceChanged()
     {
-        // The Source binding has just been updated (or cleared). MediaOpened will
-        // populate the slider when the new file is ready; in the meantime, stop the
-        // tick timer and reset the player UI so we don't carry leftover state from
-        // the prior video.
         _videoTick.Stop();
         _videoIsPlaying = false;
         _videoSliderIsDragging = false;
@@ -1165,10 +1182,7 @@ public partial class MainWindow : Window
         var vm = DataContext as MainViewModel;
         if (vm?.VideoSourceUri == null)
         {
-            // Selection moved off video: explicitly stop so the file handle is freed
-            // even when the binding alone wouldn't have triggered teardown.
-            VideoPlayer.Stop();
-            VideoPlayer.Close();
+            _vlcPlayer?.Stop();
             _videoDuration = TimeSpan.Zero;
             _videoSuppressSliderEvent = true;
             VideoSlider.Maximum = 1;
@@ -1176,65 +1190,96 @@ public partial class MainWindow : Window
             _videoSuppressSliderEvent = false;
             VideoTimeText.Text = "0:00 / 0:00";
         }
+        else if (_libVlc != null && _vlcPlayer != null)
+        {
+            // _videoIsPlaying is false → VlcPlayer_Playing will auto-pause to show first frame
+            var media = new Media(_libVlc, vm.VideoSourceUri);
+            _vlcPlayer.Play(media);
+            media.Dispose();
+        }
     }
 
-    private void VideoPlayer_MediaOpened(object sender, RoutedEventArgs e)
+    // Fires on VLC background thread when playback starts (including on initial load).
+    private void VlcPlayer_Playing(object? sender, EventArgs e)
     {
-        _videoDuration = VideoPlayer.NaturalDuration.HasTimeSpan
-            ? VideoPlayer.NaturalDuration.TimeSpan
-            : TimeSpan.Zero;
-
-        _videoSuppressSliderEvent = true;
-        VideoSlider.Maximum = Math.Max(0.1, _videoDuration.TotalSeconds);
-        VideoSlider.Value = 0;
-        _videoSuppressSliderEvent = false;
-        UpdateVideoTimeText(TimeSpan.Zero);
-
-        VideoPlayer.IsMuted = _videoIsMuted;
-
-        // Render the first frame without auto-playing audio. Play() then Pause() forces
-        // the decoder to produce a frame; ScrubbingEnabled keeps it visible while paused.
-        VideoPlayer.Play();
-        VideoPlayer.Pause();
-        _videoIsPlaying = false;
-        SetPlayPauseGlyph(playing: false);
+        if (!_videoIsPlaying)
+        {
+            // Initial load: pause immediately to show the first frame.
+            _vlcPlayer?.SetPause(true);
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (_vlcPlayer != null) _vlcPlayer.Mute = _videoIsMuted;
+                SetPlayPauseGlyph(playing: false);
+            });
+        }
     }
 
-    private void VideoPlayer_MediaEnded(object sender, RoutedEventArgs e)
+    // Fires on VLC background thread when the stream duration is known (may fire after Playing).
+    private void VlcPlayer_LengthChanged(object? sender, MediaPlayerLengthChangedEventArgs e)
     {
-        VideoPlayer.Pause();
-        VideoPlayer.Position = TimeSpan.Zero;
-        _videoIsPlaying = false;
-        _videoTick.Stop();
-        SetPlayPauseGlyph(playing: false);
-        _videoSuppressSliderEvent = true;
-        VideoSlider.Value = 0;
-        _videoSuppressSliderEvent = false;
-        UpdateVideoTimeText(TimeSpan.Zero);
+        Dispatcher.BeginInvoke(() =>
+        {
+            _videoDuration = TimeSpan.FromMilliseconds(e.Length);
+            _videoSuppressSliderEvent = true;
+            VideoSlider.Maximum = Math.Max(0.1, _videoDuration.TotalSeconds);
+            VideoSlider.Value = 0;
+            _videoSuppressSliderEvent = false;
+            UpdateVideoTimeText(TimeSpan.Zero);
+        });
     }
 
-    private void VideoPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+    // Fires on VLC background thread. Stop() must not be called directly from within a VLC event handler.
+    private void VlcPlayer_EndReached(object? sender, EventArgs e)
     {
-        _videoTick.Stop();
-        _videoIsPlaying = false;
-        SetPlayPauseGlyph(playing: false);
-        VideoTimeText.Text = "Failed to open video";
+        Task.Run(() => _vlcPlayer?.Stop());
+        Dispatcher.BeginInvoke(() =>
+        {
+            _videoIsPlaying = false;
+            _videoTick.Stop();
+            SetPlayPauseGlyph(playing: false);
+            _videoSuppressSliderEvent = true;
+            VideoSlider.Value = 0;
+            _videoSuppressSliderEvent = false;
+            UpdateVideoTimeText(TimeSpan.Zero);
+        });
+    }
+
+    private void VlcPlayer_EncounteredError(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _videoTick.Stop();
+            _videoIsPlaying = false;
+            SetPlayPauseGlyph(playing: false);
+            VideoTimeText.Text = "Failed to open video";
+        });
     }
 
     private void VideoPlayPause_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+        if (_vlcPlayer == null || _libVlc == null) return;
 
         if (_videoIsPlaying)
         {
-            VideoPlayer.Pause();
+            _vlcPlayer.SetPause(true);
             _videoIsPlaying = false;
             _videoTick.Stop();
         }
         else
         {
-            VideoPlayer.Play();
-            _videoIsPlaying = true;
+            _videoIsPlaying = true; // set before Play so VlcPlayer_Playing won't auto-pause
+            if (_vlcPlayer.State == VLCState.Paused)
+            {
+                _vlcPlayer.SetPause(false);
+            }
+            else
+            {
+                // Stopped or ended — reload from beginning
+                var media = new Media(_libVlc, vm.VideoSourceUri);
+                _vlcPlayer.Play(media);
+                media.Dispose();
+            }
             _videoTick.Start();
         }
         SetPlayPauseGlyph(_videoIsPlaying);
@@ -1243,7 +1288,7 @@ public partial class MainWindow : Window
     private void VideoMute_Click(object sender, RoutedEventArgs e)
     {
         _videoIsMuted = !_videoIsMuted;
-        VideoPlayer.IsMuted = _videoIsMuted;
+        if (_vlcPlayer != null) _vlcPlayer.Mute = _videoIsMuted;
         VideoMuteButton.Content = _videoIsMuted ? "🔇" : "🔊";
     }
 
@@ -1258,16 +1303,15 @@ public partial class MainWindow : Window
     private void VideoSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_videoSuppressSliderEvent) return;
-        // While the user is mid-drag we still seek so the frame updates live (ScrubbingEnabled);
-        // value-changes from clicks on the track also fall through here.
         SeekToSlider();
     }
 
     private void SeekToSlider()
     {
         if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
-        VideoPlayer.Position = TimeSpan.FromSeconds(VideoSlider.Value);
-        UpdateVideoTimeText(VideoPlayer.Position);
+        if (_vlcPlayer == null) return;
+        _vlcPlayer.Time = (long)(VideoSlider.Value * 1000);
+        UpdateVideoTimeText(TimeSpan.FromSeconds(VideoSlider.Value));
     }
 
     private void ExposureSlider_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -1284,8 +1328,8 @@ public partial class MainWindow : Window
 
     private void VideoTick_OnTick(object? sender, EventArgs e)
     {
-        if (_videoSliderIsDragging) return;
-        var pos = VideoPlayer.Position;
+        if (_videoSliderIsDragging || _vlcPlayer == null) return;
+        var pos = TimeSpan.FromMilliseconds(Math.Max(0, _vlcPlayer.Time));
         _videoSuppressSliderEvent = true;
         VideoSlider.Value = pos.TotalSeconds;
         _videoSuppressSliderEvent = false;

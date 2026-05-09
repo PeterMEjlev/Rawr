@@ -15,6 +15,9 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.*" />
     <PackageReference Include="GMap.NET.WindowsPresentation" Version="1.*" />
+    <PackageReference Include="LibVLCSharp" Version="3.*" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.*" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.*" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,12 +1,14 @@
 {
   "version": 2,
-  "dgSpecHash": "iuytgNel01A=",
+  "dgSpecHash": "7CFFzy+gl84=",
   "success": true,
   "projectFilePath": "C:\\Users\\pejlev\\Desktop\\Misc\\Git\\RAWR\\src\\Rawr.App\\Rawr.App.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\pejlev\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.2\\communitytoolkit.mvvm.8.4.2.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\gmap.net.core\\1.9.6\\gmap.net.core.1.9.6.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\gmap.net.windowspresentation\\1.9.6\\gmap.net.windowspresentation.1.9.6.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\libvlcsharp\\3.9.7.1\\libvlcsharp.3.9.7.1.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\libvlcsharp.wpf\\3.9.7.1\\libvlcsharp.wpf.3.9.7.1.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.data.sqlite\\9.0.15\\microsoft.data.sqlite.9.0.15.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.data.sqlite.core\\9.0.15\\microsoft.data.sqlite.core.9.0.15.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.ml.onnxruntime\\1.20.1\\microsoft.ml.onnxruntime.1.20.1.nupkg.sha512",
@@ -28,6 +30,7 @@
     "C:\\Users\\pejlev\\.nuget\\packages\\system.memory\\4.5.5\\system.memory.4.5.5.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\system.security.accesscontrol\\4.6.0\\system.security.accesscontrol.4.6.0.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\system.security.principal.windows\\4.6.0\\system.security.principal.windows.4.6.0.nupkg.sha512",
+    "C:\\Users\\pejlev\\.nuget\\packages\\videolan.libvlc.windows\\3.0.23.1\\videolan.libvlc.windows.3.0.23.1.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.netcore.app.ref\\9.0.15\\microsoft.netcore.app.ref.9.0.15.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\9.0.15\\microsoft.windowsdesktop.app.ref.9.0.15.nupkg.sha512",
     "C:\\Users\\pejlev\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\9.0.15\\microsoft.aspnetcore.app.ref.9.0.15.nupkg.sha512",

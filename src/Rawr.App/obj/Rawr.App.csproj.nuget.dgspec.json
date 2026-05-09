@@ -59,9 +59,21 @@
               "target": "Package",
               "version": "[1.*, )"
             },
+            "LibVLCSharp": {
+              "target": "Package",
+              "version": "[3.*, )"
+            },
+            "LibVLCSharp.WPF": {
+              "target": "Package",
+              "version": "[3.*, )"
+            },
             "Microsoft.ML.OnnxRuntime": {
               "target": "Package",
               "version": "[1.20.*, )"
+            },
+            "VideoLAN.LibVLC.Windows": {
+              "target": "Package",
+              "version": "[3.*, )"
             }
           },
           "imports": [
