@@ -157,6 +157,8 @@ public partial class MainWindow : Window
                     ApplyGridExpanded(vmE.IsGridExpanded);
                     if (vmE.IsGridExpanded)
                         StopVideoPlayback(resetPosition: true);
+                    else if (vmE.VideoSourceUri != null)
+                        OnVideoSourceChanged();
                 }
                 if (e.PropertyName == nameof(MainViewModel.ShowFilmstrip) && DataContext is MainViewModel vmF)
                     ApplyFilmstripVisibility(vmF.ShowFilmstrip);
@@ -635,13 +637,20 @@ public partial class MainWindow : Window
     {
         if (e.Handled) return;
         if (Keyboard.Modifiers != ModifierKeys.None) return;
+        var focusedElement = Keyboard.FocusedElement;
+
         // Let text-input controls keep navigation keys for caret movement / selection.
-        if (Keyboard.FocusedElement is TextBox or PasswordBox or RichTextBox or ComboBox) return;
+        if (focusedElement is TextBox or PasswordBox or RichTextBox) return;
 
         // Don't hijack arrow keys while a menu is open — let it navigate items.
-        if (Keyboard.FocusedElement is MenuItem) return;
+        if (focusedElement is MenuItem) return;
 
         if (DataContext is not MainViewModel vm) return;
+
+        // A closed ComboBox can retain keyboard focus after picking playback speed.
+        // Space should still control video playback; while the dropdown is open,
+        // leave Space to the ComboBox so it can select items normally.
+        if (focusedElement is ComboBox { IsDropDownOpen: true }) return;
 
         if (e.Key == Key.Space && vm.VideoSourceUri != null)
         {
@@ -650,11 +659,21 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Let ComboBoxes keep arrows/Enter for option navigation.
+        if (focusedElement is ComboBox) return;
+
         if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Enter)) return;
         if (vm.FilteredPhotos.Count == 0) return;
 
         if (e.Key is Key.Enter)
         {
+            if (vm is { IsGridExpanded: true, SelectedPhoto: not null })
+            {
+                vm.IsGridExpanded = false;
+                e.Handled = true;
+                return;
+            }
+
             if (vm.SelectedPhoto is { CollapsedBurstCount: > 0 } burst)
             {
                 OpenBurstFocus(burst);
