@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using System.Windows.Media.Imaging;
 using Rawr.Core.Models;
 
@@ -28,6 +29,18 @@ internal static class ExifHelper
             var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
             var frame = decoder.Frames[0];
             return Build(frame.Metadata as BitmapMetadata, frame.PixelWidth, frame.PixelHeight, fileSizeBytes);
+        }
+        catch
+        {
+            return new PhotoMetadata { FileSizeBytes = fileSizeBytes };
+        }
+    }
+
+    internal static PhotoMetadata ReadFromExifBytes(byte[] exifBytes, long fileSizeBytes)
+    {
+        try
+        {
+            return TiffExifReader.Read(exifBytes, fileSizeBytes);
         }
         catch
         {
@@ -198,5 +211,230 @@ internal static class ExifHelper
             };
         }
         catch { return 0f; }
+    }
+
+    private sealed class TiffExifReader
+    {
+        private readonly byte[] _data;
+        private readonly int _tiffStart;
+        private readonly bool _littleEndian;
+
+        private TiffExifReader(byte[] data)
+        {
+            _data = data;
+            _tiffStart = StartsWithExifHeader(data) ? 6 : 0;
+            if (_data.Length < _tiffStart + 8)
+                throw new InvalidDataException();
+
+            _littleEndian = _data[_tiffStart] == (byte)'I' && _data[_tiffStart + 1] == (byte)'I';
+            var bigEndian = _data[_tiffStart] == (byte)'M' && _data[_tiffStart + 1] == (byte)'M';
+            if (!_littleEndian && !bigEndian)
+                throw new InvalidDataException();
+            if (ReadUShort(_tiffStart + 2) != 42)
+                throw new InvalidDataException();
+        }
+
+        internal static PhotoMetadata Read(byte[] exifBytes, long fileSizeBytes)
+        {
+            var r = new TiffExifReader(exifBytes);
+            var ifd0 = r.GetIfdEntries(r.ReadInt(r._tiffStart + 4));
+            var exif = r.GetIfdEntries(r.ReadLongTag(ifd0, 34665));
+
+            var capture = r.ParseExifDate(
+                r.ReadAsciiTag(exif, 36867)
+                ?? r.ReadAsciiTag(exif, 36868)
+                ?? r.ReadAsciiTag(ifd0, 306));
+
+            return new PhotoMetadata
+            {
+                CameraMake   = r.ReadAsciiTag(ifd0, 271) ?? "",
+                CameraModel  = r.ReadAsciiTag(ifd0, 272) ?? "",
+                LensModel    = r.ReadAsciiTag(exif, 42036) ?? "",
+                ISO          = r.ReadFloatTag(exif, 34855),
+                Aperture     = r.ReadFloatTag(exif, 33437),
+                ShutterSpeed = r.ReadFloatTag(exif, 33434),
+                FocalLength  = r.ReadFloatTag(exif, 37386),
+                ExposureBias = r.ReadSignedFloatTag(exif, 37380),
+                WidthPx      = r.ReadIntTag(exif, 40962),
+                HeightPx     = r.ReadIntTag(exif, 40963),
+                FileSizeBytes = fileSizeBytes,
+                CaptureTime  = capture,
+            };
+        }
+
+        private static bool StartsWithExifHeader(byte[] data) =>
+            data.Length >= 10
+            && data[0] == (byte)'E'
+            && data[1] == (byte)'x'
+            && data[2] == (byte)'i'
+            && data[3] == (byte)'f'
+            && data[4] == 0
+            && data[5] == 0;
+
+        private Dictionary<ushort, IfdEntry> GetIfdEntries(int offset)
+        {
+            var result = new Dictionary<ushort, IfdEntry>();
+            var pos = _tiffStart + offset;
+            if (offset <= 0 || pos < 0 || pos + 2 > _data.Length)
+                return result;
+
+            var count = ReadUShort(pos);
+            pos += 2;
+            for (int i = 0; i < count; i++)
+            {
+                var entryPos = pos + i * 12;
+                if (entryPos + 12 > _data.Length) break;
+
+                var tag = ReadUShort(entryPos);
+                result[tag] = new IfdEntry(
+                    ReadUShort(entryPos + 2),
+                    ReadInt(entryPos + 4),
+                    entryPos + 8);
+            }
+
+            return result;
+        }
+
+        private string? ReadAsciiTag(Dictionary<ushort, IfdEntry> entries, ushort tag)
+        {
+            if (!entries.TryGetValue(tag, out var e) || e.Type != 2 || e.Count <= 0)
+                return null;
+
+            var bytes = ReadEntryBytes(e);
+            if (bytes.Length == 0) return null;
+
+            var length = Array.IndexOf(bytes, (byte)0);
+            if (length < 0) length = bytes.Length;
+
+            return Encoding.ASCII.GetString(bytes, 0, length).Trim();
+        }
+
+        private int ReadIntTag(Dictionary<ushort, IfdEntry> entries, ushort tag)
+        {
+            if (!entries.TryGetValue(tag, out var e)) return 0;
+            return e.Type switch
+            {
+                3 => ReadUShort(ValuePosition(e)),
+                4 => ReadInt(ValuePosition(e)),
+                _ => 0,
+            };
+        }
+
+        private int ReadLongTag(Dictionary<ushort, IfdEntry> entries, ushort tag)
+        {
+            if (!entries.TryGetValue(tag, out var e)) return 0;
+            return e.Type switch
+            {
+                3 => ReadUShort(ValuePosition(e)),
+                4 => ReadInt(ValuePosition(e)),
+                _ => 0,
+            };
+        }
+
+        private float ReadFloatTag(Dictionary<ushort, IfdEntry> entries, ushort tag)
+        {
+            if (!entries.TryGetValue(tag, out var e)) return 0f;
+            return e.Type switch
+            {
+                3 => ReadUShort(ValuePosition(e)),
+                4 => ReadInt(ValuePosition(e)),
+                5 => ReadRational(ValuePosition(e)),
+                _ => 0f,
+            };
+        }
+
+        private float? ReadSignedFloatTag(Dictionary<ushort, IfdEntry> entries, ushort tag)
+        {
+            if (!entries.TryGetValue(tag, out var e)) return null;
+            return e.Type switch
+            {
+                9 => ReadInt(ValuePosition(e)),
+                10 => ReadSignedRational(ValuePosition(e)),
+                3 => ReadUShort(ValuePosition(e)),
+                4 => ReadInt(ValuePosition(e)),
+                _ => null,
+            };
+        }
+
+        private DateTime? ParseExifDate(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            return DateTime.TryParseExact(
+                value.Trim(),
+                "yyyy:MM:dd HH:mm:ss",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var dt)
+                ? dt
+                : null;
+        }
+
+        private byte[] ReadEntryBytes(IfdEntry e)
+        {
+            var byteCount = CheckedByteCount(e);
+            if (byteCount <= 0) return [];
+
+            var pos = byteCount <= 4 ? e.ValueOffsetPosition : _tiffStart + ReadInt(e.ValueOffsetPosition);
+            if (pos < 0 || pos + byteCount > _data.Length)
+                return [];
+
+            var bytes = new byte[byteCount];
+            Buffer.BlockCopy(_data, pos, bytes, 0, byteCount);
+            return bytes;
+        }
+
+        private int ValuePosition(IfdEntry e) =>
+            CheckedByteCount(e) <= 4 ? e.ValueOffsetPosition : _tiffStart + ReadInt(e.ValueOffsetPosition);
+
+        private static int CheckedByteCount(IfdEntry e)
+        {
+            var unit = e.Type switch
+            {
+                1 or 2 or 7 => 1,
+                3 => 2,
+                4 or 9 => 4,
+                5 or 10 => 8,
+                _ => 0,
+            };
+            if (unit == 0 || e.Count <= 0 || e.Count > int.MaxValue / unit)
+                return 0;
+            return e.Count * unit;
+        }
+
+        private float ReadRational(int pos)
+        {
+            if (pos < 0 || pos + 8 > _data.Length) return 0f;
+            var num = ReadUInt(pos);
+            var den = ReadUInt(pos + 4);
+            return den == 0 ? 0f : (float)(num / (double)den);
+        }
+
+        private float? ReadSignedRational(int pos)
+        {
+            if (pos < 0 || pos + 8 > _data.Length) return null;
+            var num = ReadInt(pos);
+            var den = ReadInt(pos + 4);
+            return den == 0 ? null : (float)(num / (double)den);
+        }
+
+        private ushort ReadUShort(int pos)
+        {
+            if (pos < 0 || pos + 2 > _data.Length) return 0;
+            return _littleEndian
+                ? (ushort)(_data[pos] | (_data[pos + 1] << 8))
+                : (ushort)((_data[pos] << 8) | _data[pos + 1]);
+        }
+
+        private uint ReadUInt(int pos)
+        {
+            if (pos < 0 || pos + 4 > _data.Length) return 0;
+            return _littleEndian
+                ? (uint)(_data[pos] | (_data[pos + 1] << 8) | (_data[pos + 2] << 16) | (_data[pos + 3] << 24))
+                : (uint)((_data[pos] << 24) | (_data[pos + 1] << 16) | (_data[pos + 2] << 8) | _data[pos + 3]);
+        }
+
+        private int ReadInt(int pos) => unchecked((int)ReadUInt(pos));
+
+        private readonly record struct IfdEntry(ushort Type, int Count, int ValueOffsetPosition);
     }
 }

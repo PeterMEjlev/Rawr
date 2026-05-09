@@ -76,6 +76,7 @@ public partial class MainWindow : Window
     private bool _videoSuppressSliderEvent;
     private TimeSpan _videoDuration;
     private bool _videoIsMuted;
+    private Uri? _pendingVideoSource;
     private bool _suppressFilterToggleMouseUp;
     private bool _suppressTagsToggleMouseUp;
     private bool _suppressCopyToggleMouseUp;
@@ -183,7 +184,15 @@ public partial class MainWindow : Window
         Loaded += (_, _) => _peek?.AttachView(PhotoInfoPanelControl.PixelPeekView);
 
         // VideoView must have its MediaPlayer set after the control is loaded.
-        Loaded += (_, _) => VideoPlayer.MediaPlayer = _vlcPlayer;
+        Loaded += (_, _) => AttachVlcPlayerToView();
+        VideoPlayer.IsVisibleChanged += (_, _) =>
+        {
+            if (VideoPlayer.IsVisible)
+            {
+                AttachVlcPlayerToView(force: true);
+                Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(PlayPendingVideoSource));
+            }
+        };
 
         Closing += (_, _) =>
         {
@@ -1182,6 +1191,7 @@ public partial class MainWindow : Window
         var vm = DataContext as MainViewModel;
         if (vm?.VideoSourceUri == null)
         {
+            _pendingVideoSource = null;
             _vlcPlayer?.Stop();
             _videoDuration = TimeSpan.Zero;
             _videoSuppressSliderEvent = true;
@@ -1193,10 +1203,32 @@ public partial class MainWindow : Window
         else if (_libVlc != null && _vlcPlayer != null)
         {
             // _videoIsPlaying is false → VlcPlayer_Playing will auto-pause to show first frame
-            var media = new Media(_libVlc, vm.VideoSourceUri);
-            _vlcPlayer.Play(media);
-            media.Dispose();
+            _pendingVideoSource = vm.VideoSourceUri;
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(PlayPendingVideoSource));
         }
+    }
+
+    private void AttachVlcPlayerToView(bool force = false)
+    {
+        if (_vlcPlayer == null) return;
+        if (force && ReferenceEquals(VideoPlayer.MediaPlayer, _vlcPlayer))
+            VideoPlayer.MediaPlayer = null;
+        if (!ReferenceEquals(VideoPlayer.MediaPlayer, _vlcPlayer))
+            VideoPlayer.MediaPlayer = _vlcPlayer;
+    }
+
+    private void PlayPendingVideoSource()
+    {
+        var source = _pendingVideoSource;
+        if (source == null || _libVlc == null || _vlcPlayer == null) return;
+        if (DataContext is not MainViewModel vm || vm.VideoSourceUri != source) return;
+
+        AttachVlcPlayerToView(force: true);
+        VideoPlayer.UpdateLayout();
+
+        // _videoIsPlaying is false: VlcPlayer_Playing will auto-pause to show first frame.
+        using var media = new Media(_libVlc, source);
+        _vlcPlayer.Play(media);
     }
 
     // Fires on VLC background thread when playback starts (including on initial load).
@@ -1276,9 +1308,9 @@ public partial class MainWindow : Window
             else
             {
                 // Stopped or ended — reload from beginning
-                var media = new Media(_libVlc, vm.VideoSourceUri);
+                AttachVlcPlayerToView();
+                using var media = new Media(_libVlc, vm.VideoSourceUri);
                 _vlcPlayer.Play(media);
-                media.Dispose();
             }
             _videoTick.Start();
         }
