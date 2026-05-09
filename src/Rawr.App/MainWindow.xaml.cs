@@ -153,7 +153,11 @@ public partial class MainWindow : Window
                 if (e.PropertyName == nameof(MainViewModel.ShowGrid) && DataContext is MainViewModel vmG)
                     ApplyGridVisibility(vmG.ShowGrid);
                 if (e.PropertyName == nameof(MainViewModel.IsGridExpanded) && DataContext is MainViewModel vmE)
+                {
                     ApplyGridExpanded(vmE.IsGridExpanded);
+                    if (vmE.IsGridExpanded)
+                        StopVideoPlayback(resetPosition: true);
+                }
                 if (e.PropertyName == nameof(MainViewModel.ShowFilmstrip) && DataContext is MainViewModel vmF)
                     ApplyFilmstripVisibility(vmF.ShowFilmstrip);
                 if (e.PropertyName == nameof(MainViewModel.ShowSecondMonitor) && DataContext is MainViewModel vmS)
@@ -1196,17 +1200,16 @@ public partial class MainWindow : Window
         var vm = DataContext as MainViewModel;
         if (vm?.VideoSourceUri == null)
         {
-            _videoIsPlaying = false;
-            SetPlayPauseGlyph(playing: false);
-            SetVideoSurfaceVisible(false);
             _pendingVideoSource = null;
-            _vlcPlayer?.Stop();
             _videoDuration = TimeSpan.Zero;
-            _videoSuppressSliderEvent = true;
+            StopVideoPlayback(resetPosition: true);
             VideoSlider.Maximum = 1;
-            VideoSlider.Value = 0;
-            _videoSuppressSliderEvent = false;
-            VideoTimeText.Text = "0:00 / 0:00";
+        }
+        else if (vm.IsGridExpanded)
+        {
+            _pendingVideoSource = null;
+            _videoDuration = TimeSpan.Zero;
+            StopVideoPlayback(resetPosition: true);
         }
         else if (_libVlc != null && _vlcPlayer != null)
         {
@@ -1232,6 +1235,11 @@ public partial class MainWindow : Window
         var source = _pendingVideoSource;
         if (source == null || _libVlc == null || _vlcPlayer == null) return;
         if (DataContext is not MainViewModel vm || vm.VideoSourceUri != source) return;
+        if (vm.IsGridExpanded)
+        {
+            StopVideoPlayback(resetPosition: true);
+            return;
+        }
 
         SetVideoSurfaceVisible(true);
         AttachVlcPlayerToView(force: true);
@@ -1250,6 +1258,12 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(() =>
         {
             if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+            if (vm.IsGridExpanded)
+            {
+                StopVideoPlayback(resetPosition: true);
+                return;
+            }
+
             if (_vlcPlayer != null) _vlcPlayer.Mute = _videoIsMuted;
             ApplyVideoPlaybackRate();
             _videoIsPlaying = true;
@@ -1300,12 +1314,34 @@ public partial class MainWindow : Window
         });
     }
 
+    private void StopVideoPlayback(bool resetPosition)
+    {
+        _videoTick.Stop();
+        _videoIsPlaying = false;
+        SetPlayPauseGlyph(playing: false);
+        SetVideoSurfaceVisible(false);
+        _vlcPlayer?.Stop();
+
+        if (resetPosition)
+        {
+            _videoSuppressSliderEvent = true;
+            VideoSlider.Value = 0;
+            _videoSuppressSliderEvent = false;
+            UpdateVideoTimeText(TimeSpan.Zero);
+        }
+    }
+
     private void VideoPlayPause_Click(object sender, RoutedEventArgs e) => ToggleVideoPlayPause();
 
     private void ToggleVideoPlayPause()
     {
         if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
         if (_vlcPlayer == null || _libVlc == null) return;
+        if (vm.IsGridExpanded)
+        {
+            StopVideoPlayback(resetPosition: true);
+            return;
+        }
 
         if (_videoIsPlaying)
         {
