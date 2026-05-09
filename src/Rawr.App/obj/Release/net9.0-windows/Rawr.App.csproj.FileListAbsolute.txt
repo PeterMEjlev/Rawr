@@ -268,3 +268,5 @@ C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\Ma
 C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Dialogs\SecondMonitorWindow.g.cs
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PhotoInfoPanel.g.cs
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PhotoInfoPanel.baml
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PhotoInfoPanel.g.cs
+C:\Users\Torsten\Desktop\RAWR\src\Rawr.App\obj\Release\net9.0-windows\Controls\PhotoInfoPanel.baml

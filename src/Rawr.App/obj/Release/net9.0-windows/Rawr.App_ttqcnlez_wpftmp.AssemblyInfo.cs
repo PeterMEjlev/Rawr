@@ -10,12 +10,12 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("Rawr.Raw")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("RAWR")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f39513a3016e0475534aa578a812ed5e3b98184d")]
-[assembly: System.Reflection.AssemblyProductAttribute("Rawr.Raw")]
-[assembly: System.Reflection.AssemblyTitleAttribute("Rawr.Raw")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+00db0bc367e72a254cb1ef8414ba864f28e772da")]
+[assembly: System.Reflection.AssemblyProductAttribute("RAWR")]
+[assembly: System.Reflection.AssemblyTitleAttribute("RAWR")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("Windows7.0")]
