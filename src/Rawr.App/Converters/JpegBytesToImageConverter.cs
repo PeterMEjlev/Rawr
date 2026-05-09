@@ -1,52 +1,40 @@
 using System.Globalization;
 using System.IO;
 using System.Windows.Data;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace Rawr.App.Converters;
 
 /// <summary>
-/// Converts a JPEG byte[] into a frozen BitmapSource suitable for binding to Image.Source.
-/// Uses DecodePixelWidth for fast scaled decode (the JPEG codec scales natively at decode
-/// time). Applies EXIF orientation so portrait shots appear upright.
+/// Converts cached JPEG thumbnail bytes into frozen BitmapSources for binding.
+/// Keeps a bounded decoded-image cache so virtualized grids can recycle cells
+/// without repeatedly decoding the same thumbnail on the UI thread.
 /// </summary>
 public sealed class JpegBytesToImageConverter : IValueConverter
 {
     /// <summary>Target decode width in pixels. 0 = full resolution.</summary>
     public int DecodePixelWidth { get; set; } = 240;
 
+    /// <summary>Maximum decoded images kept hot for virtualized thumbnail views.</summary>
+    public int MaxCachedImages { get; set; } = 512;
+
+    private readonly Dictionary<byte[], LinkedListNode<CacheEntry>> _cache = new(ReferenceEqualityComparer.Instance);
+    private readonly LinkedList<CacheEntry> _lru = new();
+    private readonly object _gate = new();
+
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is not byte[] bytes || bytes.Length == 0)
             return null;
 
+        if (TryGetCached(bytes, out var cached))
+            return cached;
+
         try
         {
-            // Read EXIF orientation from headers — cheap, no pixel decode.
-            double rotation = 0.0;
-            try
-            {
-                using var msMeta = new MemoryStream(bytes);
-                var metaDecoder = BitmapDecoder.Create(msMeta, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-                rotation = ReadExifRotation(metaDecoder.Frames[0].Metadata as BitmapMetadata);
-            }
-            catch { /* no EXIF — leave at 0 */ }
-
-            var bi = new BitmapImage();
-            bi.BeginInit();
-            bi.StreamSource = new MemoryStream(bytes);
-            bi.CacheOption = BitmapCacheOption.OnLoad;
-            if (DecodePixelWidth > 0)
-                bi.DecodePixelWidth = DecodePixelWidth;
-            bi.EndInit();
-            bi.Freeze();
-
-            if (rotation == 0.0) return bi;
-
-            var rotated = new TransformedBitmap(bi, new RotateTransform(rotation));
-            rotated.Freeze();
-            return rotated;
+            var image = Decode(bytes);
+            AddCached(bytes, image);
+            return image;
         }
         catch
         {
@@ -54,24 +42,59 @@ public sealed class JpegBytesToImageConverter : IValueConverter
         }
     }
 
-    private static double ReadExifRotation(BitmapMetadata? metadata)
+    private BitmapSource Decode(byte[] bytes)
     {
-        try
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.StreamSource = new MemoryStream(bytes);
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        if (DecodePixelWidth > 0)
+            image.DecodePixelWidth = DecodePixelWidth;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    private bool TryGetCached(byte[] bytes, out BitmapSource? image)
+    {
+        lock (_gate)
         {
-            var raw = metadata?.GetQuery("/app1/ifd/{ushort=274}");
-            if (raw == null) return 0.0;
-            int orientation = System.Convert.ToInt32(raw);
-            return orientation switch
+            if (_cache.TryGetValue(bytes, out var node))
             {
-                3 => 180.0,
-                6 => 90.0,
-                8 => 270.0,
-                _ => 0.0
-            };
+                _lru.Remove(node);
+                _lru.AddFirst(node);
+                image = node.Value.Image;
+                return true;
+            }
         }
-        catch { return 0.0; }
+
+        image = null;
+        return false;
+    }
+
+    private void AddCached(byte[] bytes, BitmapSource image)
+    {
+        if (MaxCachedImages <= 0) return;
+
+        lock (_gate)
+        {
+            if (_cache.ContainsKey(bytes)) return;
+
+            var node = new LinkedListNode<CacheEntry>(new CacheEntry(bytes, image));
+            _lru.AddFirst(node);
+            _cache[bytes] = node;
+
+            while (_cache.Count > MaxCachedImages && _lru.Last != null)
+            {
+                var victim = _lru.Last;
+                _lru.RemoveLast();
+                _cache.Remove(victim.Value.Bytes);
+            }
+        }
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
+
+    private sealed record CacheEntry(byte[] Bytes, BitmapSource Image);
 }

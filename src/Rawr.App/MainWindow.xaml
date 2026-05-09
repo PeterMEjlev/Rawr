@@ -1737,27 +1737,12 @@
                                                 Background="#FF0E0E0E"
                                                 CornerRadius="{StaticResource ThumbnailCornerRadius}"
                                                 MouseLeftButtonUp="GridItem_MouseLeftButtonUp">
-                                        <Border.OpacityMask>
-                                            <VisualBrush>
-                                                <VisualBrush.Visual>
-                                                    <Border Background="Black"
-                                                            CornerRadius="{StaticResource ThumbnailCornerRadius}"
-                                                            Width="{Binding ActualWidth, ElementName=thumbCard}"
-                                                            Height="{Binding ActualHeight, ElementName=thumbCard}" />
-                                                </VisualBrush.Visual>
-                                            </VisualBrush>
-                                        </Border.OpacityMask>
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Margin" Value="0" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}" Value="Visible">
                                                         <Setter Property="Margin" Value="8,8,0,0" />
-                                                        <Setter Property="Effect">
-                                                            <Setter.Value>
-                                                                <DropShadowEffect BlurRadius="10" ShadowDepth="3" Direction="315" Opacity="0.45" Color="Black" />
-                                                            </Setter.Value>
-                                                        </Setter>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>

@@ -3,8 +3,10 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Rawr.App.Collections;
 using Microsoft.VisualBasic.FileIO;
 using Microsoft.Win32;
 using Rawr.App.Controls;
@@ -58,6 +60,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private const int RawDecodeSettleDelayMs = 180;
     private const int FullJpegPreloadSettleDelayMs = 350;
     private const int RawPrefetchSettleDelayMs = 650;
+
+    private sealed record FolderCatalog(
+        CullingDatabase Database,
+        PreviewCache Cache,
+        Dictionary<string, PhotoState> SavedState,
+        List<PhotoTag> Tags,
+        List<PhotoItem> Photos,
+        DateTime DatabaseModifiedUtc);
+
+    private sealed record PreviewUpdate(PhotoItem Photo, byte[]? ThumbnailJpeg, PhotoMetadata? Metadata);
 
     // ── Observable state ──
 
@@ -424,8 +436,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSortFieldChanged(SortField value) => ApplyFilter();
     partial void OnSortDescendingChanged(bool value) => ApplyFilter();
 
-    public ObservableCollection<PhotoItem> AllPhotos { get; } = [];
-    public ObservableCollection<PhotoItem> FilteredPhotos { get; } = [];
+    public ObservableRangeCollection<PhotoItem> AllPhotos { get; } = [];
+    public ObservableRangeCollection<PhotoItem> FilteredPhotos { get; } = [];
 
     // Multi-selection set that bulk operations (rate/flag/colour/tag/copy/delete) act on.
     // SelectedPhoto is the *anchor* — the focused tile that drives preview, EXIF, and
@@ -802,6 +814,63 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private static FolderCatalog LoadFolderCatalog(string folderPath, IReadOnlyList<string> files, CancellationToken ct)
+    {
+        CullingDatabase? db = null;
+        try
+        {
+            db = CullingDatabase.Open(folderPath);
+            var cache = new PreviewCache(folderPath);
+            var savedState = db.LoadAll();
+            var tags = db.LoadGroups();
+            var allPhotoTags = db.LoadAllPhotoGroups();
+            var tagsById = tags.ToDictionary(t => t.Id);
+            var photos = new List<PhotoItem>(files.Count);
+
+            foreach (var filePath in files)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var photo = new PhotoItem { FilePath = filePath };
+                var fileName = photo.FileName;
+
+                if (savedState.TryGetValue(fileName, out var state))
+                {
+                    photo.Rating = state.Rating;
+                    photo.Flag = state.Flag;
+                    photo.ColorLabel = state.ColorLabel;
+                    photo.GroupId = state.GroupId;
+                    photo.IsBestInGroup = state.IsBestInGroup;
+                    photo.Phash = state.Phash;
+                    photo.HighlightClippedPct = state.HighlightClippedPct;
+                    photo.ShadowClippedPct = state.ShadowClippedPct;
+                    photo.FaceCount = state.FaceCount;
+                    photo.ClosedEyeCount = state.ClosedEyeCount;
+                    photo.MinEyeOpenScore = state.MinEyeOpenScore;
+                }
+
+                if (allPhotoTags.TryGetValue(fileName, out var tagIds))
+                {
+                    foreach (var id in tagIds)
+                        photo.TagIds.Add(id);
+                }
+                UpdateTagDisplay(photo, tagsById);
+
+                photos.Add(photo);
+            }
+
+            var dbPath = Path.Combine(folderPath, ".rawr", "culling.db");
+            var dbMtime = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath) : DateTime.MinValue;
+            var catalog = new FolderCatalog(db, cache, savedState, tags, photos, dbMtime);
+            db = null;
+            return catalog;
+        }
+        finally
+        {
+            db?.Dispose();
+        }
+    }
+
     public async Task LoadFolderAsync(string folderPath)
     {
         FlushSessionSave();
@@ -862,53 +931,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        StatusText = $"Found {files.Count} image files. Loading...";
+        StatusText = $"Found {files.Count} image files. Loading catalog...";
 
-        // Open database and preview cache
-        _db = CullingDatabase.Open(folderPath);
+        var catalog = await Task.Run(() => LoadFolderCatalog(folderPath, files, ct), ct);
+        if (ct.IsCancellationRequested)
+        {
+            catalog.Database.Dispose();
+            return;
+        }
+
+        _db = catalog.Database;
         _xmpWriter = new XmpSidecarWriter();
-        _cache = new PreviewCache(folderPath);
-        var savedState = _db.LoadAll();
-        var dbPath = Path.Combine(folderPath, ".rawr", "culling.db");
-        DateTime dbMtime = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath) : DateTime.MinValue;
+        _cache = catalog.Cache;
 
-        // Create PhotoItem for each file, restoring saved culling state
-        foreach (var filePath in files)
-        {
-            var photo = new PhotoItem { FilePath = filePath };
-            var fileName = photo.FileName;
-
-            if (savedState.TryGetValue(fileName, out var state))
-            {
-                photo.Rating = state.Rating;
-                photo.Flag = state.Flag;
-                photo.ColorLabel = state.ColorLabel;
-                photo.GroupId = state.GroupId;
-                photo.IsBestInGroup = state.IsBestInGroup;
-                photo.Phash = state.Phash;
-                photo.HighlightClippedPct = state.HighlightClippedPct;
-                photo.ShadowClippedPct = state.ShadowClippedPct;
-                photo.FaceCount = state.FaceCount;
-                photo.ClosedEyeCount = state.ClosedEyeCount;
-                photo.MinEyeOpenScore = state.MinEyeOpenScore;
-            }
-
-            AllPhotos.Add(photo);
-        }
-
-        // Load tags and photo-tag assignments
-        foreach (var t in _db.LoadGroups())
+        foreach (var t in catalog.Tags)
             Tags.Add(t);
-        var allPhotoTags = _db.LoadAllPhotoGroups();
-        foreach (var photo in AllPhotos)
-        {
-            if (allPhotoTags.TryGetValue(photo.FileName, out var tagIds))
-            {
-                foreach (var id in tagIds)
-                    photo.TagIds.Add(id);
-            }
-            UpdateTagDisplay(photo);
-        }
+
+        var savedState = catalog.SavedState;
+        DateTime dbMtime = catalog.DatabaseModifiedUtc;
 
         // Merge externally-edited XMP sidecars. A sidecar is "external" when it
         // was modified after the SQLite file (e.g. the user edited the rating in
@@ -920,7 +960,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // session started will land *after* the SQLite mtime; without the grace
         // we'd re-merge our own data on every folder open. Harmless but wasteful.
         var grace = TimeSpan.FromSeconds(5);
-        var photosToScan = AllPhotos.ToList();
+        var photosToScan = catalog.Photos;
         var pendingMerges = await Task.Run(() =>
         {
             var list = new List<(PhotoItem photo, XmpData data)>();
@@ -941,6 +981,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (pendingMerges.Count > 0)
             ApplyXmpMerges(pendingMerges);
+
+        AllPhotos.ReplaceRange(catalog.Photos);
 
         // Restore per-folder session (filters, sort, burst-collapse) before the
         // first ApplyFilter so the rebuilt FilteredPhotos already reflects the
@@ -1003,53 +1045,111 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task GeneratePreviewsAsync(CancellationToken ct)
     {
-        // First pass: load cached thumbnails on the UI thread (instant)
-        var toExtract = new List<PhotoItem>();
-        foreach (var photo in AllPhotos)
+        var cache = _cache;
+        if (cache == null) return;
+
+        var photos = AllPhotos.ToList();
+        var pendingUpdates = new List<PreviewUpdate>(128);
+        var pendingLock = new object();
+        var flushQueued = 0;
+
+        void QueuePreviewUpdate(PreviewUpdate update)
         {
-            if (ct.IsCancellationRequested) return;
-            var cached = _cache!.LoadThumbnail(photo.FileName);
-            if (cached != null)
-                photo.ThumbnailJpeg = cached;
-            else
-                toExtract.Add(photo);
+            bool shouldSchedule = false;
+            lock (pendingLock)
+            {
+                pendingUpdates.Add(update);
+                if (flushQueued == 0)
+                {
+                    flushQueued = 1;
+                    shouldSchedule = true;
+                }
+            }
+
+            if (shouldSchedule)
+            {
+                Application.Current.Dispatcher.BeginInvoke(
+                    (Action)FlushSomePendingPreviewUpdates,
+                    DispatcherPriority.Background);
+            }
         }
 
-        // Second pass: extract missing thumbnails + metadata for all photos in parallel.
+        void FlushSomePendingPreviewUpdates() => FlushPendingPreviewUpdates(96);
+
+        void FlushPendingPreviewUpdates(int maxBatch)
+        {
+            List<PreviewUpdate> batch;
+            lock (pendingLock)
+            {
+                if (pendingUpdates.Count == 0)
+                {
+                    flushQueued = 0;
+                    return;
+                }
+
+                var count = Math.Min(maxBatch, pendingUpdates.Count);
+                batch = pendingUpdates.GetRange(0, count);
+                pendingUpdates.RemoveRange(0, count);
+            }
+
+            if (!ct.IsCancellationRequested)
+            {
+                foreach (var update in batch)
+                {
+                    if (update.ThumbnailJpeg != null)
+                        update.Photo.ThumbnailJpeg = update.ThumbnailJpeg;
+                    if (update.Metadata != null)
+                        update.Photo.Metadata = update.Metadata;
+                }
+            }
+
+            bool shouldScheduleAgain = false;
+            lock (pendingLock)
+            {
+                if (pendingUpdates.Count == 0)
+                    flushQueued = 0;
+                else
+                    shouldScheduleAgain = true;
+            }
+
+            if (shouldScheduleAgain)
+            {
+                Application.Current.Dispatcher.BeginInvoke(
+                    (Action)FlushSomePendingPreviewUpdates,
+                    DispatcherPriority.Background);
+            }
+        }
+
+        // Load cached thumbnails, extract missing thumbnails, and read metadata off
+        // the UI thread. UI-bound properties are applied later in small batches.
         // Extraction is CPU+IO bound and per-call independent, so it parallelises cleanly.
         // Cap at ProcessorCount/2 to leave headroom for the UI thread + decode.
         int done = 0;
-        int total = AllPhotos.Count;
+        int total = photos.Count;
         int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2));
-        var needsThumb = new HashSet<PhotoItem>(toExtract);
 
         await Task.Run(() =>
         {
             var po = new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = ct };
             try
             {
-                Parallel.ForEach(AllPhotos, po, photo =>
+                Parallel.ForEach(photos, po, photo =>
                 {
-                    byte[]? thumbBytes = null;
-                    if (needsThumb.Contains(photo))
+                    byte[]? thumbBytes = cache.LoadThumbnail(photo.FileName);
+                    if (thumbBytes == null)
                     {
                         var jpeg = ExtractorFor(photo).ExtractThumbnail(photo.FilePath);
                         if (jpeg != null)
                         {
                             var thumb = ProcessJpegForCache(jpeg, ThumbnailDecodeWidth) ?? jpeg;
-                            _cache!.SaveThumbnail(photo.FileName, thumb);
+                            cache.SaveThumbnail(photo.FileName, thumb);
                             thumbBytes = thumb;
-                            Application.Current.Dispatcher.Invoke(() => photo.ThumbnailJpeg = thumb);
                         }
-                    }
-                    else
-                    {
-                        thumbBytes = photo.ThumbnailJpeg; // loaded from disk cache in pass 1
                     }
 
                     var metadata = ExtractorFor(photo).ExtractMetadata(photo.FilePath);
-                    if (metadata != null)
-                        Application.Current.Dispatcher.Invoke(() => photo.Metadata = metadata);
+                    if (thumbBytes != null || metadata != null)
+                        QueuePreviewUpdate(new PreviewUpdate(photo, thumbBytes, metadata));
 
                     // Compute the perceptual hash from the thumbnail once and reuse on every
                     // subsequent open via the SQLite cache. Used by BurstDetector below.
@@ -1077,11 +1177,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     }
 
                     var d = Interlocked.Increment(ref done);
-                    if (d % 10 == 0)
+                    if (d % 25 == 0)
                     {
                         var snapshot = d;
-                        Application.Current.Dispatcher.BeginInvoke(() =>
-                            StatusText = $"Generating previews... {snapshot}/{total}");
+                        Application.Current.Dispatcher.BeginInvoke(
+                            (Action)(() =>
+                            {
+                                if (!ct.IsCancellationRequested)
+                                    StatusText = $"Generating previews... {snapshot}/{total}";
+                            }),
+                            DispatcherPriority.Background);
                     }
                 });
             }
@@ -1089,6 +1194,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }, ct);
 
         if (ct.IsCancellationRequested) return;
+
+        await Application.Current.Dispatcher.InvokeAsync(
+            (Action)(() => FlushPendingPreviewUpdates(int.MaxValue)),
+            DispatcherPriority.Background);
 
         // Once metadata is in for every photo, group consecutive shots into bursts.
         // BurstDetector mutates GroupId/BurstBadge on the UI thread (the properties are observable),
@@ -3193,6 +3302,32 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             visibleNames.Add(t.Name);
         }
+        ApplyTagPresentation(photo, isHdr, isPanorama, visibleNames);
+    }
+
+    private static void UpdateTagDisplay(PhotoItem photo, IReadOnlyDictionary<int, PhotoTag> tagsById)
+    {
+        bool isHdr = false;
+        bool isPanorama = false;
+        var visibleNames = new List<string>(photo.TagIds.Count);
+        foreach (var id in photo.TagIds)
+        {
+            if (!tagsById.TryGetValue(id, out var t)) continue;
+            if (t.IsSystem)
+            {
+                if (string.Equals(t.Name, HdrTagName, StringComparison.Ordinal))
+                    isHdr = true;
+                else if (string.Equals(t.Name, PanoramaTagName, StringComparison.Ordinal))
+                    isPanorama = true;
+                continue;
+            }
+            visibleNames.Add(t.Name);
+        }
+        ApplyTagPresentation(photo, isHdr, isPanorama, visibleNames);
+    }
+
+    private static void ApplyTagPresentation(PhotoItem photo, bool isHdr, bool isPanorama, List<string> visibleNames)
+    {
         photo.IsHdr = isHdr;
         photo.IsPanorama = isPanorama;
         photo.TagDisplay = visibleNames.Count == 0 ? "" : string.Join("\n", visibleNames);
@@ -3739,7 +3874,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Filter or burst-collapse change wipes any multi-selection — RestoreSelection
         // at the end re-adds the (possibly remapped) anchor via the reconcile path.
         ClearAllSelection();
-        FilteredPhotos.Clear();
 
         IEnumerable<PhotoItem> visible = AllPhotos;
 
@@ -3860,6 +3994,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var p in AllPhotos)
             if (p.CollapsedBurstCount != 0) p.CollapsedBurstCount = 0;
 
+        var filtered = new List<PhotoItem>(sorted.Count);
+
         if (BurstCollapsed)
         {
             // Per burst: keep the chronologically first matching photo as the
@@ -3878,23 +4014,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 if (photo.GroupId == 0)
                 {
-                    FilteredPhotos.Add(photo);
+                    filtered.Add(photo);
                     continue;
                 }
                 if (!seenGroups.Add(photo.GroupId)) continue; // already represented
                 var members = membersByGroup[photo.GroupId];
                 var rep = SelectBurstRepresentative(members);
                 rep.CollapsedBurstCount = members.Count;
-                FilteredPhotos.Add(rep);
+                filtered.Add(rep);
             }
         }
         else
         {
             foreach (var photo in sorted)
-                FilteredPhotos.Add(photo);
+                filtered.Add(photo);
         }
 
-        VisibleCount = FilteredPhotos.Count;
+        FilteredPhotos.ReplaceRange(filtered);
+        VisibleCount = filtered.Count;
         UpdateFilterDescription();
 
         RestoreSelection(previousSelection);

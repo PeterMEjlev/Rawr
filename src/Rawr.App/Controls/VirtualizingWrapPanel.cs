@@ -11,6 +11,9 @@ namespace Rawr.App.Controls;
 /// </summary>
 public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
 {
+    private const int CacheRowsBefore = 2;
+    private const int CacheRowsAfter = 3;
+
     public static readonly DependencyProperty ItemWidthProperty =
         DependencyProperty.Register(
             nameof(ItemWidth),
@@ -84,8 +87,10 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
 
         var firstVisibleRow = Math.Max(0, (int)Math.Floor(VerticalOffset / itemHeight));
         var visibleRows = Math.Max(1, (int)Math.Ceiling(ViewportHeight / itemHeight));
-        var firstIndex = Math.Max(0, firstVisibleRow * columns);
-        var lastIndex = Math.Min(itemCount - 1, ((firstVisibleRow + visibleRows + 1) * columns) - 1);
+        var firstMaterializedRow = Math.Max(0, firstVisibleRow - CacheRowsBefore);
+        var lastMaterializedRow = firstVisibleRow + visibleRows + CacheRowsAfter;
+        var firstIndex = Math.Max(0, firstMaterializedRow * columns);
+        var lastIndex = Math.Min(itemCount - 1, ((lastMaterializedRow + 1) * columns) - 1);
 
         CleanupChildren(firstIndex, lastIndex);
 
