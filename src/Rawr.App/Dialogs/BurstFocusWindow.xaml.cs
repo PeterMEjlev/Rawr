@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Rawr.App.Controls;
 using Rawr.App.Services;
@@ -86,7 +87,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     private readonly List<PhotoItem> _photos;
     private int _currentIndex = -1;
     private CancellationTokenSource? _previewCts;
-    private CancellationTokenSource? _preloadCts;
+    private CancellationTokenSource? _prefetchCts;
+    private readonly DispatcherTimer _hiResZoomTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private bool _highResLoaded;
     private bool _isPanning;
     private Point _panStart;
@@ -141,6 +143,13 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         _peek = new PixelPeekController(PreviewHost, PreviewImageElement,
             loadHighResAsync: LoadFullJpegIfNeededAsync);
 
+        _hiResZoomTimer.Tick += async (_, _) =>
+        {
+            _hiResZoomTimer.Stop();
+            if (NeedsHighResLoad())
+                await LoadFullJpegIfNeededAsync();
+        };
+
         RegisterShortcutBindings();
 
         Loaded += (_, _) =>
@@ -148,12 +157,12 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             _peek?.AttachView(PhotoInfoPanelControl.PixelPeekView);
             if (InitialPeekState is { HasAnchor: true } s) _peek?.RestoreState(s);
             MoveTo(Math.Clamp(startIndex, 0, _photos.Count - 1));
-            _ = PreloadAllFullJpegsAsync();
         };
         Closed += (_, _) =>
         {
+            _hiResZoomTimer.Stop();
             _previewCts?.Cancel();
-            _preloadCts?.Cancel();
+            _prefetchCts?.Cancel();
             LastPeekState = _peek?.CaptureState();
             _peek?.Dispose();
             _peek = null;
@@ -175,7 +184,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         UpdateOverlays();
         _ = ComputeHistogramAsync(_photos[index]);
         _ = LoadPreviewAsync(_photos[index]);
-        _ = LoadFullJpegIfNeededAsync();
+        QueueHighResLoadIfNeeded();
+        _ = PrefetchNeighborPreviewsAsync(index);
     }
 
     private void MoveBy(int delta)
@@ -319,15 +329,56 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
 
         try
         {
-            var jpeg = await Task.Run(() => _vm.Extractor.ExtractPreview(photo.FilePath), ct);
+            var jpeg = await _vm.LoadPreviewJpegForPhotoAsync(photo, ct);
             if (ct.IsCancellationRequested || jpeg == null) return;
-            photo.PreviewJpeg = jpeg;
             if (_currentIndex >= 0 && _photos[_currentIndex] == photo)
             {
                 PreviewImageElement.Source = LoadBitmap(jpeg);
                 _ = ComputeHistogramAsync(photo);
             }
         }
+        catch (OperationCanceledException) { }
+        catch { }
+    }
+
+    private async Task PrefetchNeighborPreviewsAsync(int currentIndex)
+    {
+        _prefetchCts?.Cancel();
+        _prefetchCts = new CancellationTokenSource();
+        var ct = _prefetchCts.Token;
+
+        var targets = new List<PhotoItem>(4);
+        foreach (var offset in new[] { 1, -1, 2, -2 })
+        {
+            var i = currentIndex + offset;
+            if (i < 0 || i >= _photos.Count) continue;
+            targets.Add(_photos[i]);
+        }
+        if (targets.Count == 0) return;
+
+        using var gate = new SemaphoreSlim(Math.Min(2, targets.Count));
+        var tasks = new List<Task>(targets.Count);
+        foreach (var photo in targets)
+        {
+            try
+            {
+                await gate.WaitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            tasks.Add(Task.Run(async () =>
+            {
+                try { await _vm.LoadPreviewJpegForPhotoAsync(photo, ct); }
+                catch (OperationCanceledException) { }
+                catch { }
+                finally { gate.Release(); }
+            }));
+        }
+
+        try { await Task.WhenAll(tasks); }
         catch (OperationCanceledException) { }
     }
 
@@ -437,7 +488,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         PreviewScale.ScaleX = PreviewScale.ScaleY = newScale;
         UpdateZoomIndicator(newScale);
 
-        if (newScale > MinZoom + 1e-3) _ = LoadFullJpegIfNeededAsync();
+        QueueHighResLoadIfNeeded();
 
         e.Handled = true;
     }
@@ -525,33 +576,22 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         }
     }
 
-    // Extract raw JPEG bytes for every burst photo, ordered nearest-to-current
-    // first. Stores results in photo.FullJpeg so subsequent LoadFullJpegIfNeededAsync
-    // calls skip extraction and go straight to the WPF decode.
-    private async Task PreloadAllFullJpegsAsync()
+    private void QueueHighResLoadIfNeeded()
     {
-        _preloadCts?.Cancel();
-        _preloadCts = new CancellationTokenSource();
-        var ct = _preloadCts.Token;
-
-        var ordered = _photos
-            .Select((p, i) => (photo: p, dist: Math.Abs(i - _currentIndex)))
-            .OrderBy(x => x.dist)
-            .Select(x => x.photo);
-
-        foreach (var photo in ordered)
+        if (NeedsHighResLoad())
         {
-            if (ct.IsCancellationRequested) break;
-            if (photo.FullJpeg != null) continue;
-            try
-            {
-                var jpeg = await Task.Run(() => _vm.Extractor.ExtractFullJpeg(photo.FilePath), ct);
-                if (jpeg != null) photo.FullJpeg ??= jpeg;
-            }
-            catch (OperationCanceledException) { break; }
-            catch { }
+            _hiResZoomTimer.Stop();
+            _hiResZoomTimer.Start();
+        }
+        else
+        {
+            _hiResZoomTimer.Stop();
         }
     }
+
+    private bool NeedsHighResLoad() =>
+        PreviewScale.ScaleX > MinZoom + 1e-3
+        || _peek?.CaptureState().HasAnchor == true;
 
     private async Task LoadFullJpegIfNeededAsync()
     {
@@ -564,11 +604,10 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         var ct = _previewCts?.Token ?? CancellationToken.None;
         try
         {
-            var jpeg = photo.FullJpeg ?? await Task.Run(() => _vm.Extractor.ExtractFullJpeg(photo.FilePath), ct);
+            var jpeg = await _vm.LoadFullJpegForPhotoAsync(photo, ct);
             if (ct.IsCancellationRequested || jpeg == null) return;
             if (_currentIndex < 0 || _photos[_currentIndex] != photo) return;
 
-            photo.FullJpeg ??= jpeg;
             _ = ComputeHistogramAsync(photo);
             var bs = await Task.Run(() => LoadBitmap(jpeg, decodePixelWidth: 0), ct);
             if (ct.IsCancellationRequested || bs == null) return;

@@ -10,7 +10,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Converters -->
-            <conv:JpegBytesToImageConverter x:Key="ThumbBytesToImage" DecodePixelWidth="240" />
+            <conv:JpegBytesToImageConverter x:Key="ThumbBytesToImage" DecodePixelWidth="240" MaxCachedImages="2048" />
             <conv:CullFlagToBrushConverter x:Key="FlagToBrush" />
             <conv:ColorLabelToBrushConverter x:Key="LabelToBrush" />
             <conv:RatingToStarsConverter x:Key="RatingToStars" />

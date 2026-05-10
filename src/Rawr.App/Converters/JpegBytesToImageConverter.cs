@@ -1,52 +1,70 @@
 using System.Globalization;
 using System.IO;
 using System.Windows.Data;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace Rawr.App.Converters;
 
 /// <summary>
-/// Converts a JPEG byte[] into a frozen BitmapSource suitable for binding to Image.Source.
-/// Uses DecodePixelWidth for fast scaled decode (the JPEG codec scales natively at decode
-/// time). Applies EXIF orientation so portrait shots appear upright.
+/// Converts cached JPEG thumbnail bytes into frozen BitmapSources for binding.
+/// Keeps a bounded decoded-image cache so virtualized grids can recycle cells
+/// without repeatedly decoding the same thumbnail on the UI thread.
 /// </summary>
 public sealed class JpegBytesToImageConverter : IValueConverter
 {
+    private const int DefaultDecodePixelWidth = 240;
+
     /// <summary>Target decode width in pixels. 0 = full resolution.</summary>
-    public int DecodePixelWidth { get; set; } = 240;
+    public int DecodePixelWidth { get; set; } = DefaultDecodePixelWidth;
+
+    /// <summary>Maximum decoded images kept hot for virtualized thumbnail views.</summary>
+    public int MaxCachedImages
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return _maxCachedImages;
+            }
+        }
+        set
+        {
+            lock (Gate)
+            {
+                _maxCachedImages = Math.Max(0, value);
+                TrimCache();
+            }
+        }
+    }
+
+    private static readonly Dictionary<CacheKey, LinkedListNode<CacheEntry>> Cache = new();
+    private static readonly LinkedList<CacheEntry> Lru = new();
+    private static readonly object Gate = new();
+    private static int _maxCachedImages = 2048;
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is not byte[] bytes || bytes.Length == 0)
             return null;
 
+        return Preload(bytes, DecodePixelWidth);
+    }
+
+    public static BitmapSource? Preload(byte[]? bytes, int decodePixelWidth = DefaultDecodePixelWidth)
+    {
+        if (bytes is not { Length: > 0 })
+            return null;
+
+        var key = new CacheKey(bytes, Math.Max(0, decodePixelWidth));
+
+        if (TryGetCached(key, out var cached))
+            return cached;
+
         try
         {
-            // Read EXIF orientation from headers — cheap, no pixel decode.
-            double rotation = 0.0;
-            try
-            {
-                using var msMeta = new MemoryStream(bytes);
-                var metaDecoder = BitmapDecoder.Create(msMeta, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-                rotation = ReadExifRotation(metaDecoder.Frames[0].Metadata as BitmapMetadata);
-            }
-            catch { /* no EXIF — leave at 0 */ }
-
-            var bi = new BitmapImage();
-            bi.BeginInit();
-            bi.StreamSource = new MemoryStream(bytes);
-            bi.CacheOption = BitmapCacheOption.OnLoad;
-            if (DecodePixelWidth > 0)
-                bi.DecodePixelWidth = DecodePixelWidth;
-            bi.EndInit();
-            bi.Freeze();
-
-            if (rotation == 0.0) return bi;
-
-            var rotated = new TransformedBitmap(bi, new RotateTransform(rotation));
-            rotated.Freeze();
-            return rotated;
+            var image = Decode(key.Bytes, key.DecodePixelWidth);
+            AddCached(key, image);
+            return image;
         }
         catch
         {
@@ -54,24 +72,65 @@ public sealed class JpegBytesToImageConverter : IValueConverter
         }
     }
 
-    private static double ReadExifRotation(BitmapMetadata? metadata)
+    private static BitmapSource Decode(byte[] bytes, int decodePixelWidth)
     {
-        try
+        using var stream = new MemoryStream(bytes);
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.StreamSource = stream;
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        if (decodePixelWidth > 0)
+            image.DecodePixelWidth = decodePixelWidth;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    private static bool TryGetCached(CacheKey key, out BitmapSource? image)
+    {
+        lock (Gate)
         {
-            var raw = metadata?.GetQuery("/app1/ifd/{ushort=274}");
-            if (raw == null) return 0.0;
-            int orientation = System.Convert.ToInt32(raw);
-            return orientation switch
+            if (Cache.TryGetValue(key, out var node))
             {
-                3 => 180.0,
-                6 => 90.0,
-                8 => 270.0,
-                _ => 0.0
-            };
+                Lru.Remove(node);
+                Lru.AddFirst(node);
+                image = node.Value.Image;
+                return true;
+            }
         }
-        catch { return 0.0; }
+
+        image = null;
+        return false;
+    }
+
+    private static void AddCached(CacheKey key, BitmapSource image)
+    {
+        lock (Gate)
+        {
+            if (_maxCachedImages <= 0 || Cache.ContainsKey(key)) return;
+
+            var node = new LinkedListNode<CacheEntry>(new CacheEntry(key, image));
+            Lru.AddFirst(node);
+            Cache[key] = node;
+
+            TrimCache();
+        }
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
+
+    private static void TrimCache()
+    {
+        while (Cache.Count > _maxCachedImages && Lru.Last != null)
+        {
+            var victim = Lru.Last;
+            Lru.RemoveLast();
+            Cache.Remove(victim.Value.Key);
+        }
+    }
+
+    private readonly record struct CacheKey(byte[] Bytes, int DecodePixelWidth);
+
+    private sealed record CacheEntry(CacheKey Key, BitmapSource Image);
 }

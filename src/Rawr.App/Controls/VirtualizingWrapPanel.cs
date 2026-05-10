@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using Rawr.App.Converters;
+using Rawr.Core.Models;
 
 namespace Rawr.App.Controls;
 
@@ -11,6 +13,11 @@ namespace Rawr.App.Controls;
 /// </summary>
 public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
 {
+    private const int CacheRowsBefore = 3;
+    private const int CacheRowsAfter = 6;
+    private const int PreloadRowsBefore = 4;
+    private const int PreloadRowsAfter = 12;
+
     public static readonly DependencyProperty ItemWidthProperty =
         DependencyProperty.Register(
             nameof(ItemWidth),
@@ -35,6 +42,14 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
     private Size _extent;
     private Size _viewport;
     private Point _offset;
+    private int _lastColumns = 1;
+    private int _lastItemCount;
+    private double _lastItemHeight = 1.0;
+    private int _realizedFirstIndex = -1;
+    private int _realizedLastIndex = -1;
+    private int _lastPreloadFirstIndex = -1;
+    private int _lastPreloadLastIndex = -1;
+    private CancellationTokenSource? _preloadCts;
 
     public double ItemWidth
     {
@@ -71,6 +86,10 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
         var columns = Math.Max(1, (int)Math.Floor(width / itemWidth));
         var rowCount = itemCount == 0 ? 0 : (int)Math.Ceiling(itemCount / (double)columns);
 
+        _lastColumns = columns;
+        _lastItemCount = itemCount;
+        _lastItemHeight = itemHeight;
+
         SetViewport(availableSize);
         SetExtent(new Size(width, rowCount * itemHeight));
         SetVerticalOffset(VerticalOffset);
@@ -79,13 +98,15 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
         {
             if (InternalChildren.Count > 0)
                 RemoveInternalChildRange(0, InternalChildren.Count);
+
+            _realizedFirstIndex = -1;
+            _realizedLastIndex = -1;
+            _lastPreloadFirstIndex = -1;
+            _lastPreloadLastIndex = -1;
             return availableSize;
         }
 
-        var firstVisibleRow = Math.Max(0, (int)Math.Floor(VerticalOffset / itemHeight));
-        var visibleRows = Math.Max(1, (int)Math.Ceiling(ViewportHeight / itemHeight));
-        var firstIndex = Math.Max(0, firstVisibleRow * columns);
-        var lastIndex = Math.Min(itemCount - 1, ((firstVisibleRow + visibleRows + 1) * columns) - 1);
+        var (firstIndex, lastIndex) = CalculateMaterializedRange(VerticalOffset, ViewportHeight, itemHeight, columns, itemCount);
 
         CleanupChildren(firstIndex, lastIndex);
 
@@ -101,7 +122,12 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
                 if (child == null)
                     continue;
 
-                if (newlyRealized)
+                // newlyRealized = container is fresh (or pulled from the recycle pool
+                // and rebound to a new item). In both cases the container is detached
+                // from our visual tree and must be re-inserted. Already-realized
+                // containers staying in place return newlyRealized=false AND remain
+                // in InternalChildren — skip the visual-tree mutation for those.
+                if (newlyRealized || VisualTreeHelper.GetParent(child) != this)
                 {
                     if (childIndex >= InternalChildren.Count)
                         AddInternalChild(child);
@@ -115,6 +141,10 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
                 child.Measure(new Size(itemWidth, itemHeight));
             }
         }
+
+        _realizedFirstIndex = firstIndex;
+        _realizedLastIndex = lastIndex;
+        QueueThumbnailPreload(firstIndex, lastIndex, itemCount, columns);
 
         return availableSize;
     }
@@ -160,9 +190,46 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
             SetVerticalOffset(rowBottom - ViewportHeight);
     }
 
+    protected override void OnItemsChanged(object sender, ItemsChangedEventArgs args)
+    {
+        base.OnItemsChanged(sender, args);
+
+        // Generator hands us notifications for items it has already updated; we
+        // still need to drop the matching visual children so the next measure
+        // pass rebuilds (or pulls from the recycle pool) instead of stranding
+        // a container bound to a now-stale item.
+        switch (args.Action)
+        {
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Replace:
+                if (args.ItemUICount > 0)
+                    RemoveInternalChildRange(args.Position.Index, args.ItemUICount);
+                break;
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Move:
+                if (args.ItemUICount > 0)
+                    RemoveInternalChildRange(args.OldPosition.Index, args.ItemUICount);
+                break;
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+                if (InternalChildren.Count > 0)
+                    RemoveInternalChildRange(0, InternalChildren.Count);
+                break;
+        }
+
+        _realizedFirstIndex = -1;
+        _realizedLastIndex = -1;
+        _lastPreloadFirstIndex = -1;
+        _lastPreloadLastIndex = -1;
+        _preloadCts?.Cancel();
+    }
+
     private void CleanupChildren(int firstIndex, int lastIndex)
     {
-        var generator = ItemContainerGenerator;
+        // Recycle (don't dispose) containers that scrolled out of range so the
+        // generator can hand them back on the next realize pass — saves a full
+        // template rebuild per cell. Falls back to Remove when the host ListBox
+        // hasn't opted into VirtualizationMode=Recycling.
+        var generator = (IRecyclingItemContainerGenerator)ItemContainerGenerator;
+        var recycle = GetIsVirtualizing(this) && GetVirtualizationMode(this) == VirtualizationMode.Recycling;
         for (var i = InternalChildren.Count - 1; i >= 0; i--)
         {
             var child = InternalChildren[i];
@@ -171,7 +238,12 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
                 continue;
 
             var position = new GeneratorPosition(i, 0);
-            generator.Remove(position, 1);
+            if (recycle)
+                generator.Recycle(position, 1);
+            else
+                generator.Remove(position, 1);
+
+            child.ClearValue(RealizedIndexProperty);
             RemoveInternalChildRange(i, 1);
         }
     }
@@ -222,7 +294,10 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
 
         _offset.Y = clamped;
         ScrollOwner?.InvalidateScrollInfo();
-        InvalidateMeasure();
+        if (CanArrangeOnlyForOffset(clamped))
+            InvalidateArrange();
+        else
+            InvalidateMeasure();
     }
 
     public Rect MakeVisible(Visual visual, Rect rectangle)
@@ -249,6 +324,84 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
         }
 
         return null;
+    }
+
+    private bool CanArrangeOnlyForOffset(double offset)
+    {
+        if (_realizedFirstIndex < 0 || _lastItemCount <= 0)
+            return false;
+
+        var range = CalculateMaterializedRange(offset, ViewportHeight, _lastItemHeight, _lastColumns, _lastItemCount);
+        return range.LastIndex >= range.FirstIndex
+            && range.FirstIndex >= _realizedFirstIndex
+            && range.LastIndex <= _realizedLastIndex;
+    }
+
+    private void QueueThumbnailPreload(int firstIndex, int lastIndex, int itemCount, int columns)
+    {
+        if (lastIndex < firstIndex || itemCount <= 0)
+            return;
+
+        var warmFirst = Math.Max(0, firstIndex - (columns * PreloadRowsBefore));
+        var warmLast = Math.Min(itemCount - 1, lastIndex + (columns * PreloadRowsAfter));
+        if (warmFirst >= _lastPreloadFirstIndex && warmLast <= _lastPreloadLastIndex)
+            return;
+
+        var owner = ItemsControl.GetItemsOwner(this);
+        if (owner == null)
+            return;
+
+        var bytes = new List<byte[]>(Math.Min(256, warmLast - warmFirst + 1));
+        for (var itemIndex = warmFirst; itemIndex <= warmLast && itemIndex < owner.Items.Count; itemIndex++)
+        {
+            if (owner.Items[itemIndex] is PhotoItem { ThumbnailJpeg: { Length: > 0 } thumbnailBytes })
+                bytes.Add(thumbnailBytes);
+        }
+
+        if (bytes.Count == 0)
+            return;
+
+        _lastPreloadFirstIndex = warmFirst;
+        _lastPreloadLastIndex = warmLast;
+        _preloadCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _preloadCts = cts;
+
+        // Decode in parallel: a single-threaded warmer can't keep up with a
+        // fast wheel scroll on big folders, so hot rows still hit the UI
+        // thread converter on a cache miss. Cap parallelism to leave the UI
+        // thread headroom for layout + render.
+        var parallelism = Math.Max(2, Math.Min(4, Environment.ProcessorCount / 2));
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                Parallel.ForEach(
+                    bytes,
+                    new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = cts.Token },
+                    static b => JpegBytesToImageConverter.Preload(b));
+            }
+            catch (OperationCanceledException) { }
+        }, cts.Token);
+    }
+
+    private static (int FirstIndex, int LastIndex) CalculateMaterializedRange(
+        double verticalOffset,
+        double viewportHeight,
+        double itemHeight,
+        int columns,
+        int itemCount)
+    {
+        if (itemCount <= 0)
+            return (0, -1);
+
+        var firstVisibleRow = Math.Max(0, (int)Math.Floor(verticalOffset / itemHeight));
+        var visibleRows = Math.Max(1, (int)Math.Ceiling(viewportHeight / itemHeight));
+        var firstMaterializedRow = Math.Max(0, firstVisibleRow - CacheRowsBefore);
+        var lastMaterializedRow = firstVisibleRow + visibleRows + CacheRowsAfter;
+        var firstIndex = Math.Max(0, firstMaterializedRow * columns);
+        var lastIndex = Math.Min(itemCount - 1, ((lastMaterializedRow + 1) * columns) - 1);
+        return (firstIndex, lastIndex);
     }
 
     private static bool AreClose(Size left, Size right) =>
