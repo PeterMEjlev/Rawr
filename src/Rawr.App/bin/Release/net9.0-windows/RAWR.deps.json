@@ -14,8 +14,7 @@
           "LibVLCSharp.WPF": "3.9.7.1",
           "Microsoft.ML.OnnxRuntime": "1.20.1",
           "Rawr.Core": "1.0.0",
-          "Rawr.Raw": "1.0.0",
-          "VideoLAN.LibVLC.Windows": "3.0.23.1"
+          "Rawr.Raw": "1.0.0"
         },
         "runtime": {
           "RAWR.dll": {}
@@ -33,8 +32,7 @@
         "dependencies": {
           "Newtonsoft.Json": "12.0.3",
           "System.Data.SQLite": "1.0.112",
-          "System.Data.SqlClient": "4.7.0",
-          "System.Security.Principal.Windows": "4.6.0"
+          "System.Data.SqlClient": "4.7.0"
         },
         "runtime": {
           "lib/netstandard2.0/GMap.NET.Core.dll": {
@@ -199,21 +197,11 @@
         }
       },
       "Microsoft.ML.OnnxRuntime.Managed/1.20.1": {
-        "dependencies": {
-          "System.Memory": "4.5.5"
-        },
         "runtime": {
           "lib/net8.0/Microsoft.ML.OnnxRuntime.dll": {
             "assemblyVersion": "1.20.1.0",
             "fileVersion": "1.20.1.0"
           }
-        }
-      },
-      "Microsoft.NETCore.Platforms/3.0.0": {},
-      "Microsoft.Win32.Registry/4.6.0": {
-        "dependencies": {
-          "System.Security.AccessControl": "4.6.0",
-          "System.Security.Principal.Windows": "4.6.0"
         }
       },
       "Newtonsoft.Json/12.0.3": {
@@ -271,9 +259,6 @@
         }
       },
       "SQLitePCLRaw.core/2.1.10": {
-        "dependencies": {
-          "System.Memory": "4.5.5"
-        },
         "runtime": {
           "lib/netstandard2.0/SQLitePCLRaw.core.dll": {
             "assemblyVersion": "2.1.10.2445",
@@ -403,8 +388,6 @@
       },
       "System.Data.SqlClient/4.7.0": {
         "dependencies": {
-          "Microsoft.Win32.Registry": "4.6.0",
-          "System.Security.Principal.Windows": "4.6.0",
           "runtime.native.System.Data.SqlClient.sni": "4.6.0"
         },
         "runtime": {
@@ -463,15 +446,6 @@
           }
         }
       },
-      "System.Memory/4.5.5": {},
-      "System.Security.AccessControl/4.6.0": {
-        "dependencies": {
-          "Microsoft.NETCore.Platforms": "3.0.0",
-          "System.Security.Principal.Windows": "4.6.0"
-        }
-      },
-      "System.Security.Principal.Windows/4.6.0": {},
-      "VideoLAN.LibVLC.Windows/3.0.23.1": {},
       "Rawr.Core/1.0.0": {
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.4.2",
@@ -566,20 +540,6 @@
       "path": "microsoft.ml.onnxruntime.managed/1.20.1",
       "hashPath": "microsoft.ml.onnxruntime.managed.1.20.1.nupkg.sha512"
     },
-    "Microsoft.NETCore.Platforms/3.0.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-TsETIgVJb/AKoYfSP+iCxkuly5d3inZjTdx/ItZLk2CxY85v8083OBS3uai84kK3/baLnS5/b5XGs6zR7SuuHQ==",
-      "path": "microsoft.netcore.platforms/3.0.0",
-      "hashPath": "microsoft.netcore.platforms.3.0.0.nupkg.sha512"
-    },
-    "Microsoft.Win32.Registry/4.6.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-Xuqo5Lf5h1eUAbT8sJwNSEgusyEcQQQcza1R8dxJ6q/1vLSU1SG/WxtgiCPAth14dz/IjBXCxWT/+6E9glX33w==",
-      "path": "microsoft.win32.registry/4.6.0",
-      "hashPath": "microsoft.win32.registry.4.6.0.nupkg.sha512"
-    },
     "Newtonsoft.Json/12.0.3": {
       "type": "package",
       "serviceable": true,
@@ -663,34 +623,6 @@
       "sha512": "sha512-3wA9v/K2ncZWsWfEBTiQppsi2014IJMXsZ1md3pk5bEXAJyuTthSrHF4bIWm5MG+C5g5XLhA2H7XfnSq1PXCeQ==",
       "path": "system.data.sqlite.core/1.0.112",
       "hashPath": "system.data.sqlite.core.1.0.112.nupkg.sha512"
-    },
-    "System.Memory/4.5.5": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-XIWiDvKPXaTveaB7HVganDlOCRoj03l+jrwNvcge/t8vhGYKvqV+dMv6G4SAX2NoNmN0wZfVPTAlFwZcZvVOUw==",
-      "path": "system.memory/4.5.5",
-      "hashPath": "system.memory.4.5.5.nupkg.sha512"
-    },
-    "System.Security.AccessControl/4.6.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-gmlk6khICtVhiUnVBBtlsH0H/5QFDqhTZgtpp3AX14wWE6OIE+BX95NLD+X4AolXnIy/oXpNNmXYnsNfW1KuDQ==",
-      "path": "system.security.accesscontrol/4.6.0",
-      "hashPath": "system.security.accesscontrol.4.6.0.nupkg.sha512"
-    },
-    "System.Security.Principal.Windows/4.6.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-Mdukseovp0YIGaz16FMH6nbfgZkrCFOJbtXQptv0aeBO9h775Ilb9+TDwLVTKikoW7y7CY7lpoXl9zmZ5G3ndA==",
-      "path": "system.security.principal.windows/4.6.0",
-      "hashPath": "system.security.principal.windows.4.6.0.nupkg.sha512"
-    },
-    "VideoLAN.LibVLC.Windows/3.0.23.1": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-yTGNrzj+Q/t72VNKK0d64jZ+8BGu5Vcp2nxpZ2ll350LkRWKSwqShGpZWcVxXVP8TiMbeGML09+Jzz3hNsIcqA==",
-      "path": "videolan.libvlc.windows/3.0.23.1",
-      "hashPath": "videolan.libvlc.windows.3.0.23.1.nupkg.sha512"
     },
     "Rawr.Core/1.0.0": {
       "type": "project",

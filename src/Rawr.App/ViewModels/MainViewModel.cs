@@ -111,6 +111,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _showFilmstrip = true;
     [ObservableProperty] private bool _showSecondMonitor;
     [ObservableProperty] private bool _isPhotoFullscreen;
+
+    // LOG profile applied to the currently selected video. Auto-detected from camera
+    // metadata each time a new video is selected; user can override via the dropdown
+    // in the video controls bar (override only lasts until the next video).
+    [ObservableProperty] private LogProfile _selectedLogProfile = LogProfile.None;
+    public sealed record LogProfileItem(LogProfile Profile, string DisplayName)
+    {
+        public override string ToString() => DisplayName;
+    }
+    public IReadOnlyList<LogProfileItem> AvailableLogProfiles { get; } =
+        Enum.GetValues<LogProfile>().Select(p => new LogProfileItem(p, LogProfileDetector.DisplayName(p))).ToArray();
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveGridColumnCount))]
     [NotifyPropertyChangedFor(nameof(MaxGridColumnCount))]
@@ -1278,6 +1289,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _metadataSubscription = value;
         if (value != null)
             value.PropertyChanged += OnSelectedPhotoPropertyChanged;
+
+        // Auto-detect LOG profile when switching to a video; resets any user override
+        // from the previous clip so each new video starts at its best-guess preset.
+        if (value?.IsVideo == true)
+            SelectedLogProfile = LogProfileDetector.Detect(value.Metadata?.CameraMake, value.Metadata?.CameraModel);
 
         // Default path: any anchor change collapses the multi-selection back to just
         // the new anchor (plain click, arrow keys, undo/redo, filter restore). The

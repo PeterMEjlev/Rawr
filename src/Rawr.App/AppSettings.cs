@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
+using Rawr.Core.Services;
 
 namespace Rawr.App;
 
@@ -79,6 +80,17 @@ public sealed class AppSettings
     // as one undoable step.
     public List<KeyboardMacro> Macros { get; set; } = new();
 
+    // Per-LOG-profile adjust-filter overrides. Key is LogProfile enum name
+    // (e.g. "SLog3"). Missing entries fall back to LogProfilePreset.For defaults.
+    public Dictionary<string, LogProfilePreset> LogProfileOverrides { get; set; } = new();
+
+    // Returns the user's customized preset for this profile, or the built-in
+    // default if untouched. Always returns a fresh instance.
+    public LogProfilePreset GetLogProfilePreset(LogProfile profile) =>
+        LogProfileOverrides.TryGetValue(profile.ToString(), out var v)
+            ? v.Clone()
+            : LogProfilePreset.For(profile);
+
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR", "settings.json");
 
@@ -130,6 +142,7 @@ public sealed class AppSettings
         DoubleClickZoom = DoubleClickZoom,
         ScrollSpeedPercent = ScrollSpeedPercent,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
+        LogProfileOverrides = LogProfileOverrides.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         Macros = Macros.Select(m => new KeyboardMacro
         {
             Id = m.Id,

@@ -6,6 +6,7 @@ using Rawr.App.Controls;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
+using Rawr.Core.Services;
 
 namespace Rawr.App.Dialogs;
 
@@ -38,6 +39,10 @@ public partial class SettingsWindow : Window
     // Working copy of macros — mutated in place by per-row event handlers, copied
     // back into Result on Save.
     private readonly List<KeyboardMacro> _editedMacros;
+
+    // Working copy of LOG profile overrides — slider events mutate the preset in
+    // place, Save_Click serializes back into Result.LogProfileOverrides.
+    private readonly Dictionary<LogProfile, LogProfilePreset> _editedLogProfiles = new();
     private readonly Dictionary<string, Button> _macroKeyButtons = new();
     private string? _recordingMacroId;
 
@@ -107,9 +112,17 @@ public partial class SettingsWindow : Window
         var sortIdx = Array.FindIndex(SortOptions, o => o.Value == current.DefaultSortField);
         SortFieldBox.SelectedIndex = sortIdx >= 0 ? sortIdx : 0;
 
+        // Seed LOG profile working copy from the current settings (or defaults).
+        foreach (var p in Enum.GetValues<LogProfile>())
+        {
+            if (p == LogProfile.None) continue;
+            _editedLogProfiles[p] = current.GetLogProfilePreset(p);
+        }
+
         UpdateDatePreview(current.DateFormat);
         BuildShortcutsUi();
         BuildMacrosUi();
+        BuildLogProfilesUi();
 
         PreviewKeyDown += OnPreviewKeyDownCapture;
     }
@@ -352,6 +365,7 @@ public partial class SettingsWindow : Window
             PanoramaMaxOverlapPct = (int)PanoMaxOverlapSlider.Value,
             PanoramaDirectionToleranceDeg = (int)PanoDirectionSlider.Value,
             KeyBindings         = new Dictionary<string, string>(_editedBindings),
+            LogProfileOverrides = BuildLogProfileOverrides(),
             Macros              = _editedMacros.Select(m => new KeyboardMacro
             {
                 Id = m.Id,
@@ -691,6 +705,130 @@ public partial class SettingsWindow : Window
                 return $"macro “{(string.IsNullOrWhiteSpace(m.Name) ? "(unnamed)" : m.Name)}”";
         }
         return null;
+    }
+
+    // ── LOG profile presets ──
+
+    // Only persist profiles that differ from the built-in defaults; keeps
+    // settings.json clean and lets us add or change defaults without churning
+    // every saved file.
+    private Dictionary<string, LogProfilePreset> BuildLogProfileOverrides()
+    {
+        var result = new Dictionary<string, LogProfilePreset>();
+        foreach (var (profile, preset) in _editedLogProfiles)
+        {
+            var def = LogProfilePreset.For(profile);
+            if (Math.Abs(preset.Contrast   - def.Contrast)   > 0.001f ||
+                Math.Abs(preset.Saturation - def.Saturation) > 0.001f ||
+                Math.Abs(preset.Gamma      - def.Gamma)      > 0.001f ||
+                Math.Abs(preset.Brightness - def.Brightness) > 0.001f)
+            {
+                result[profile.ToString()] = preset.Clone();
+            }
+        }
+        return result;
+    }
+
+    private void BuildLogProfilesUi()
+    {
+        LogProfilesHost.Children.Clear();
+        foreach (var p in Enum.GetValues<LogProfile>())
+        {
+            if (p == LogProfile.None) continue;
+            LogProfilesHost.Children.Add(BuildLogProfileCard(p));
+        }
+    }
+
+    private Border BuildLogProfileCard(LogProfile profile)
+    {
+        var preset = _editedLogProfiles[profile];
+        var border = new Border
+        {
+            BorderBrush = (Brush)FindResource("BorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(10, 8, 10, 10),
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+
+        var stack = new StackPanel();
+
+        // Header: name + reset button
+        var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var resetBtn = new Button
+        {
+            Content = "↺ Reset to default",
+            Padding = new Thickness(8, 2, 8, 2),
+            FontSize = 11,
+        };
+        resetBtn.Click += (_, _) =>
+        {
+            _editedLogProfiles[profile] = LogProfilePreset.For(profile);
+            BuildLogProfilesUi();
+        };
+        DockPanel.SetDock(resetBtn, Dock.Right);
+        headerRow.Children.Add(resetBtn);
+
+        var name = new TextBlock
+        {
+            Text = LogProfileDetector.DisplayName(profile),
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        headerRow.Children.Add(name);
+        stack.Children.Add(headerRow);
+
+        // Sliders
+        stack.Children.Add(BuildAdjustSlider("Contrast",   0.0, 2.0, preset.Contrast,   v => preset.Contrast = v));
+        stack.Children.Add(BuildAdjustSlider("Saturation", 0.0, 3.0, preset.Saturation, v => preset.Saturation = v));
+        stack.Children.Add(BuildAdjustSlider("Gamma",      0.50, 1.50, preset.Gamma,    v => preset.Gamma = v));
+        stack.Children.Add(BuildAdjustSlider("Brightness", 0.0, 2.0, preset.Brightness, v => preset.Brightness = v));
+
+        border.Child = stack;
+        return border;
+    }
+
+    private static Grid BuildAdjustSlider(string label, double min, double max, double initial, Action<float> onChange)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(lbl, 0);
+        grid.Children.Add(lbl);
+
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = initial,
+            SmallChange = 0.01,
+            LargeChange = 0.1,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsMoveToPointEnabled = true,
+        };
+        Grid.SetColumn(slider, 1);
+        grid.Children.Add(slider);
+
+        var valueText = new TextBlock
+        {
+            Text = initial.ToString("F2"),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            FontFamily = new FontFamily("Consolas"),
+        };
+        Grid.SetColumn(valueText, 2);
+        grid.Children.Add(valueText);
+
+        slider.ValueChanged += (_, e) =>
+        {
+            valueText.Text = e.NewValue.ToString("F2");
+            onChange((float)e.NewValue);
+        };
+
+        return grid;
     }
 
     private void TabScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

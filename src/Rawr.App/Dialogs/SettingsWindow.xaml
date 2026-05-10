@@ -514,6 +514,21 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ── LOG PROFILES TAB ── -->
+            <TabItem Header="LOG Profiles">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              PreviewMouseWheel="TabScroll_PreviewMouseWheel">
+                    <StackPanel Margin="16,14">
+                        <TextBlock Text="Adjust how each camera's flat LOG footage is displayed. Higher contrast/saturation = more punchy, gamma below 1.0 brightens midtones."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,12" />
+                        <StackPanel x:Name="LogProfilesHost" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ── MACROS TAB ── -->
             <TabItem Header="Macros">
                 <Grid Margin="16,14">

@@ -15,6 +15,7 @@ using Rawr.App.Dialogs;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
+using Rawr.Core.Services;
 
 namespace Rawr.App;
 
@@ -182,6 +183,8 @@ public partial class MainWindow : Window
                     OnVideoSourceChanged();
                 if (e.PropertyName == nameof(MainViewModel.IsPhotoFullscreen) && DataContext is MainViewModel vmFs)
                     ApplyPhotoFullscreen(vmFs.IsPhotoFullscreen);
+                if (e.PropertyName == nameof(MainViewModel.SelectedLogProfile) && DataContext is MainViewModel vmLp)
+                    ApplyLogProfile(vmLp.SelectedLogProfile);
             };
         }
 
@@ -1166,6 +1169,10 @@ public partial class MainWindow : Window
 
         if (DataContext is not MainViewModel vm) return;
 
+        // Re-apply LOG profile so any currently-playing video picks up the new
+        // contrast/saturation/gamma values without needing a video reselect.
+        ApplyLogProfile(vm.SelectedLogProfile);
+
         vm.NotifyDateFormatChanged();
 
         bool burstSettingsChanged =
@@ -1361,7 +1368,24 @@ public partial class MainWindow : Window
         _vlcPlayer.Mute = _videoIsMuted;
         _vlcPlayer.Play(media);
         ApplyVideoPlaybackRate();
+        if (DataContext is MainViewModel vmLp) ApplyLogProfile(vmLp.SelectedLogProfile);
         _videoTick.Start();
+    }
+
+    // Apply the LOG → Rec.709-ish preset using VLC's built-in adjust filter. The
+    // adjust filter is enabled once with non-default values; setting Identity disables
+    // (Enable=0) so we don't pay for the filter when it's a no-op.
+    private void ApplyLogProfile(LogProfile profile)
+    {
+        if (_vlcPlayer == null) return;
+        bool enable = profile != LogProfile.None;
+        _vlcPlayer.SetAdjustInt(VideoAdjustOption.Enable, enable ? 1 : 0);
+        if (!enable) return;
+        var preset = AppSettings.Current.GetLogProfilePreset(profile);
+        _vlcPlayer.SetAdjustFloat(VideoAdjustOption.Contrast,   preset.Contrast);
+        _vlcPlayer.SetAdjustFloat(VideoAdjustOption.Saturation, preset.Saturation);
+        _vlcPlayer.SetAdjustFloat(VideoAdjustOption.Gamma,      preset.Gamma);
+        _vlcPlayer.SetAdjustFloat(VideoAdjustOption.Brightness, preset.Brightness);
     }
 
     // Fires on VLC background thread when playback starts (including on initial load).

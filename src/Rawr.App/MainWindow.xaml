@@ -2191,6 +2191,15 @@
                             <ComboBoxItem Content="1.5x" Tag="1.5" />
                             <ComboBoxItem Content="2x" Tag="2" />
                         </ComboBox>
+                        <ComboBox x:Name="VideoLogProfileBox"
+                                  DockPanel.Dock="Right"
+                                  Width="120"
+                                  Margin="8,0,0,0"
+                                  ItemsSource="{Binding AvailableLogProfiles}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Profile"
+                                  SelectedValue="{Binding SelectedLogProfile, Mode=TwoWay}"
+                                  ToolTip="LOG profile (auto-detected from camera; override here if wrong)" />
                         <Slider x:Name="VideoSlider"
                                 Minimum="0"
                                 Maximum="1"
