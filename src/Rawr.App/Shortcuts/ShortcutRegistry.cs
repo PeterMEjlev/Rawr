@@ -19,6 +19,7 @@ public static class ShortcutRegistry
         const string CatView = "View";
         const string CatFilt = "Filters";
         const string CatEdit = "Edit";
+        const string CatVideo = "Video";
 
         static Func<MainWindow, ICommand?> Vm(Func<MainViewModel, ICommand> selector) =>
             w => w.DataContext is MainViewModel vm ? selector(vm) : null;
@@ -37,7 +38,7 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("NextBurst",           "Next burst",              CatNav, Key.Right, ModifierKeys.Control | ModifierKeys.Shift, Vm(vm => vm.NextBurstCommand)),
             new("PreviousBurst",       "Previous burst",          CatNav, Key.Left,  ModifierKeys.Control | ModifierKeys.Shift, Vm(vm => vm.PreviousBurstCommand)),
             new("IncreaseExposure",    "Increase exposure +0.2",  CatEdit, Key.Right, ModifierKeys.Control, Vm(vm => vm.IncreaseExposureCommand)),
-            new("DecreaseExposure",    "Decrease exposure -0.2",  CatEdit, Key.Left,  ModifierKeys.Control, Vm(vm => vm.DecreaseExposureCommand)),
+            new("DecreaseExposure",    "Decrease exposure -0.2 / video to start",  CatEdit, Key.Left,  ModifierKeys.Control, w => w.SeekVideoStartOrDecreaseExposureCommand),
 
             // Flags
             new("TogglePick",       "Toggle pick",                CatFlag, Key.P, ModifierKeys.None,  Vm(vm => vm.TogglePickCommand)),
@@ -78,9 +79,11 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("ToggleBurstCollapse","Toggle burst collapse",CatView, Key.G, ModifierKeys.None, Vm(vm => vm.ToggleBurstCollapseCommand)),
             new("ToggleGridExpanded", "Expand grid (hide preview)", CatView, Key.OemPipe, ModifierKeys.None, Vm(vm => vm.ToggleGridExpandedCommand)),
             new("ViewPhotoFullscreen","View photo fullscreen",  CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ViewPhotoFullscreenCommand)),
-            new("ToggleVideoMute",    "Toggle video mute",      CatView, Key.M,    ModifierKeys.None, w => w.ToggleVideoMuteCommand),
-            new("IncreaseVideoSpeed", "Increase video speed",   CatView, Key.Up,   ModifierKeys.Control, w => w.IncreaseVideoSpeedCommand),
-            new("DecreaseVideoSpeed", "Decrease video speed",   CatView, Key.Down, ModifierKeys.Control, w => w.DecreaseVideoSpeedCommand),
+            new("ToggleVideoMute",    "Toggle video mute",      CatVideo, Key.M,    ModifierKeys.None, w => w.ToggleVideoMuteCommand),
+            new("IncreaseVideoSpeed", "Increase video speed",   CatVideo, Key.Up,   ModifierKeys.Control, w => w.IncreaseVideoSpeedCommand),
+            new("DecreaseVideoSpeed", "Decrease video speed",   CatVideo, Key.Down, ModifierKeys.Control, w => w.DecreaseVideoSpeedCommand),
+            new("RewindVideo",        "Rewind video",           CatVideo, Key.Left, ModifierKeys.Shift,   w => w.RewindVideoCommand),
+            new("ForwardVideo",       "Forward video",          CatVideo, Key.Right, ModifierKeys.Shift,  w => w.ForwardVideoCommand),
             new("OpenTags",           "Open tags panel",      CatView, Key.T, ModifierKeys.None, w => w.OpenTagsCommand),
 
             // Filters

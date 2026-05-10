@@ -107,6 +107,17 @@ public partial class MainWindow : Window
     public ICommand IncreaseVideoSpeedCommand { get; }
     public ICommand DecreaseVideoSpeedCommand { get; }
 
+    public ICommand RewindVideoCommand { get; }
+    public ICommand ForwardVideoCommand { get; }
+
+    // Ctrl+Left is shared between two unrelated actions: on a video it seeks to
+    // the start; on a photo it decrements exposure compensation. The ShortcutRegistry
+    // points at this single dispatcher so the same key keeps both meanings.
+    public ICommand SeekVideoStartOrDecreaseExposureCommand { get; }
+
+    private static int VideoSeekStepMs =>
+        Math.Max(1, AppSettings.Current.VideoSeekStepSeconds) * 1000;
+
     // Speeds offered by the video-controls dropdown — same values shared by the
     // Ctrl+Up / Ctrl+Down shortcuts so keyboard and mouse stay in sync.
     private static readonly float[] VideoSpeedSteps = { 0.25f, 0.5f, 1.0f, 1.5f, 2.0f };
@@ -121,6 +132,15 @@ public partial class MainWindow : Window
         ToggleVideoMuteCommand = new RelayCommand(() => VideoMute_Click(this, new RoutedEventArgs()));
         IncreaseVideoSpeedCommand = new RelayCommand(() => StepVideoSpeed(+1));
         DecreaseVideoSpeedCommand = new RelayCommand(() => StepVideoSpeed(-1));
+        RewindVideoCommand = new RelayCommand(() => SeekVideo(-VideoSeekStepMs));
+        ForwardVideoCommand = new RelayCommand(() => SeekVideo(+VideoSeekStepMs));
+        SeekVideoStartOrDecreaseExposureCommand = new RelayCommand(() =>
+        {
+            if (DataContext is MainViewModel vm && vm.VideoSourceUri != null)
+                SeekVideoToStart();
+            else if (DataContext is MainViewModel vmExp && vmExp.DecreaseExposureCommand.CanExecute(null))
+                vmExp.DecreaseExposureCommand.Execute(null);
+        });
 
         // Load persisted settings before InputBindings are applied so user-customised
         // keyboard shortcuts are in place by the time the window is shown.
@@ -1537,6 +1557,28 @@ public partial class MainWindow : Window
     {
         if (_vlcPlayer == null) return;
         _vlcPlayer.SetRate(_videoPlaybackRate);
+    }
+
+    // Jump the playing video back to t=0. No-op when no video is loaded.
+    private void SeekVideoToStart()
+    {
+        if (_vlcPlayer == null) return;
+        if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+        _vlcPlayer.Time = 0;
+    }
+
+    // Seek the playing video by deltaMs (negative rewinds). Clamped to [0, duration].
+    // No-op when no video is loaded.
+    private void SeekVideo(int deltaMs)
+    {
+        if (_vlcPlayer == null) return;
+        if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+
+        long durationMs = _videoDuration.TotalMilliseconds > 0
+            ? (long)_videoDuration.TotalMilliseconds
+            : long.MaxValue;
+        long target = Math.Clamp(_vlcPlayer.Time + deltaMs, 0, durationMs);
+        _vlcPlayer.Time = target;
     }
 
     // Step through VideoSpeedSteps; +1 for faster, -1 for slower. No-op when no

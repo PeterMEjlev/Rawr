@@ -71,6 +71,9 @@ public sealed class AppSettings
     public double DoubleClickZoom { get; set; } = 3.0;
     public int ScrollSpeedPercent { get; set; } = Rawr.App.Controls.ScrollSpeed.DefaultPercent;
 
+    // Step size for the Shift+Left/Right video seek shortcuts.
+    public int VideoSeekStepSeconds { get; set; } = 5;
+
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
     public Dictionary<string, string> KeyBindings { get; set; } = new();
@@ -141,6 +144,7 @@ public sealed class AppSettings
         ClosedEyeThreshold = ClosedEyeThreshold,
         DoubleClickZoom = DoubleClickZoom,
         ScrollSpeedPercent = ScrollSpeedPercent,
+        VideoSeekStepSeconds = VideoSeekStepSeconds,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
         LogProfileOverrides = LogProfileOverrides.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         Macros = Macros.Select(m => new KeyboardMacro

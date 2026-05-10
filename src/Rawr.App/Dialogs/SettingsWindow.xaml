@@ -514,11 +514,28 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- ── LOG PROFILES TAB ── -->
-            <TabItem Header="LOG Profiles">
+            <!-- ── VIDEO TAB ── -->
+            <TabItem Header="Video">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               PreviewMouseWheel="TabScroll_PreviewMouseWheel">
                     <StackPanel Margin="16,14">
+
+                        <TextBlock Text="Playback" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <TextBlock Text="Seek step (Shift + Left / Right)" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <Slider x:Name="VideoSeekStepSlider"
+                                    Minimum="1" Maximum="30"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center">
+                                <Run Text="{Binding ElementName=VideoSeekStepSlider, Path=Value, StringFormat={}{0:F0}}" />
+                                <Run Text="s" />
+                            </TextBlock>
+                        </StackPanel>
+
+                        <TextBlock Text="LOG Profiles" FontSize="13" FontWeight="SemiBold" Margin="0,8,0,6" />
                         <TextBlock Text="Adjust how each camera's flat LOG footage is displayed. Higher contrast/saturation = more punchy, gamma below 1.0 brightens midtones."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="11"
