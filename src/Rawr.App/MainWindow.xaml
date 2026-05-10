@@ -2573,5 +2573,14 @@
                 <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextBrush}" />
             </DockPanel>
         </Border>
+
+        <Grid x:Name="PhotoFullscreenTransitionOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="6"
+              Panel.ZIndex="1000"
+              Background="#FF0E0E0E"
+              IsHitTestVisible="False"
+              Opacity="0"
+              Visibility="Collapsed" />
     </Grid>
 </Window>

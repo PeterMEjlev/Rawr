@@ -1,11 +1,14 @@
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
@@ -24,6 +27,8 @@ public partial class MainWindow : Window
     private const double MinZoom = 1.0;
     private const double MaxZoom = 64.0;
     private const double ZoomStep = 1.2;
+    private const int FullscreenTransitionSettleMs = 20;
+    private const int FullscreenTransitionFadeMs = 110;
 
     private static readonly string SettingsDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR");
@@ -58,6 +63,7 @@ public partial class MainWindow : Window
     private GridLength[]? _preFullscreenSplitCols;
     private Visibility _preFullscreenExposureBarVisibility;
     private bool _isPhotoFullscreen;
+    private long _fullscreenTransitionVersion;
     private PhotoItem? _prevSelectedPhoto;
 
     // Video playback state. The DispatcherTimer pulls _vlcPlayer.Time into the
@@ -385,16 +391,94 @@ public partial class MainWindow : Window
         }
     }
 
+    // Win32 plumbing for the WM_GETMINMAXINFO hook below. The hook is what lets a
+    // borderless-Maximized window cover the full monitor (taskbar included) without the
+    // visible Normal→Maximized "shrink-and-snap" dance the toggle used to require.
+    private const int WM_GETMINMAXINFO = 0x0024;
+    private const int MONITOR_DEFAULTTONEAREST = 2;
+    private const uint SWP_NOZORDER = 0x0004, SWP_NOACTIVATE = 0x0010, SWP_FRAMECHANGED = 0x0020;
+
+    [StructLayout(LayoutKind.Sequential)] private struct POINT { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] private struct RECT  { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MINMAXINFO
+    {
+        public POINT ptReserved, ptMaxSize, ptMaxPosition, ptMinTrackSize, ptMaxTrackSize;
+    }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MONITORINFO { public int cbSize; public RECT rcMonitor, rcWork; public int dwFlags; }
+
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int dwFlags);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr hwndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        var hwnd = new WindowInteropHelper(this).Handle;
+        HwndSource.FromHwnd(hwnd)?.AddHook(FullscreenWndProc);
+    }
+
+    // While in photo-fullscreen, override the maximized bounds Windows asks us for
+    // so the window covers the full monitor (instead of the workarea, which leaves
+    // the taskbar visible). Outside fullscreen we leave the message alone so the
+    // OS uses normal workarea bounds.
+    private IntPtr FullscreenWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != WM_GETMINMAXINFO || !_isPhotoFullscreen) return IntPtr.Zero;
+
+        if (!TryGetNearestMonitorInfo(hwnd, out var info)) return IntPtr.Zero;
+
+        var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+        var r = info.rcMonitor;
+        // ptMaxPosition is relative to the monitor's top-left, not the virtual screen.
+        mmi.ptMaxPosition.X = 0;
+        mmi.ptMaxPosition.Y = 0;
+        mmi.ptMaxSize.X = r.Right - r.Left;
+        mmi.ptMaxSize.Y = r.Bottom - r.Top;
+        Marshal.StructureToPtr(mmi, lParam, true);
+        handled = true;
+        return IntPtr.Zero;
+    }
+
+    private static bool TryGetNearestMonitorInfo(IntPtr hwnd, out MONITORINFO info)
+    {
+        info = default;
+        if (hwnd == IntPtr.Zero) return false;
+
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero) return false;
+
+        info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        return GetMonitorInfo(monitor, ref info);
+    }
+
+    private static void SetWindowToRect(IntPtr hwnd, RECT rect)
+    {
+        if (hwnd == IntPtr.Zero) return;
+
+        SetWindowPos(
+            hwnd,
+            IntPtr.Zero,
+            rect.Left,
+            rect.Top,
+            rect.Right - rect.Left,
+            rect.Bottom - rect.Top,
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+
     // Toggles a Lightroom-style "F" fullscreen view: hide every chrome row/column and
     // make the window borderless-maximized so only the preview/video fills the monitor.
     private void ApplyPhotoFullscreen(bool fullscreen)
     {
         if (fullscreen == _isPhotoFullscreen) return;
         _isPhotoFullscreen = fullscreen;
+        BeginPhotoFullscreenTransition();
 
         var rootRows = RootGrid.RowDefinitions;
         var mainCols = MainContentRow.ColumnDefinitions;
         var splitCols = MainSplitGrid.ColumnDefinitions;
+        var hwnd = new WindowInteropHelper(this).Handle;
 
         if (fullscreen)
         {
@@ -407,6 +491,7 @@ public partial class MainWindow : Window
             _preFullscreenExposureBarVisibility = ExposureCompensationBar.Visibility;
 
             // Collapse every RootGrid row except row 1 (the preview-bearing main split).
+            // WPF batches all of these into a single layout pass at Render priority.
             for (int i = 0; i < rootRows.Count; i++)
                 if (i != 1) rootRows[i].Height = new GridLength(0);
 
@@ -426,12 +511,24 @@ public partial class MainWindow : Window
             // same row visible (it's bound to VideoSourceUri so it only shows for videos).
             ExposureCompensationBar.Visibility = Visibility.Collapsed;
 
-            // Borderless-maximized covers the taskbar; toggle State first so WPF applies
-            // the new style cleanly.
-            WindowState = WindowState.Normal;
-            WindowStyle = WindowStyle.None;
-            ResizeMode = ResizeMode.NoResize;
-            WindowState = WindowState.Maximized;
+            // The WM_GETMINMAXINFO hook (gated by _isPhotoFullscreen) now reports the
+            // full monitor as the maximized bounds, so we no longer need the visible
+            // Normal→Style→Maximized dance that previously caused a shrink-and-snap when
+            // the window was already maximized. Skip property writes that would no-op.
+            if (WindowStyle != WindowStyle.None) WindowStyle = WindowStyle.None;
+            if (ResizeMode != ResizeMode.NoResize) ResizeMode = ResizeMode.NoResize;
+            if (WindowState != WindowState.Maximized)
+            {
+                WindowState = WindowState.Maximized;
+            }
+            else if (hwnd != IntPtr.Zero)
+            {
+                // Already Maximized: force the OS to recompute the frame so the new
+                // borderless chrome takes effect and jump straight to monitor bounds
+                // without sending another maximize command through Windows.
+                if (TryGetNearestMonitorInfo(hwnd, out var info))
+                    SetWindowToRect(hwnd, info.rcMonitor);
+            }
         }
         else
         {
@@ -455,11 +552,70 @@ public partial class MainWindow : Window
 
             ExposureCompensationBar.Visibility = _preFullscreenExposureBarVisibility;
 
-            WindowState = WindowState.Normal;
-            WindowStyle = _preFullscreenStyle;
-            ResizeMode = _preFullscreenResize;
-            WindowState = _preFullscreenState;
+            // _isPhotoFullscreen is already false above, so the hook now reports
+            // workarea bounds — restore chrome and re-trigger a maximize/restore so the
+            // window contracts off the taskbar in a single repaint, no Normal flicker.
+            if (WindowStyle != _preFullscreenStyle) WindowStyle = _preFullscreenStyle;
+            if (ResizeMode != _preFullscreenResize) ResizeMode = _preFullscreenResize;
+            if (_preFullscreenState == WindowState.Maximized)
+            {
+                if (WindowState != WindowState.Maximized)
+                {
+                    WindowState = WindowState.Maximized;
+                }
+                else if (hwnd != IntPtr.Zero)
+                {
+                    if (TryGetNearestMonitorInfo(hwnd, out var info))
+                        SetWindowToRect(hwnd, info.rcWork);
+                }
+            }
+            else if (WindowState != _preFullscreenState)
+            {
+                WindowState = _preFullscreenState;
+            }
         }
+
+        FadeOutPhotoFullscreenTransition();
+    }
+
+    private void BeginPhotoFullscreenTransition()
+    {
+        _fullscreenTransitionVersion++;
+
+        PhotoFullscreenTransitionOverlay.BeginAnimation(UIElement.OpacityProperty, null);
+        PhotoFullscreenTransitionOverlay.Visibility = Visibility.Visible;
+        PhotoFullscreenTransitionOverlay.Opacity = 1.0;
+    }
+
+    private void FadeOutPhotoFullscreenTransition()
+    {
+        var version = _fullscreenTransitionVersion;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+        {
+            if (version != _fullscreenTransitionVersion) return;
+
+            var fade = new DoubleAnimation
+            {
+                From = 1.0,
+                To = 0.0,
+                BeginTime = TimeSpan.FromMilliseconds(FullscreenTransitionSettleMs),
+                Duration = TimeSpan.FromMilliseconds(FullscreenTransitionFadeMs),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            fade.Completed += (_, _) =>
+            {
+                if (version != _fullscreenTransitionVersion) return;
+                PhotoFullscreenTransitionOverlay.Visibility = Visibility.Collapsed;
+                PhotoFullscreenTransitionOverlay.Opacity = 0.0;
+            };
+
+            PhotoFullscreenTransitionOverlay.BeginAnimation(
+                UIElement.OpacityProperty,
+                fade,
+                HandoffBehavior.SnapshotAndReplace);
+        }));
     }
 
     private void ApplySecondMonitorVisibility(bool show)
@@ -1361,8 +1517,11 @@ public partial class MainWindow : Window
         }
         else if (_libVlc != null && _vlcPlayer != null)
         {
-            _videoIsPlaying = true;
-            SetPlayPauseGlyph(playing: true);
+            // _videoIsPlaying gates the VlcPlayer_Playing handler — if it stays false
+            // through the load, the handler pauses immediately so the user sees the
+            // first decoded frame but playback doesn't start.
+            _videoIsPlaying = AppSettings.Current.AutoPlayVideo;
+            SetPlayPauseGlyph(playing: _videoIsPlaying);
             SetVideoSurfaceVisible(true);
             _pendingVideoSource = vm.VideoSourceUri;
             Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(PlayPendingVideoSource));
@@ -1431,7 +1590,17 @@ public partial class MainWindow : Window
 
             if (_vlcPlayer != null) _vlcPlayer.Mute = _videoIsMuted;
             ApplyVideoPlaybackRate();
-            _videoIsPlaying = true;
+
+            // Honor _videoIsPlaying as set by the caller. With auto-play disabled,
+            // OnVideoSourceChanged leaves it false — we let VLC paint the first
+            // frame, then immediately pause so the user lands on a still preview.
+            if (!_videoIsPlaying)
+            {
+                _vlcPlayer?.SetPause(true);
+                SetPlayPauseGlyph(playing: false);
+                return;
+            }
+
             _videoTick.Start();
             SetPlayPauseGlyph(playing: true);
         });

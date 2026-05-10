@@ -84,6 +84,7 @@ public partial class SettingsWindow : Window
         DoubleClickZoomSlider.Value = Math.Clamp(current.DoubleClickZoom, 1.5, 16.0);
         ScrollSpeedSlider.Value = Math.Clamp(current.ScrollSpeedPercent, ScrollSpeed.MinPercent, ScrollSpeed.MaxPercent);
         VideoSeekStepSlider.Value = Math.Clamp(current.VideoSeekStepSeconds, 1, 30);
+        AutoPlayVideoCheck.IsChecked = current.AutoPlayVideo;
 
         // HDR detection
         HdrEnabledCheck.IsChecked = current.HdrDetectionEnabled;
@@ -357,6 +358,7 @@ public partial class SettingsWindow : Window
             DoubleClickZoom     = DoubleClickZoomSlider.Value,
             ScrollSpeedPercent  = (int)ScrollSpeedSlider.Value,
             VideoSeekStepSeconds = (int)VideoSeekStepSlider.Value,
+            AutoPlayVideo       = AutoPlayVideoCheck.IsChecked == true,
             HdrDetectionEnabled = HdrEnabledCheck.IsChecked == true,
             HdrMinBracketSize   = (int)HdrMinBracketSizeSlider.Value,
             HdrMinExposureSpread = (float)HdrExposureSpreadSlider.Value,

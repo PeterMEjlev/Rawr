@@ -74,6 +74,11 @@ public sealed class AppSettings
     // Step size for the Shift+Left/Right video seek shortcuts.
     public int VideoSeekStepSeconds { get; set; } = 5;
 
+    // When true, selecting a video starts playback immediately. When false, the
+    // first frame is decoded and shown but playback stays paused — user presses
+    // Space (or clicks play) to start.
+    public bool AutoPlayVideo { get; set; } = true;
+
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
     public Dictionary<string, string> KeyBindings { get; set; } = new();
@@ -145,6 +150,7 @@ public sealed class AppSettings
         DoubleClickZoom = DoubleClickZoom,
         ScrollSpeedPercent = ScrollSpeedPercent,
         VideoSeekStepSeconds = VideoSeekStepSeconds,
+        AutoPlayVideo = AutoPlayVideo,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
         LogProfileOverrides = LogProfileOverrides.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         Macros = Macros.Select(m => new KeyboardMacro
