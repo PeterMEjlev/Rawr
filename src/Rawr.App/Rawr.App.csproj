@@ -13,11 +13,12 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />
+    <PackageReference Include="FFmpeg.GPL" Version="20250101.1.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.*" />
     <PackageReference Include="GMap.NET.WindowsPresentation" Version="1.*" />
-    <PackageReference Include="LibVLCSharp" Version="3.*" />
-    <PackageReference Include="LibVLCSharp.WPF" Version="3.*" />
-    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.*" />
+    <PackageReference Include="FlyleafLib" Version="3.*" />
+    <PackageReference Include="FlyleafLib.Controls.WPF" Version="1.*" />
+    <PackageReference Include="Soenneker.Libraries.FFmpeg" Version="4.0.1018" />
   </ItemGroup>
 
   <ItemGroup>

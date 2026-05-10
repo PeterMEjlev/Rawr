@@ -7,7 +7,7 @@
         xmlns:vm="clr-namespace:Rawr.App.ViewModels"
         xmlns:models="clr-namespace:Rawr.Core.Models;assembly=Rawr.Core"
         xmlns:controls="clr-namespace:Rawr.App.Controls"
-        xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+        xmlns:flyleaf="clr-namespace:FlyleafLib.Controls.WPF;assembly=FlyleafLib"
         mc:Ignorable="d"
         Title="RAWR — RAW Photo Culling"
         Icon="Assets/rawr.ico"
@@ -1969,9 +1969,10 @@
                                 </TransformGroup>
                             </Image.RenderTransform>
                         </Image>
-                        <vlc:VideoView x:Name="VideoPlayer"
-                                       Margin="8"
-                                       Visibility="Collapsed" />
+                        <flyleaf:FlyleafHost x:Name="VideoPlayer"
+                                             Margin="8"
+                                             Background="Black"
+                                             Visibility="Collapsed" />
 
                         <!-- Focus Peaking overlay — shares transforms with PreviewImageElement via binding -->
                         <Image x:Name="FocusPeakingOverlayImage"
@@ -2257,7 +2258,7 @@
                                   DisplayMemberPath="DisplayName"
                                   SelectedValuePath="Profile"
                                   SelectedValue="{Binding SelectedLogProfile, Mode=TwoWay}"
-                                  ToolTip="LOG profile (auto-detected from camera; override here if wrong)" />
+                                  ToolTip="LOG profile correction" />
                         <Slider x:Name="VideoSlider"
                                 Minimum="0"
                                 Maximum="1"

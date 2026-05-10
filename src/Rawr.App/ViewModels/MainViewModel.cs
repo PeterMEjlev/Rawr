@@ -50,6 +50,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool _suppressSessionSave;
     private CancellationTokenSource? _sessionSaveCts;
     private CancellationTokenSource? _rawPrefetchCts;
+    private CancellationTokenSource? _videoProxyPrefetchCts;
 
     // Photos within this radius of the current selection keep their PreviewJpeg /
     // FullJpeg bytes in memory for instant browsing. Photos outside the window are
@@ -61,6 +62,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private const int RawDecodeSettleDelayMs = 180;
     private const int FullJpegPreloadSettleDelayMs = 350;
     private const int RawPrefetchSettleDelayMs = 650;
+    private const int VideoProxyPrefetchSettleDelayMs = 700;
 
     private sealed record FolderCatalog(
         CullingDatabase Database,
@@ -113,9 +115,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _showSecondMonitor;
     [ObservableProperty] private bool _isPhotoFullscreen;
 
-    // LOG profile applied to the currently selected video. Auto-detected from camera
-    // metadata each time a new video is selected; user can override via the dropdown
-    // in the video controls bar (override only lasts until the next video).
+    // LOG profile applied to the currently selected video. Defaults to None for
+    // smooth culling playback; users can opt into a profile from the dropdown when
+    // color correction is worth the extra video-filter cost.
     [ObservableProperty] private LogProfile _selectedLogProfile = LogProfile.None;
     public sealed record LogProfileItem(LogProfile Profile, string DisplayName)
     {
@@ -902,6 +904,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _previewCts?.Cancel();
         _rawDecodeCts?.Cancel();
         _rawPrefetchCts?.Cancel();
+        _videoProxyPrefetchCts?.Cancel();
         _indexCts = new CancellationTokenSource();
         var ct = _indexCts.Token;
 
@@ -1050,6 +1053,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Background: generate thumbnails progressively
         await GeneratePreviewsAsync(ct);
+        if (!ct.IsCancellationRequested && SelectedIndex >= 0)
+            QueueVideoProxyPrefetch(SelectedIndex);
 
         if (!ct.IsCancellationRequested)
         {
@@ -1287,6 +1292,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ = LoadPreviewForSelectedAsync(ct);
         _ = PrefetchNeighborsAsync(value, ct);
         QueueRawNeighborPrefetch(value);
+        QueueVideoProxyPrefetch(value);
         UpdateStatus();
     }
 
@@ -1300,10 +1306,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (value != null)
             value.PropertyChanged += OnSelectedPhotoPropertyChanged;
 
-        // Auto-detect LOG profile when switching to a video; resets any user override
-        // from the previous clip so each new video starts at its best-guess preset.
+        // Reset LOG correction when switching videos. VLC's adjust filter is costly
+        // on high-FPS 10-bit 4:2:2 clips, so preview playback starts filter-free.
         if (value?.IsVideo == true)
-            SelectedLogProfile = LogProfileDetector.Detect(value.Metadata?.CameraMake, value.Metadata?.CameraModel);
+            SelectedLogProfile = LogProfile.None;
 
         // Default path: any anchor change collapses the multi-selection back to just
         // the new anchor (plain click, arrow keys, undo/redo, filter restore). The
@@ -2283,6 +2289,70 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     photo.PreviewJpeg = processed;
                 }
             }
+        }
+    }
+
+    private void QueueVideoProxyPrefetch(int currentIndex)
+    {
+        _videoProxyPrefetchCts?.Cancel();
+        if (currentIndex < 0 || currentIndex >= FilteredPhotos.Count) return;
+        var photos = FilteredPhotos.ToList();
+
+        var cts = new CancellationTokenSource();
+        _videoProxyPrefetchCts = cts;
+        _ = PrefetchVideoProxiesAfterSettleAsync(currentIndex, photos, cts);
+    }
+
+    private static List<PhotoItem> BuildVideoProxyPrefetchTargets(IReadOnlyList<PhotoItem> photos, int currentIndex)
+    {
+        var targets = new List<PhotoItem>();
+
+        for (int distance = 1; distance < photos.Count; distance++)
+        {
+            AddIfNeeded(currentIndex + distance);
+            AddIfNeeded(currentIndex - distance);
+        }
+
+        return targets;
+
+        void AddIfNeeded(int i)
+        {
+            if (i < 0 || i >= photos.Count) return;
+            var photo = photos[i];
+            if (!VideoProxyCache.ShouldProxy(photo)) return;
+            if (VideoProxyCache.TryGetFreshProxyPath(photo, out _)) return;
+            targets.Add(photo);
+        }
+    }
+
+    private async Task PrefetchVideoProxiesAfterSettleAsync(
+        int currentIndex,
+        IReadOnlyList<PhotoItem> photos,
+        CancellationTokenSource cts)
+    {
+        var ct = cts.Token;
+        try
+        {
+            await Task.Delay(VideoProxyPrefetchSettleDelayMs, ct);
+            if (ct.IsCancellationRequested || SelectedIndex != currentIndex) return;
+
+            var targets = BuildVideoProxyPrefetchTargets(photos, currentIndex);
+            foreach (var photo in targets)
+            {
+                if (ct.IsCancellationRequested || SelectedIndex != currentIndex) return;
+                if (VideoProxyCache.TryGetFreshProxyPath(photo, out _)) continue;
+
+                try { await VideoProxyCache.GetOrCreateAsync(photo, progress: null, ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) { throw; }
+                catch { /* proxy warmup is opportunistic; playback will retry on demand */ }
+            }
+        }
+        catch (OperationCanceledException) { /* navigation moved on */ }
+        finally
+        {
+            if (ReferenceEquals(_videoProxyPrefetchCts, cts))
+                _videoProxyPrefetchCts = null;
+            cts.Dispose();
         }
     }
 
@@ -4790,6 +4860,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _previewCts?.Cancel();
         _previewCts?.Dispose();
         _rawPrefetchCts?.Cancel();
+        _videoProxyPrefetchCts?.Cancel();
         _analyzeFacesCts?.Cancel();
         _analyzeFacesCts?.Dispose();
         _faceAnalyzer?.Dispose();

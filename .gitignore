@@ -1,0 +1,12 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+
+# Local IDE/user state
+.vs/
+*.user
+*.suo
+
+# OS/editor noise
+Thumbs.db
+Desktop.ini
