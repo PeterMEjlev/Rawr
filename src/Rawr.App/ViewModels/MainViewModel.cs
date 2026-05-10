@@ -12,6 +12,7 @@ using Microsoft.Win32;
 using Rawr.App.Controls;
 using Rawr.App.Dialogs;
 using Rawr.App.Services;
+using Rawr.App.Shortcuts;
 using Rawr.Core.Data;
 using Rawr.Core.Models;
 using Rawr.Core.Services;
@@ -143,6 +144,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // Expanded mode has far more horizontal space, so it gets a higher cap to
     // let users squeeze in smaller thumbnails for fast triage.
     public int MaxGridColumnCount => IsGridExpanded ? 16 : 8;
+    public string GridExpandedToggleTooltip => IsGridExpanded
+        ? $"Restore preview pane ({ToggleGridExpandedShortcutDisplay})"
+        : $"Expand grid - hide preview pane ({ToggleGridExpandedShortcutDisplay})";
+    public string FullGridToggleTooltip =>
+        $"Toggle full grid view - hide the preview pane and expand the thumbnail grid ({ToggleGridExpandedShortcutDisplay})";
+
+    private static string ToggleGridExpandedShortcutDisplay => ShortcutDisplay("ToggleGridExpanded");
+    partial void OnIsGridExpandedChanged(bool value) =>
+        OnPropertyChanged(nameof(GridExpandedToggleTooltip));
 
     public ObservableCollection<FolderNode> FolderTreeRoots { get; } = [];
     [ObservableProperty] private HistogramData? _histogramData;
@@ -1527,6 +1537,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void NotifyDateFormatChanged() =>
         OnPropertyChanged(nameof(SelectedPhotoCaptureDateFormatted));
+
+    public void NotifyShortcutDisplayChanged()
+    {
+        OnPropertyChanged(nameof(GridExpandedToggleTooltip));
+        OnPropertyChanged(nameof(FullGridToggleTooltip));
+    }
+
+    private static string ShortcutDisplay(string actionId)
+    {
+        var action = ShortcutRegistry.All.FirstOrDefault(a => a.Id == actionId);
+        if (action == null) return "unbound";
+
+        var (spec, unbound) = ShortcutBinder.ResolveBinding(AppSettings.Current, action);
+        return unbound || spec == null ? "unbound" : spec.FormatForDisplay();
+    }
 
     [RelayCommand]
     private void SetHistogramMode(HistogramMode mode) => HistogramMode = mode;

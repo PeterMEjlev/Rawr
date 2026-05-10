@@ -1636,15 +1636,14 @@
                                           Margin="6,0,0,0"
                                           Padding="6,1"
                                           FontSize="12"
-                                          MinWidth="0">
+                                          MinWidth="0"
+                                          ToolTip="{Binding GridExpandedToggleTooltip}">
                                 <ToggleButton.Style>
                                     <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                                         <Setter Property="Content" Value="⇥" />
-                                        <Setter Property="ToolTip" Value="Expand grid — hide preview pane (\)" />
                                         <Style.Triggers>
                                             <Trigger Property="IsChecked" Value="True">
                                                 <Setter Property="Content" Value="⇤" />
-                                                <Setter Property="ToolTip" Value="Restore preview pane (\)" />
                                             </Trigger>
                                         </Style.Triggers>
                                     </Style>
@@ -2295,7 +2294,7 @@
                               Padding="8,2"
                               FontSize="11"
                               MinWidth="0"
-                              ToolTip="Toggle full grid view — hide the preview pane and expand the thumbnail grid (\)">
+                              ToolTip="{Binding FullGridToggleTooltip}">
                     <ToggleButton.Style>
                         <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                             <Setter Property="Content" Value="⛶ Full Grid" />

@@ -149,9 +149,24 @@ public sealed record KeySpec(Key Key, ModifierKeys Modifiers)
         return key;
     }
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetKeyboardLayout(uint idThread);
+
     [DllImport("user32.dll", SetLastError = true)]
-    private static extern int MapVirtualKey(uint uCode, uint uMapType);
-    private const uint MAPVK_VK_TO_CHAR = 2;
+    private static extern uint MapVirtualKeyEx(uint uCode, uint uMapType, IntPtr dwhkl);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int ToUnicodeEx(
+        uint wVirtKey,
+        uint wScanCode,
+        byte[] lpKeyState,
+        [Out] StringBuilder pwszBuff,
+        int cchBuff,
+        uint wFlags,
+        IntPtr dwhkl);
+
+    private const uint MAPVK_VK_TO_VSC = 0;
+    private const uint TO_UNICODE_NO_STATE_CHANGE = 0x04;
 
     // Diagnostic log written to %APPDATA%\RAWR\shortcut-keys.log so non-US-layout
     // capture issues can be inspected after the fact. Each entry records the raw
@@ -189,10 +204,29 @@ public sealed record KeySpec(Key Key, ModifierKeys Modifiers)
         var vk = KeyInterop.VirtualKeyFromKey(key);
         if (vk > 255) return null;
 
-        var ch = MapVirtualKey((uint)vk, MAPVK_VK_TO_CHAR);
-        if (ch == 0) return null;
+        var layout = GetKeyboardLayout(0);
+        var scanCode = MapVirtualKeyEx((uint)vk, MAPVK_VK_TO_VSC, layout);
+        var keyState = new byte[256];
+        var buffer = new StringBuilder(8);
+        var count = ToUnicodeEx(
+            (uint)vk,
+            scanCode,
+            keyState,
+            buffer,
+            buffer.Capacity,
+            TO_UNICODE_NO_STATE_CHANGE,
+            layout);
 
-        // High bit indicates dead key; mask it off for display.
-        return ((char)(ch & 0xFFFF)).ToString();
+        if (count == 0) return null;
+
+        var length = count < 0 ? 1 : Math.Min(count, buffer.Length);
+        if (length <= 0) return null;
+
+        var text = buffer.ToString(0, length);
+        if (string.IsNullOrWhiteSpace(text) || text.Any(char.IsControl)) return null;
+
+        return text.Length == 1 && char.IsLetter(text[0])
+            ? text.ToUpperInvariant()
+            : text;
     }
 }

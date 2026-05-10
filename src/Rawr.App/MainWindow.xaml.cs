@@ -1359,6 +1359,7 @@ public partial class MainWindow : Window
         ApplyLogProfile(vm.SelectedLogProfile);
 
         vm.NotifyDateFormatChanged();
+        vm.NotifyShortcutDisplayChanged();
 
         bool burstSettingsChanged =
             prev.BurstMaxGapSeconds != AppSettings.Current.BurstMaxGapSeconds ||
