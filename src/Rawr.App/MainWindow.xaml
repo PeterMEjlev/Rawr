@@ -616,21 +616,32 @@
                 <!-- Burst collapse toggle -->
                 <ToggleButton DockPanel.Dock="Left"
                               IsChecked="{Binding BurstCollapsed}"
-                              Margin="0,0,8,0"
-                              ToolTip="G — collapse bursts to a single tile (double-click a stack to focus)">
+                              Width="30"
+                              Height="26"
+                              Padding="0"
+                              FontSize="15"
+                              Margin="0,0,8,0">
                     <ToggleButton.Style>
                         <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                             <!-- Default (unchecked = expanded): pressing collapses -->
-                            <Setter Property="Content" Value="🗂 Collapse Bursts" />
+                            <Setter Property="Content" Value="⊟" />
+                            <Setter Property="ToolTip" Value="G — collapse bursts to a single tile" />
                             <Style.Triggers>
                                 <!-- Checked (collapsed): pressing expands -->
                                 <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Content" Value="🗂 Expand Bursts" />
+                                    <Setter Property="Content" Value="⊞" />
+                                    <Setter Property="ToolTip" Value="G — expand burst tiles" />
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
                     </ToggleButton.Style>
                 </ToggleButton>
+
+                <Button DockPanel.Dock="Left"
+                        Content="↬ Last Edit"
+                        Command="{Binding GoToLastInteractedPhotoCommand}"
+                        Margin="0,0,8,0"
+                        ToolTip="Go to the last visible photo with a rating, flag, color label, or tag" />
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 

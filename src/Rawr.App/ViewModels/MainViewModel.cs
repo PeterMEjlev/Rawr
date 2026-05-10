@@ -1880,6 +1880,57 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         SelectedIndex = (SelectedIndex - 1 + FilteredPhotos.Count) % FilteredPhotos.Count;
     }
 
+    [RelayCommand]
+    private void GoToLastInteractedPhoto()
+    {
+        var target = FilteredPhotos.LastOrDefault(HasUserInteractionMetadata);
+        if (target != null)
+        {
+            SelectVisiblePhotoOrBurstRepresentative(target);
+            return;
+        }
+
+        target = ApplySorting(AllPhotos).LastOrDefault(HasUserInteractionMetadata);
+        if (target == null)
+        {
+            StatusText = "No rated, flagged, labelled, or tagged photos in this folder.";
+            return;
+        }
+
+        if (!SelectVisiblePhotoOrBurstRepresentative(target))
+            StatusText = $"Last interacted photo is hidden by the current filters: {target.FileName}.";
+    }
+
+    private bool SelectVisiblePhotoOrBurstRepresentative(PhotoItem photo)
+    {
+        var idx = FilteredPhotos.IndexOf(photo);
+        if (idx >= 0)
+        {
+            SelectedIndex = idx;
+            return true;
+        }
+
+        if (photo.GroupId > 0)
+        {
+            for (int i = 0; i < FilteredPhotos.Count; i++)
+            {
+                if (FilteredPhotos[i].GroupId == photo.GroupId)
+                {
+                    SelectedIndex = i;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool HasUserInteractionMetadata(PhotoItem photo) =>
+        photo.Rating != 0
+        || photo.Flag != CullFlag.Unflagged
+        || photo.ColorLabel != ColorLabel.None
+        || Tags.Any(t => !t.IsSystem && photo.TagIds.Contains(t.Id));
+
     private async Task LoadPreviewForSelectedAsync(CancellationToken ct)
     {
         var photo = SelectedPhoto;
