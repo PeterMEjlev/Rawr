@@ -12,9 +12,9 @@ TRACE;RELEASE;NET;NET9_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_
 C:\Users\pejlev\Desktop\Misc\Git\RAWR\src\Rawr.App\App.xaml
 9-1152358383
 1271-1217281039
-44-1267190932
+45865497301
 2151759337022
 Controls\PhotoInfoPanel.xaml;Controls\PixelPeekView.xaml;Dialogs\BurstFocusWindow.xaml;Dialogs\InputDialog.xaml;Dialogs\MapWindow.xaml;Dialogs\SecondMonitorWindow.xaml;Dialogs\SettingsWindow.xaml;MainWindow.xaml;Themes\DarkTheme.xaml;
 
-False
+True
 

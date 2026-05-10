@@ -1760,6 +1760,18 @@
                                                      HorizontalAlignment="Right" VerticalAlignment="Top"
                                                      Margin="0,4,4,0"
                                                      Fill="{Binding ColorLabel, Converter={StaticResource LabelToBrush}}" />
+                                            <!-- Always-visible burst indicator: shows the stack-of-cards icon
+                                                 whenever the photo is part of a burst group (GroupId > 0). -->
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                    Background="#A0000000"
+                                                    Padding="3,0" Margin="0,16,4,0"
+                                                    CornerRadius="2"
+                                                    ToolTip="Part of a burst group"
+                                                    Visibility="{Binding GroupId, Converter={StaticResource NullToVisibility}}">
+                                                <TextBlock Text="&#x29C9;"
+                                                           Foreground="White"
+                                                           FontSize="11" />
+                                            </Border>
                                             <Border HorizontalAlignment="Left" VerticalAlignment="Bottom"
                                                     Background="#A0000000"
                                                     Padding="4,1" Margin="2"
@@ -1806,7 +1818,7 @@
                                                     Background="#CC9C27B0"
                                                     Padding="4,1" Margin="6,4,0,0"
                                                     CornerRadius="2"
-                                                    ToolTip="Burst position">
+                                                    ToolTip="Part of a burst group">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -1820,9 +1832,17 @@
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
-                                                <TextBlock Text="{Binding BurstBadge}"
-                                                           Foreground="White"
-                                                           FontSize="9" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#x29C9;"
+                                                               Foreground="White"
+                                                               FontSize="10"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,4,0" />
+                                                    <TextBlock Text="{Binding BurstBadge}"
+                                                               Foreground="White"
+                                                               FontSize="9"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
                                             </Border>
                                             <!-- Collapsed-burst count badge: only when collapsed -->
                                             <Border HorizontalAlignment="Left" VerticalAlignment="Top"
@@ -2046,12 +2066,40 @@
                     <Border Background="#CC3B82F6"
                             Padding="8,4"
                             CornerRadius="3"
+                            Margin="0,0,0,4"
                             Visibility="{Binding SelectedPhoto.TagDisplay, Converter={StaticResource NullToVisibility}}">
                         <TextBlock Text="{Binding SelectedPhoto.TagDisplay}"
                                    Foreground="White"
                                    FontSize="12" />
                     </Border>
                 </StackPanel>
+
+                <!-- Burst-group indicator (top-left of preview) — large stack-of-cards
+                     icon + total photo count, shown whenever the selected photo is
+                     part of a burst group. -->
+                <Border HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Background="#80000000"
+                        Padding="10,4"
+                        CornerRadius="3"
+                        Margin="16,16,0,0"
+                        IsHitTestVisible="False"
+                        ToolTip="Part of a burst group"
+                        Visibility="{Binding SelectedPhoto.GroupId, Converter={StaticResource NullToVisibility}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x29C9;"
+                                   Foreground="White"
+                                   FontSize="28"
+                                   FontWeight="Bold"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource BurstBadgeToTotal}}"
+                                   Foreground="White"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Margin="6,0,0,0" />
+                    </StackPanel>
+                </Border>
 
                 <!-- Focus peaking indicator (bottom-left) -->
                 <Border Grid.Row="0"
@@ -2377,6 +2425,18 @@
                                              HorizontalAlignment="Right" VerticalAlignment="Top"
                                              Margin="0,4,4,0"
                                              Fill="{Binding ColorLabel, Converter={StaticResource LabelToBrush}}" />
+                                    <!-- Always-visible burst indicator: shows the stack-of-cards icon
+                                         whenever the photo is part of a burst group (GroupId > 0). -->
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Background="#A0000000"
+                                            Padding="3,0" Margin="0,16,4,0"
+                                            CornerRadius="2"
+                                            ToolTip="Part of a burst group"
+                                            Visibility="{Binding GroupId, Converter={StaticResource NullToVisibility}}">
+                                        <TextBlock Text="&#x29C9;"
+                                                   Foreground="White"
+                                                   FontSize="11" />
+                                    </Border>
 
                                     <!-- Stars (bottom-left) -->
                                     <Border HorizontalAlignment="Left" VerticalAlignment="Bottom"
@@ -2425,7 +2485,7 @@
                                             Background="#CC9C27B0"
                                             Padding="4,1" Margin="6,4,0,0"
                                             CornerRadius="2"
-                                            ToolTip="Burst position">
+                                            ToolTip="Part of a burst group">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -2439,9 +2499,17 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock Text="{Binding BurstBadge}"
-                                                   Foreground="White"
-                                                   FontSize="9" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x29C9;"
+                                                       Foreground="White"
+                                                       FontSize="10"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,4,0" />
+                                            <TextBlock Text="{Binding BurstBadge}"
+                                                       Foreground="White"
+                                                       FontSize="9"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
                                     </Border>
                                     <!-- Collapsed-burst count badge: only when collapsed -->
                                     <Border HorizontalAlignment="Left" VerticalAlignment="Top"

@@ -17,3 +17,4 @@
 
 - ## Custom import settings when importing from an SD/CF card. i.e filters for putting photos or videos in seperate (sub)folders (or RAW vs JPG etc)
 
+- ## 

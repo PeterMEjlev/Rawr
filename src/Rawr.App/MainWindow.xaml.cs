@@ -104,6 +104,13 @@ public partial class MainWindow : Window
 
     public ICommand ToggleVideoMuteCommand { get; }
 
+    public ICommand IncreaseVideoSpeedCommand { get; }
+    public ICommand DecreaseVideoSpeedCommand { get; }
+
+    // Speeds offered by the video-controls dropdown — same values shared by the
+    // Ctrl+Up / Ctrl+Down shortcuts so keyboard and mouse stay in sync.
+    private static readonly float[] VideoSpeedSteps = { 0.25f, 0.5f, 1.0f, 1.5f, 2.0f };
+
     public MainWindow()
     {
         OpenTagsCommand = new RelayCommand(() =>
@@ -112,6 +119,8 @@ public partial class MainWindow : Window
         });
 
         ToggleVideoMuteCommand = new RelayCommand(() => VideoMute_Click(this, new RoutedEventArgs()));
+        IncreaseVideoSpeedCommand = new RelayCommand(() => StepVideoSpeed(+1));
+        DecreaseVideoSpeedCommand = new RelayCommand(() => StepVideoSpeed(-1));
 
         // Load persisted settings before InputBindings are applied so user-customised
         // keyboard shortcuts are in place by the time the window is shown.
@@ -1528,6 +1537,25 @@ public partial class MainWindow : Window
     {
         if (_vlcPlayer == null) return;
         _vlcPlayer.SetRate(_videoPlaybackRate);
+    }
+
+    // Step through VideoSpeedSteps; +1 for faster, -1 for slower. No-op when no
+    // video is loaded. Updates the dropdown so the UI stays in sync.
+    private void StepVideoSpeed(int direction)
+    {
+        if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+
+        // Find the index of the closest current speed step, then move from there.
+        int idx = 0;
+        float bestDiff = float.MaxValue;
+        for (int i = 0; i < VideoSpeedSteps.Length; i++)
+        {
+            var diff = Math.Abs(VideoSpeedSteps[i] - _videoPlaybackRate);
+            if (diff < bestDiff) { bestDiff = diff; idx = i; }
+        }
+
+        idx = Math.Clamp(idx + direction, 0, VideoSpeedSteps.Length - 1);
+        VideoSpeedBox.SelectedIndex = idx;
     }
 
     private void SetVideoSurfaceVisible(bool visible) =>

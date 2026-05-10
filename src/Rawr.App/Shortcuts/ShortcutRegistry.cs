@@ -79,6 +79,8 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("ToggleGridExpanded", "Expand grid (hide preview)", CatView, Key.OemPipe, ModifierKeys.None, Vm(vm => vm.ToggleGridExpandedCommand)),
             new("ViewPhotoFullscreen","View photo fullscreen",  CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ViewPhotoFullscreenCommand)),
             new("ToggleVideoMute",    "Toggle video mute",      CatView, Key.M,    ModifierKeys.None, w => w.ToggleVideoMuteCommand),
+            new("IncreaseVideoSpeed", "Increase video speed",   CatView, Key.Up,   ModifierKeys.Control, w => w.IncreaseVideoSpeedCommand),
+            new("DecreaseVideoSpeed", "Decrease video speed",   CatView, Key.Down, ModifierKeys.Control, w => w.DecreaseVideoSpeedCommand),
             new("OpenTags",           "Open tags panel",      CatView, Key.T, ModifierKeys.None, w => w.OpenTagsCommand),
 
             // Filters
