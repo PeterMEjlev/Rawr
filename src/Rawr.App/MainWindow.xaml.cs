@@ -47,6 +47,16 @@ public partial class MainWindow : Window
     private double _panStartTy;
     private GridLength _savedFilmstripHeight = new GridLength(148);
     private GridLength _savedGridWidth = new GridLength(200);
+
+    // Saved chrome state used to restore the window when leaving photo-fullscreen mode.
+    private WindowStyle _preFullscreenStyle;
+    private WindowState _preFullscreenState;
+    private ResizeMode _preFullscreenResize;
+    private GridLength[]? _preFullscreenRowHeights;
+    private GridLength[]? _preFullscreenMainCols;
+    private GridLength[]? _preFullscreenSplitCols;
+    private Visibility _preFullscreenExposureBarVisibility;
+    private bool _isPhotoFullscreen;
     private PhotoItem? _prevSelectedPhoto;
 
     // Video playback state. The DispatcherTimer pulls _vlcPlayer.Time into the
@@ -91,12 +101,16 @@ public partial class MainWindow : Window
     /// <summary>Toggles the tags popup. Bound by default to 'T' via the shortcut registry.</summary>
     public ICommand OpenTagsCommand { get; }
 
+    public ICommand ToggleVideoMuteCommand { get; }
+
     public MainWindow()
     {
         OpenTagsCommand = new RelayCommand(() =>
         {
             if (TagsPopup is not null) TagsPopup.IsOpen = !TagsPopup.IsOpen;
         });
+
+        ToggleVideoMuteCommand = new RelayCommand(() => VideoMute_Click(this, new RoutedEventArgs()));
 
         // Load persisted settings before InputBindings are applied so user-customised
         // keyboard shortcuts are in place by the time the window is shown.
@@ -166,6 +180,8 @@ public partial class MainWindow : Window
                     ApplySecondMonitorVisibility(vmS.ShowSecondMonitor);
                 if (e.PropertyName == nameof(MainViewModel.VideoSourceUri))
                     OnVideoSourceChanged();
+                if (e.PropertyName == nameof(MainViewModel.IsPhotoFullscreen) && DataContext is MainViewModel vmFs)
+                    ApplyPhotoFullscreen(vmFs.IsPhotoFullscreen);
             };
         }
 
@@ -334,6 +350,83 @@ public partial class MainWindow : Window
             cols[0].Width = _savedGridWidth;
             cols[1].Width = new GridLength(4);
             cols[2].Width = new GridLength(1, GridUnitType.Star);
+        }
+    }
+
+    // Toggles a Lightroom-style "F" fullscreen view: hide every chrome row/column and
+    // make the window borderless-maximized so only the preview/video fills the monitor.
+    private void ApplyPhotoFullscreen(bool fullscreen)
+    {
+        if (fullscreen == _isPhotoFullscreen) return;
+        _isPhotoFullscreen = fullscreen;
+
+        var rootRows = RootGrid.RowDefinitions;
+        var mainCols = MainContentRow.ColumnDefinitions;
+        var splitCols = MainSplitGrid.ColumnDefinitions;
+
+        if (fullscreen)
+        {
+            _preFullscreenStyle = WindowStyle;
+            _preFullscreenState = WindowState;
+            _preFullscreenResize = ResizeMode;
+            _preFullscreenRowHeights = rootRows.Select(r => r.Height).ToArray();
+            _preFullscreenMainCols = mainCols.Select(c => c.Width).ToArray();
+            _preFullscreenSplitCols = splitCols.Select(c => c.Width).ToArray();
+            _preFullscreenExposureBarVisibility = ExposureCompensationBar.Visibility;
+
+            // Collapse every RootGrid row except row 1 (the preview-bearing main split).
+            for (int i = 0; i < rootRows.Count; i++)
+                if (i != 1) rootRows[i].Height = new GridLength(0);
+
+            // Inside row 1, hide the sidebar (col 0) and its splitter (col 1).
+            mainCols[0].MinWidth = 0;
+            mainCols[0].Width = new GridLength(0);
+            mainCols[1].Width = new GridLength(0);
+
+            // Inside MainSplitGrid, keep only the preview column (col 2); hide grid panel,
+            // splitter, and metadata.
+            splitCols[0].MinWidth = 0;
+            splitCols[0].Width = new GridLength(0);
+            splitCols[1].Width = new GridLength(0);
+            splitCols[3].Width = new GridLength(0);
+
+            // Hide the exposure-compensation bar; keep the video-controls bar in the
+            // same row visible (it's bound to VideoSourceUri so it only shows for videos).
+            ExposureCompensationBar.Visibility = Visibility.Collapsed;
+
+            // Borderless-maximized covers the taskbar; toggle State first so WPF applies
+            // the new style cleanly.
+            WindowState = WindowState.Normal;
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            WindowState = WindowState.Maximized;
+        }
+        else
+        {
+            if (_preFullscreenRowHeights != null)
+                for (int i = 0; i < rootRows.Count && i < _preFullscreenRowHeights.Length; i++)
+                    rootRows[i].Height = _preFullscreenRowHeights[i];
+
+            if (_preFullscreenMainCols != null)
+            {
+                mainCols[0].MinWidth = 160;
+                for (int i = 0; i < mainCols.Count && i < _preFullscreenMainCols.Length; i++)
+                    mainCols[i].Width = _preFullscreenMainCols[i];
+            }
+
+            if (_preFullscreenSplitCols != null)
+            {
+                splitCols[0].MinWidth = 100;
+                for (int i = 0; i < splitCols.Count && i < _preFullscreenSplitCols.Length; i++)
+                    splitCols[i].Width = _preFullscreenSplitCols[i];
+            }
+
+            ExposureCompensationBar.Visibility = _preFullscreenExposureBarVisibility;
+
+            WindowState = WindowState.Normal;
+            WindowStyle = _preFullscreenStyle;
+            ResizeMode = _preFullscreenResize;
+            WindowState = _preFullscreenState;
         }
     }
 

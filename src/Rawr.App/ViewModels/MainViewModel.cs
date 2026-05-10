@@ -98,6 +98,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _showGrid = true;
     [ObservableProperty] private bool _showFilmstrip = true;
     [ObservableProperty] private bool _showSecondMonitor;
+    [ObservableProperty] private bool _isPhotoFullscreen;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveGridColumnCount))]
     [NotifyPropertyChangedFor(nameof(MaxGridColumnCount))]
@@ -1366,6 +1367,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ClearMultiSelection()
     {
+        // Esc takes priority over any other "close" action when in photo-fullscreen.
+        if (IsPhotoFullscreen)
+        {
+            IsPhotoFullscreen = false;
+            return;
+        }
+
         if (SelectedPhotos.Count <= 1 && SelectedPhoto != null && !IsGridExpanded)
         {
             ShowGrid = true;
@@ -1426,6 +1434,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (FocusPeakingEnabled) EnableClipping();
         else if (ClippingEnabled) DisableOverlays();
         else EnableFocusPeaking();
+    }
+
+    [RelayCommand]
+    private void ViewPhotoFullscreen()
+    {
+        if (SelectedPhoto == null) return;
+        IsPhotoFullscreen = !IsPhotoFullscreen;
     }
 
     private void EnableFocusPeaking()

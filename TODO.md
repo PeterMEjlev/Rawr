@@ -10,3 +10,9 @@
 - ## the tooltip for shortcuts with special characters like ÆØÅ just show up as \ and not the actual keyboard shortcut
 
 - ## When a file is deleted, the selected photo goes to the first photo. it needs to go to the next photo instead
+
+- ## Add option in settings to toggle auto video playback
+
+- ## Goto last star rated / flagged / labeled / tagged photo. basically last photo that was interacted with in a folder (resume where last sorting started)
+
+- ## Custom import settings when importing from an SD/CF card. i.e filters for putting photos or videos in seperate (sub)folders (or RAW vs JPG etc)

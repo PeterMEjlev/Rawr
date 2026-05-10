@@ -19,6 +19,7 @@
             <conv:EqualityConverter x:Key="Equality" />
             <conv:EqualsToVisibilityConverter x:Key="EqualsToVisibility" />
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <conv:BoolInvertedToVisibilityConverter x:Key="BoolInvertedToVisibility" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

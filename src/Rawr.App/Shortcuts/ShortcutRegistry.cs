@@ -72,11 +72,13 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("ClearMultiSelection","Close preview / clear multi-selection", CatNav, Key.Escape, ModifierKeys.None, Vm(vm => vm.ClearMultiSelectionCommand)),
 
             // View
-            new("ToggleFocusPeaking", "Toggle focus peaking",    CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ToggleFocusPeakingCommand)),
+            new("ToggleFocusPeaking", "Toggle focus peaking",    CatView, Key.V,    ModifierKeys.None, Vm(vm => vm.ToggleFocusPeakingCommand)),
             new("ToggleClipping",     "Toggle clipping warning", CatView, Key.C,    ModifierKeys.None, Vm(vm => vm.ToggleClippingCommand)),
             new("CycleOverlay",       "Cycle preview overlay (off → focus peaking → clipping)", CatView, Key.None, ModifierKeys.None, Vm(vm => vm.CycleOverlayCommand)),
             new("ToggleBurstCollapse","Toggle burst collapse",CatView, Key.G, ModifierKeys.None, Vm(vm => vm.ToggleBurstCollapseCommand)),
             new("ToggleGridExpanded", "Expand grid (hide preview)", CatView, Key.OemPipe, ModifierKeys.None, Vm(vm => vm.ToggleGridExpandedCommand)),
+            new("ViewPhotoFullscreen","View photo fullscreen",  CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ViewPhotoFullscreenCommand)),
+            new("ToggleVideoMute",    "Toggle video mute",      CatView, Key.M,    ModifierKeys.None, w => w.ToggleVideoMuteCommand),
             new("OpenTags",           "Open tags panel",      CatView, Key.T, ModifierKeys.None, w => w.OpenTagsCommand),
 
             // Filters
