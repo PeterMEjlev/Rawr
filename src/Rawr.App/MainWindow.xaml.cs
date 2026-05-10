@@ -1515,13 +1515,16 @@ public partial class MainWindow : Window
             _videoDuration = TimeSpan.Zero;
             StopVideoPlayback(resetPosition: true);
         }
+        else if (!AppSettings.Current.AutoPlayVideo)
+        {
+            _pendingVideoSource = null;
+            _videoDuration = TimeSpan.Zero;
+            StopVideoPlayback(resetPosition: true);
+        }
         else if (_libVlc != null && _vlcPlayer != null)
         {
-            // _videoIsPlaying gates the VlcPlayer_Playing handler — if it stays false
-            // through the load, the handler pauses immediately so the user sees the
-            // first decoded frame but playback doesn't start.
-            _videoIsPlaying = AppSettings.Current.AutoPlayVideo;
-            SetPlayPauseGlyph(playing: _videoIsPlaying);
+            _videoIsPlaying = true;
+            SetPlayPauseGlyph(playing: true);
             SetVideoSurfaceVisible(true);
             _pendingVideoSource = vm.VideoSourceUri;
             Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(PlayPendingVideoSource));

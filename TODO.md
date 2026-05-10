@@ -17,6 +17,3 @@
 
 - ## Custom import settings when importing from an SD/CF card. i.e filters for putting photos or videos in seperate (sub)folders (or RAW vs JPG etc)
 
-- ## Toggling fullscreen with 'F' isnt as smooth as i would like (the transition)
-
-- ## Autoplay = off, then videos just show black screen and not thumbnail

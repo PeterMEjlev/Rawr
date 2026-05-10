@@ -75,8 +75,7 @@ public sealed class AppSettings
     public int VideoSeekStepSeconds { get; set; } = 5;
 
     // When true, selecting a video starts playback immediately. When false, the
-    // first frame is decoded and shown but playback stays paused — user presses
-    // Space (or clicks play) to start.
+    // still thumbnail stays visible until the user presses Space or clicks play.
     public bool AutoPlayVideo { get; set; } = true;
 
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
