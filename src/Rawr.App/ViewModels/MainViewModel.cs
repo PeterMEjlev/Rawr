@@ -38,6 +38,53 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private PreviewCache? _cache;
     private CullingDatabase? _db;
     private XmpSidecarWriter? _xmpWriter;
+
+    // ── Recursive view (Phase 1) ──
+    // Per-subfolder DB + cache contexts. In single-folder mode this contains
+    // exactly one entry (CurrentFolder); in recursive mode one per subfolder that
+    // contributed at least one photo. Keyed by full folder path, case-insensitive
+    // because Windows paths are case-insensitive.
+    private sealed record FolderContext(string FolderPath, CullingDatabase Db, PreviewCache Cache);
+    private readonly Dictionary<string, FolderContext> _contexts =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private static string OwningFolderOf(PhotoItem photo) =>
+        Path.GetDirectoryName(photo.FilePath) ?? string.Empty;
+
+    private CullingDatabase DbFor(PhotoItem photo)
+    {
+        var folder = OwningFolderOf(photo);
+        return _contexts.TryGetValue(folder, out var ctx) ? ctx.Db : _db!;
+    }
+
+    private PreviewCache CacheFor(PhotoItem photo)
+    {
+        var folder = OwningFolderOf(photo);
+        return _contexts.TryGetValue(folder, out var ctx) ? ctx.Cache : _cache!;
+    }
+
+    /// <summary>
+    /// Persist every photo to its owning subfolder's CullingDatabase, grouped so
+    /// each subfolder DB sees a single transaction (matches the speed profile of
+    /// the original single-folder SaveBatch).
+    /// </summary>
+    private void SaveAllPhotosPerOwningDb(IEnumerable<PhotoItem> photos)
+    {
+        foreach (var grp in photos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!_contexts.TryGetValue(grp.Key, out var ctx))
+            {
+                // Defensive: photo doesn't have a context (shouldn't happen) —
+                // fall back to the primary DB if available, otherwise skip.
+                if (_db == null) continue;
+                _db.SaveBatch(grp);
+            }
+            else
+            {
+                ctx.Db.SaveBatch(grp);
+            }
+        }
+    }
     private CancellationTokenSource? _indexCts;
     private CancellationTokenSource? _previewCts;
     private bool _highResPreviewLoaded;
@@ -78,6 +125,40 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] private string _currentFolder = "";
     [ObservableProperty] private string _statusText = "Open a folder to begin (Ctrl+O)";
+
+    // Sticky global toolbar toggle: when true, every folder open shows photos
+    // from the whole subtree. The choice is persisted in AppSettings so it
+    // survives folder switches and app restarts. Tag *editing* is disabled
+    // while recursive (display still works) — Phase 2 will lift that.
+    [ObservableProperty] private bool _isRecursiveView = AppSettings.Current.IncludeSubfolders;
+    // True iff the currently open folder has subfolders that contain media,
+    // i.e. the toggle is meaningful. Drives the enabled/disabled state of the
+    // toolbar button (it stays visible either way).
+    [ObservableProperty] private bool _hasSubfolderMedia;
+    public bool IsTagEditingEnabled => !IsRecursiveView;
+    partial void OnIsRecursiveViewChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsTagEditingEnabled));
+        // Skip persistence + reload when LoadFolderAsync itself adjusted the
+        // flag (e.g. forcing off because the new folder has no subfolders) —
+        // the persisted preference should reflect the user's intent, not the
+        // current folder's capability.
+        if (_suppressRecursiveReload) return;
+
+        // Persist the new value as the global default so opening any folder
+        // afterwards starts in this mode.
+        AppSettings.Current.IncludeSubfolders = value;
+        AppSettings.Current.Save();
+        // Reload the current folder so the photo list reflects the new mode.
+        if (!string.IsNullOrEmpty(CurrentFolder) && !IsLoading)
+        {
+            _ = LoadFolderAsync(CurrentFolder);
+        }
+    }
+    // Suppresses the auto-reload in OnIsRecursiveViewChanged while LoadFolderAsync
+    // itself adjusts the value (e.g. forcing off when the new folder has no
+    // subfolders so a recursive scan is meaningless).
+    private bool _suppressRecursiveReload;
     [ObservableProperty] private BitmapSource? _previewImage;
 
     // Set when the selected item is a video. The MediaElement in the preview pane
@@ -666,7 +747,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var renamingActive = IsSameOrAncestorOfCurrent(node.FullPath);
         if (renamingActive)
         {
-            _db?.Dispose();
+            foreach (var c in _contexts.Values) c.Db.Dispose();
+            _contexts.Clear();
             _db = null;
             _cache = null;
         }
@@ -728,7 +810,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var deletingActive = IsSameOrAncestorOfCurrent(node.FullPath);
         if (deletingActive)
         {
-            _db?.Dispose();
+            foreach (var c in _contexts.Values) c.Db.Dispose();
+            _contexts.Clear();
             _db = null;
             _cache = null;
             AllPhotos.Clear();
@@ -838,16 +921,72 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static FolderCatalog LoadFolderCatalog(string folderPath, IReadOnlyList<string> files, CancellationToken ct)
+    private sealed record FolderCatalogMulti(
+        List<FolderContext> Contexts,
+        List<PhotoItem> Photos,
+        List<PhotoTag> MergedTags,
+        Dictionary<string, Dictionary<string, PhotoState>> SavedStateByFolder,
+        Dictionary<string, DateTime> DbMtimeByFolder);
+
+    /// <summary>
+    /// Open a single folder's CullingDatabase + PreviewCache and load the saved
+    /// state for the files that live directly inside it. Used as the per-subfolder
+    /// building block by both the single-folder and recursive loaders.
+    /// </summary>
+    private static (FolderContext Ctx, Dictionary<string, PhotoState> SavedState,
+                    List<PhotoTag> Tags, Dictionary<string, HashSet<int>> PhotoTags,
+                    DateTime DbMtime)
+        OpenContextAndState(string folderPath, CancellationToken ct)
     {
-        CullingDatabase? db = null;
+        ct.ThrowIfCancellationRequested();
+        var db = CullingDatabase.Open(folderPath);
         try
         {
-            db = CullingDatabase.Open(folderPath);
             var cache = new PreviewCache(folderPath);
             var savedState = db.LoadAll();
             var tags = db.LoadGroups();
-            var allPhotoTags = db.LoadAllPhotoGroups();
+            var photoTags = db.LoadAllPhotoGroups();
+            var dbPath = Path.Combine(folderPath, ".rawr", "culling.db");
+            var dbMtime = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath) : DateTime.MinValue;
+            var ctx = new FolderContext(folderPath, db, cache);
+            db = null!;
+            return (ctx, savedState, tags, photoTags, dbMtime);
+        }
+        finally
+        {
+            db?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Apply a per-folder PhotoState to a PhotoItem.
+    /// </summary>
+    private static void ApplyPhotoState(PhotoItem photo, PhotoState state)
+    {
+        photo.Rating = state.Rating;
+        photo.Flag = state.Flag;
+        photo.ColorLabel = state.ColorLabel;
+        photo.GroupId = state.GroupId;
+        photo.IsBestInGroup = state.IsBestInGroup;
+        photo.Phash = state.Phash;
+        photo.HighlightClippedPct = state.HighlightClippedPct;
+        photo.ShadowClippedPct = state.ShadowClippedPct;
+        photo.FaceCount = state.FaceCount;
+        photo.ClosedEyeCount = state.ClosedEyeCount;
+        photo.MinEyeOpenScore = state.MinEyeOpenScore;
+    }
+
+    /// <summary>
+    /// Single-folder catalog load. Preserved as the simple path; the recursive
+    /// loader below builds on the same per-folder primitives.
+    /// </summary>
+    private static FolderCatalog LoadFolderCatalog(string folderPath, IReadOnlyList<string> files, CancellationToken ct)
+    {
+        FolderContext? owned = null;
+        try
+        {
+            var (ctx, savedState, tags, allPhotoTags, dbMtime) = OpenContextAndState(folderPath, ct);
+            owned = ctx;
             var tagsById = tags.ToDictionary(t => t.Id);
             var photos = new List<PhotoItem>(files.Count);
 
@@ -859,19 +998,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 var fileName = photo.FileName;
 
                 if (savedState.TryGetValue(fileName, out var state))
-                {
-                    photo.Rating = state.Rating;
-                    photo.Flag = state.Flag;
-                    photo.ColorLabel = state.ColorLabel;
-                    photo.GroupId = state.GroupId;
-                    photo.IsBestInGroup = state.IsBestInGroup;
-                    photo.Phash = state.Phash;
-                    photo.HighlightClippedPct = state.HighlightClippedPct;
-                    photo.ShadowClippedPct = state.ShadowClippedPct;
-                    photo.FaceCount = state.FaceCount;
-                    photo.ClosedEyeCount = state.ClosedEyeCount;
-                    photo.MinEyeOpenScore = state.MinEyeOpenScore;
-                }
+                    ApplyPhotoState(photo, state);
 
                 if (allPhotoTags.TryGetValue(fileName, out var tagIds))
                 {
@@ -883,15 +1010,154 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 photos.Add(photo);
             }
 
-            var dbPath = Path.Combine(folderPath, ".rawr", "culling.db");
-            var dbMtime = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath) : DateTime.MinValue;
-            var catalog = new FolderCatalog(db, cache, savedState, tags, photos, dbMtime);
-            db = null;
+            var catalog = new FolderCatalog(ctx.Db, ctx.Cache, savedState, tags, photos, dbMtime);
+            owned = null;
             return catalog;
         }
         finally
         {
-            db?.Dispose();
+            owned?.Db.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Recursive catalog load. <paramref name="files"/> contains every supported
+    /// file under <paramref name="topFolderPath"/>; we group them by their owning
+    /// directory, open one CullingDatabase + PreviewCache per directory, and
+    /// produce a merged tag list (deduped by name) with synthetic display IDs so
+    /// the UI can render tags across subfolder boundaries.
+    /// </summary>
+    private static FolderCatalogMulti LoadFolderCatalogRecursive(string topFolderPath, IReadOnlyList<string> files, CancellationToken ct)
+    {
+        var byFolder = files.GroupBy(f => Path.GetDirectoryName(f) ?? topFolderPath,
+                                     StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+
+        var contexts = new List<FolderContext>();
+        var savedStateByFolder = new Dictionary<string, Dictionary<string, PhotoState>>(StringComparer.OrdinalIgnoreCase);
+        var dbMtimeByFolder = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        // Local DB rows per folder (so we can translate per-subfolder tag IDs to
+        // the merged display IDs below).
+        var photoTagsByFolder = new Dictionary<string, Dictionary<string, HashSet<int>>>(StringComparer.OrdinalIgnoreCase);
+        // Per-folder map of local tag ID → tag name. Combined with the global
+        // name → display ID map this lets us translate local→display in one step.
+        var localTagNamesByFolder = new Dictionary<string, Dictionary<int, string>>(StringComparer.OrdinalIgnoreCase);
+
+        // Merge tags by name. The first occurrence (top folder if present, then
+        // subfolders in scan order) wins for IsSystem/Color, with system tags
+        // taking precedence over user tags of the same name.
+        var mergedByName = new Dictionary<string, PhotoTag>(StringComparer.OrdinalIgnoreCase);
+        // Synthetic display IDs start just past the highest natural ID we see.
+        int nextDisplayId = 1;
+
+        try
+        {
+            // Open the top folder first so its tags get the canonical IDs / colours
+            // when names collide.
+            var foldersInOrder = new List<string> { topFolderPath };
+            foreach (var grp in byFolder)
+            {
+                if (!string.Equals(grp.Key, topFolderPath, StringComparison.OrdinalIgnoreCase))
+                    foldersInOrder.Add(grp.Key);
+            }
+
+            // De-dup while preserving order.
+            foldersInOrder = foldersInOrder
+                .Where((f, i) => foldersInOrder.FindIndex(x => string.Equals(x, f, StringComparison.OrdinalIgnoreCase)) == i)
+                .ToList();
+
+            // Only open contexts for folders that actually contributed at least one
+            // file *or* the top folder (so subsequent "create tag" operations have
+            // somewhere to land).
+            var foldersWithFiles = new HashSet<string>(byFolder.Select(g => g.Key), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var folder in foldersInOrder)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (!foldersWithFiles.Contains(folder) && !string.Equals(folder, topFolderPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var (ctx, savedState, tags, photoTags, dbMtime) = OpenContextAndState(folder, ct);
+                contexts.Add(ctx);
+                savedStateByFolder[folder] = savedState;
+                photoTagsByFolder[folder] = photoTags;
+                dbMtimeByFolder[folder] = dbMtime;
+
+                var localNames = new Dictionary<int, string>();
+                foreach (var t in tags)
+                {
+                    localNames[t.Id] = t.Name;
+                    if (!mergedByName.TryGetValue(t.Name, out var existing))
+                    {
+                        // Keep the original ID if it doesn't clash with the running
+                        // synthetic counter; otherwise mint a fresh display ID.
+                        int displayId = t.Id;
+                        if (displayId < nextDisplayId) displayId = nextDisplayId;
+                        nextDisplayId = Math.Max(nextDisplayId, displayId + 1);
+                        mergedByName[t.Name] = new PhotoTag
+                        {
+                            Id = displayId,
+                            Name = t.Name,
+                            IsSystem = t.IsSystem,
+                            Color = t.Color,
+                        };
+                    }
+                    else if (t.IsSystem && !existing.IsSystem)
+                    {
+                        // System metadata wins over a stray user-named copy.
+                        mergedByName[t.Name] = new PhotoTag
+                        {
+                            Id = existing.Id,
+                            Name = existing.Name,
+                            IsSystem = true,
+                            Color = t.Color ?? existing.Color,
+                        };
+                    }
+                }
+                localTagNamesByFolder[folder] = localNames;
+            }
+
+            // Build photos in original (file-sorted) order so the UI's filmstrip
+            // shows them contiguously by path.
+            var photos = new List<PhotoItem>(files.Count);
+            var mergedTags = mergedByName.Values.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            var tagsById = mergedTags.ToDictionary(t => t.Id);
+
+            foreach (var filePath in files)
+            {
+                ct.ThrowIfCancellationRequested();
+                var folder = Path.GetDirectoryName(filePath) ?? topFolderPath;
+                var photo = new PhotoItem { FilePath = filePath };
+                var fileName = photo.FileName;
+
+                if (savedStateByFolder.TryGetValue(folder, out var fs) && fs.TryGetValue(fileName, out var state))
+                    ApplyPhotoState(photo, state);
+
+                if (photoTagsByFolder.TryGetValue(folder, out var fpt) && fpt.TryGetValue(fileName, out var localIds))
+                {
+                    var localNames = localTagNamesByFolder[folder];
+                    foreach (var lid in localIds)
+                    {
+                        if (!localNames.TryGetValue(lid, out var name)) continue;
+                        if (mergedByName.TryGetValue(name, out var disp))
+                            photo.TagIds.Add(disp.Id);
+                    }
+                }
+                UpdateTagDisplay(photo, tagsById);
+
+                photos.Add(photo);
+            }
+
+            var result = new FolderCatalogMulti(contexts, photos, mergedTags, savedStateByFolder, dbMtimeByFolder);
+            contexts = null!; // ownership transferred
+            return result;
+        }
+        finally
+        {
+            if (contexts != null)
+            {
+                foreach (var c in contexts) c.Db.Dispose();
+            }
         }
     }
 
@@ -919,6 +1185,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         CurrentFolder = folderPath;
         StatusText = "Scanning folder...";
 
+        bool hadSubfolderMedia = await Task.Run(() => FolderScanner.HasMediaInSubfolders(folderPath), ct);
+        if (ct.IsCancellationRequested) return;
+        HasSubfolderMedia = hadSubfolderMedia;
+
+        // IsRecursiveView is a sticky global preference — the user's last choice
+        // applies to every folder. Reconcile it on every load against (a) the
+        // persisted preference and (b) whether this folder actually has any
+        // subfolders to recurse into. The persisted preference is left intact
+        // either way (OnIsRecursiveViewChanged skips its save when
+        // _suppressRecursiveReload is set), so navigating from a subfolder-less
+        // folder back to one with subfolders restores the preference.
+        bool effectiveRecursive = AppSettings.Current.IncludeSubfolders && hadSubfolderMedia;
+        if (effectiveRecursive != IsRecursiveView)
+        {
+            _suppressRecursiveReload = true;
+            try { IsRecursiveView = effectiveRecursive; }
+            finally { _suppressRecursiveReload = false; }
+        }
+
         // Dispose previous session. Drain any queued XMP writes for the *previous*
         // folder first so we don't lose edits from a debounce window straddling a
         // folder switch — bounded so a slow disk can't stall the UI indefinitely.
@@ -928,7 +1213,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _xmpWriter.Dispose();
             _xmpWriter = null;
         }
-        _db?.Dispose();
+        // Dispose every subfolder context from the previous folder. _db points
+        // into _contexts so the loop has already disposed it.
+        foreach (var c in _contexts.Values) c.Db.Dispose();
+        _contexts.Clear();
+        _db = null;
+        _cache = null;
 
         AllPhotos.Clear();
         FilteredPhotos.Clear();
@@ -945,35 +1235,73 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         BurstCollapsed = AppSettings.Current.CollapseBurstsOnOpen;
         SortField = AppSettings.Current.DefaultSortField;
 
-        // Scan for RAW files
-        var files = await Task.Run(() => FolderScanner.Scan(folderPath), ct);
+        // Scan (recursive or single-folder per the toggle).
+        var files = await Task.Run(
+            () => IsRecursiveView ? FolderScanner.ScanRecursive(folderPath) : FolderScanner.Scan(folderPath),
+            ct);
         TotalCount = files.Count;
 
         if (files.Count == 0)
         {
-            StatusText = "No supported image files found in this folder.";
+            StatusText = IsRecursiveView
+                ? "No supported image files found in this folder tree."
+                : "No supported image files found in this folder.";
             IsLoading = false;
             return;
         }
 
         StatusText = $"Found {files.Count} image files. Loading catalog...";
 
-        var catalog = await Task.Run(() => LoadFolderCatalog(folderPath, files, ct), ct);
-        if (ct.IsCancellationRequested)
+        List<PhotoItem> catalogPhotos;
+        List<PhotoTag> catalogTags;
+        Dictionary<string, PhotoState> savedState;  // primary folder's saved state (used for XMP-merge gating)
+        DateTime dbMtime;
+        Dictionary<string, Dictionary<string, PhotoState>>? savedStateByFolder = null;
+        Dictionary<string, DateTime>? dbMtimeByFolder = null;
+
+        if (IsRecursiveView)
         {
-            catalog.Database.Dispose();
-            return;
+            var multi = await Task.Run(() => LoadFolderCatalogRecursive(folderPath, files, ct), ct);
+            if (ct.IsCancellationRequested)
+            {
+                foreach (var c in multi.Contexts) c.Db.Dispose();
+                return;
+            }
+            foreach (var c in multi.Contexts) _contexts[c.FolderPath] = c;
+            // Primary context = the top folder if it has its own context, else the first one.
+            var primary = _contexts.TryGetValue(folderPath, out var p) ? p : multi.Contexts[0];
+            _db = primary.Db;
+            _cache = primary.Cache;
+            catalogPhotos = multi.Photos;
+            catalogTags = multi.MergedTags;
+            savedState = multi.SavedStateByFolder.TryGetValue(folderPath, out var ss)
+                ? ss
+                : new Dictionary<string, PhotoState>(StringComparer.OrdinalIgnoreCase);
+            dbMtime = multi.DbMtimeByFolder.TryGetValue(folderPath, out var mt) ? mt : DateTime.MinValue;
+            savedStateByFolder = multi.SavedStateByFolder;
+            dbMtimeByFolder = multi.DbMtimeByFolder;
+        }
+        else
+        {
+            var catalog = await Task.Run(() => LoadFolderCatalog(folderPath, files, ct), ct);
+            if (ct.IsCancellationRequested)
+            {
+                catalog.Database.Dispose();
+                return;
+            }
+            _db = catalog.Database;
+            _cache = catalog.Cache;
+            _contexts[folderPath] = new FolderContext(folderPath, _db, _cache);
+            catalogPhotos = catalog.Photos;
+            catalogTags = catalog.Tags;
+            savedState = catalog.SavedState;
+            dbMtime = catalog.DatabaseModifiedUtc;
         }
 
-        _db = catalog.Database;
         _xmpWriter = new XmpSidecarWriter();
-        _cache = catalog.Cache;
 
-        foreach (var t in catalog.Tags)
+        foreach (var t in catalogTags)
             Tags.Add(t);
-
-        var savedState = catalog.SavedState;
-        DateTime dbMtime = catalog.DatabaseModifiedUtc;
 
         // Merge externally-edited XMP sidecars. A sidecar is "external" when it
         // was modified after the SQLite file (e.g. the user edited the rating in
@@ -985,7 +1313,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // session started will land *after* the SQLite mtime; without the grace
         // we'd re-merge our own data on every folder open. Harmless but wasteful.
         var grace = TimeSpan.FromSeconds(5);
-        var photosToScan = catalog.Photos;
+        var photosToScan = catalogPhotos;
+        var localSavedStateByFolder = savedStateByFolder;
+        var localDbMtimeByFolder = dbMtimeByFolder;
         var pendingMerges = await Task.Run(() =>
         {
             var list = new List<(PhotoItem photo, XmpData data)>();
@@ -996,8 +1326,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 var sidecarPath = XmpSidecar.SidecarPathFor(photo.FilePath);
                 if (!File.Exists(sidecarPath)) continue;
                 var sidecarMtime = File.GetLastWriteTimeUtc(sidecarPath);
-                bool noDbRow = !savedState.ContainsKey(photo.FileName);
-                if (!noDbRow && sidecarMtime <= dbMtime + grace) continue;
+
+                // Pick the correct per-folder saved state + mtime for this photo
+                // so the grace window doesn't get compared against the wrong DB.
+                Dictionary<string, PhotoState> photoSaved = savedState;
+                DateTime photoMtime = dbMtime;
+                if (localSavedStateByFolder != null)
+                {
+                    var owner = OwningFolderOf(photo);
+                    if (localSavedStateByFolder.TryGetValue(owner, out var ss)) photoSaved = ss;
+                    if (localDbMtimeByFolder != null && localDbMtimeByFolder.TryGetValue(owner, out var mt)) photoMtime = mt;
+                }
+
+                bool noDbRow = !photoSaved.ContainsKey(photo.FileName);
+                if (!noDbRow && sidecarMtime <= photoMtime + grace) continue;
                 var data = XmpSidecar.TryRead(photo.FilePath);
                 if (data != null) list.Add((photo, data));
             }
@@ -1007,7 +1349,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (pendingMerges.Count > 0)
             ApplyXmpMerges(pendingMerges);
 
-        AllPhotos.ReplaceRange(catalog.Photos);
+        AllPhotos.ReplaceRange(catalogPhotos);
 
         // Restore per-folder session (filters, sort, burst-collapse) before the
         // first ApplyFilter so the rebuilt FilteredPhotos already reflects the
@@ -1072,8 +1414,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task GeneratePreviewsAsync(CancellationToken ct)
     {
-        var cache = _cache;
-        if (cache == null) return;
+        if (_cache == null) return;
 
         var photos = AllPhotos.ToList();
         var pendingUpdates = new List<PreviewUpdate>(128);
@@ -1162,14 +1503,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 Parallel.ForEach(photos, po, photo =>
                 {
-                    byte[]? thumbBytes = cache.LoadThumbnail(photo.FileName);
+                    var photoCache = CacheFor(photo);
+                    byte[]? thumbBytes = photoCache.LoadThumbnail(photo.FileName);
                     if (thumbBytes == null)
                     {
                         var jpeg = ExtractorFor(photo).ExtractThumbnail(photo.FilePath);
                         if (jpeg != null)
                         {
                             var thumb = ProcessJpegForCache(jpeg, ThumbnailDecodeWidth) ?? jpeg;
-                            cache.SaveThumbnail(photo.FileName, thumb);
+                            photoCache.SaveThumbnail(photo.FileName, thumb);
                             thumbBytes = thumb;
                         }
                     }
@@ -1228,23 +1570,59 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Once metadata is in for every photo, group consecutive shots into bursts.
         // BurstDetector mutates GroupId/BurstBadge on the UI thread (the properties are observable),
-        // so run it on the dispatcher.
+        // so run it on the dispatcher. In recursive view bursts must not cross
+        // subfolder boundaries — run the detector per owning folder so each subset
+        // gets its own GroupId space. HDR/Panorama auto-tagging stays scoped per
+        // subfolder too (the system tag lives in that subfolder's DB).
         await Application.Current.Dispatcher.InvokeAsync(() =>
         {
             var (loose, strict) = BurstDetector.ThresholdsFromStrictness(AppSettings.Current.BurstSimilarityStrictness);
-            BurstCount = BurstDetector.Detect(AllPhotos,
-                TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
-                looseHammingThreshold: loose,
-                strictHammingThreshold: strict);
-            ApplyHdrDetection();
-            ApplyPanoramaDetection();
+            if (IsRecursiveView)
+            {
+                int totalBursts = 0;
+                int idOffset = 0;
+                foreach (var grp in AllPhotos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
+                {
+                    var subset = grp.ToList();
+                    int found = BurstDetector.Detect(subset,
+                        TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
+                        looseHammingThreshold: loose,
+                        strictHammingThreshold: strict);
+                    // Offset GroupId so subsets don't collide with each other.
+                    int maxId = 0;
+                    foreach (var p in subset)
+                    {
+                        if (p.GroupId > 0)
+                        {
+                            p.GroupId += idOffset;
+                            if (p.GroupId > maxId) maxId = p.GroupId;
+                        }
+                    }
+                    idOffset = maxId;
+                    totalBursts += found;
+                }
+                BurstCount = totalBursts;
+                ApplyHdrDetectionPerFolder();
+                ApplyPanoramaDetectionPerFolder();
+            }
+            else
+            {
+                BurstCount = BurstDetector.Detect(AllPhotos,
+                    TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
+                    looseHammingThreshold: loose,
+                    strictHammingThreshold: strict);
+                ApplyHdrDetection();
+                ApplyPanoramaDetection();
+            }
         });
 
         // Persist burst assignments and freshly-computed perceptual hashes so the
-        // next session reuses them without re-decoding every thumbnail.
+        // next session reuses them without re-decoding every thumbnail. Each
+        // photo writes to its own subfolder's DB so the per-folder portability
+        // invariant is preserved.
         if (_db != null)
         {
-            try { await Task.Run(() => _db.SaveBatch(AllPhotos), ct); }
+            try { await Task.Run(() => SaveAllPhotosPerOwningDb(AllPhotos), ct); }
             catch (OperationCanceledException) { }
         }
 
@@ -1870,7 +2248,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (_db != null)
         {
-            try { await Task.Run(() => _db.SaveBatch(AllPhotos)); } catch { }
+            try { await Task.Run(() => SaveAllPhotosPerOwningDb(AllPhotos)); } catch { }
         }
 
         // The active filter may now include/exclude a different set of photos.
@@ -1997,7 +2375,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // disk. If no JPEG preview is cached yet, keep the previous frame up
             // briefly and let the delayed RAW path replace it once navigation settles.
             if (photo.IsRaw && _libRaw != null && _cache != null
-                && _cache.HasLinearRaw(photo.FileName))
+                && CacheFor(photo).HasLinearRaw(photo.FileName))
             {
                 StartRawDecode(photo);
                 _ = LoadPreviewJpegInBackgroundAsync(photo, ct);
@@ -2402,7 +2780,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void PrefetchLinearRaw(PhotoItem photo, CancellationToken ct)
     {
         if (_libRaw != null && photo.IsRaw && _cache != null
-            && _cache.LoadLinearRaw(photo.FileName, photo.FilePath) == null)
+            && CacheFor(photo).LoadLinearRaw(photo.FileName, photo.FilePath) == null)
         {
             ct.ThrowIfCancellationRequested();
             try
@@ -2410,7 +2788,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 var full = _libRaw.ExtractLinearRgb(photo.FilePath);
                 var down = full?.Downsample(LinearRawPreviewWidth);
                 if (down != null)
-                    _cache.SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels);
+                    CacheFor(photo).SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels);
             }
             catch { /* prefetch is best-effort; the on-demand path will retry */ }
         }
@@ -2472,12 +2850,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     if (ct.IsCancellationRequested) return;
                     try
                     {
-                        if (_cache.LoadLinearRaw(photo.FileName, photo.FilePath) == null)
+                        var photoCache = CacheFor(photo);
+                        if (photoCache.LoadLinearRaw(photo.FileName, photo.FilePath) == null)
                         {
                             var full = _libRaw.ExtractLinearRgb(photo.FilePath);
                             var down = full?.Downsample(LinearRawPreviewWidth);
                             if (down != null)
-                                _cache.SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels);
+                                photoCache.SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels);
                         }
                     }
                     catch { /* one file failing should not block the rest */ }
@@ -2587,8 +2966,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                         // Prefer the cached preview JPEG (fast, on-disk). Fall
                         // back to the in-memory thumbnail if the preview hasn't
                         // been extracted yet — the analyser handles either size.
-                        byte[]? jpeg = _cache.LoadPreview(photo.FileName)
-                                    ?? _cache.LoadThumbnail(photo.FileName)
+                        var photoCache = CacheFor(photo);
+                        byte[]? jpeg = photoCache.LoadPreview(photo.FileName)
+                                    ?? photoCache.LoadThumbnail(photo.FileName)
                                     ?? photo.ThumbnailJpeg;
                         if (jpeg == null) return;
 
@@ -2624,7 +3004,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // Persist results so a re-open of the folder reuses them.
             if (_db != null)
             {
-                try { await Task.Run(() => _db.SaveBatch(AllPhotos)); }
+                try { await Task.Run(() => SaveAllPhotosPerOwningDb(AllPhotos)); }
                 catch { /* persistence is best-effort; results live in memory */ }
             }
 
@@ -3121,6 +3501,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 MessageBoxImage.Information);
             return;
         }
+        if (IsRecursiveView)
+        {
+            StatusText = "Tag editing is disabled in recursive view. Toggle ‘Include subfolders’ off to manage tags.";
+            return;
+        }
         var name = InputDialog.Show(Application.Current.MainWindow, "New Tag", "Tag name:");
         if (string.IsNullOrWhiteSpace(name)) return;
         var tag = _db.CreateGroup(name);
@@ -3131,6 +3516,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void RenameTag(PhotoTag tag)
     {
         if (_db == null || tag.IsSystem) return;
+        if (IsRecursiveView)
+        {
+            StatusText = "Tag editing is disabled in recursive view.";
+            return;
+        }
         var name = InputDialog.Show(Application.Current.MainWindow, "Rename Tag", "New name:", tag.Name);
         if (string.IsNullOrWhiteSpace(name) || name == tag.Name) return;
         _db.RenameGroup(tag.Id, name);
@@ -3154,6 +3544,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void DeleteTag(PhotoTag tag)
     {
         if (_db == null || tag.IsSystem) return;
+        if (IsRecursiveView)
+        {
+            StatusText = "Tag editing is disabled in recursive view.";
+            return;
+        }
         _db.DeleteGroup(tag.Id);
         foreach (var photo in AllPhotos.Where(p => p.TagIds.Contains(tag.Id)))
         {
@@ -3175,6 +3570,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (SelectedPhoto == null || _db == null) return;
         // System tags (HDR) are managed by RAWR's detectors and aren't user-toggleable.
         if (tag.IsSystem) return;
+        if (IsRecursiveView)
+        {
+            StatusText = "Tag editing is disabled in recursive view. Toggle ‘Include subfolders’ off to edit tags.";
+            return;
+        }
         // Anchor's prior assignment decides direction; the same op is applied to
         // every selected photo, even those that already match the target state
         // (those become no-ops in ApplyTagEdit). Single compound undo entry.
@@ -3311,15 +3711,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void PersistMetadataSnapshotBatch(IList<AssignedMetadataSnapshot> snapshots)
     {
-        if (_db != null)
+        // Group by owning subfolder so each subfolder's DB sees a single
+        // transaction. In recursive view the IDs in photo.TagIds are synthetic
+        // display IDs that don't map back to local DB IDs (Phase 2 will fix
+        // this) — for now we only persist tag *clearing*, not re-assignment.
+        foreach (var grp in snapshots.GroupBy(s => OwningFolderOf(s.Photo), StringComparer.OrdinalIgnoreCase))
         {
-            _db.WithTransaction(() =>
+            if (!_contexts.TryGetValue(grp.Key, out var ctx)) continue;
+            ctx.Db.WithTransaction(() =>
             {
-                foreach (var snapshot in snapshots)
+                foreach (var snapshot in grp)
                 {
-                    _db.ClearGroupsForPhoto(snapshot.Photo.FileName);
-                    foreach (var tagId in snapshot.Photo.TagIds)
-                        _db.AssignGroup(snapshot.Photo.FileName, tagId);
+                    ctx.Db.ClearGroupsForPhoto(snapshot.Photo.FileName);
+                    if (!IsRecursiveView)
+                    {
+                        foreach (var tagId in snapshot.Photo.TagIds)
+                            ctx.Db.AssignGroup(snapshot.Photo.FileName, tagId);
+                    }
                 }
             });
         }
@@ -3394,9 +3802,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (photos.Count == 0) return;
 
         // Resolve / create the target tag once up front so undo can refer to it.
+        // In recursive view tag creation/assignment is skipped (Phase 2 will route
+        // these per subfolder); the macro still applies any rating/flag/colour
+        // parts so the keystroke isn't a silent no-op for those.
         PhotoTag? targetTag = null;
         bool tagCreatedByMacro = false;
-        if (!string.IsNullOrWhiteSpace(macro.TagName) && _db != null)
+        if (!string.IsNullOrWhiteSpace(macro.TagName) && _db != null && !IsRecursiveView)
         {
             targetTag = Tags.FirstOrDefault(t =>
                 string.Equals(t.Name, macro.TagName, StringComparison.OrdinalIgnoreCase));
@@ -3406,6 +3817,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 Tags.Add(targetTag);
                 tagCreatedByMacro = true;
             }
+        }
+        else if (!string.IsNullOrWhiteSpace(macro.TagName) && IsRecursiveView)
+        {
+            StatusText = "Macro tag part skipped (tag editing is disabled in recursive view).";
         }
 
         // Snapshot per-photo prior state for the things this macro touches.
@@ -3713,6 +4128,86 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             UpdateTagDisplay(p);
     }
 
+    /// <summary>
+    /// Phase-1 recursive-view variant: run HDR detection but only update the
+    /// transient IsHdr pill on each photo. The DB-side system-tag sync is
+    /// deferred until Phase 2 (it needs the auto-tag to be created in every
+    /// subfolder DB on demand and the tag IDs translated through the merged
+    /// display table).
+    /// </summary>
+    private void ApplyHdrDetectionPerFolder()
+    {
+        if (AllPhotos.Count == 0) return;
+        if (!AppSettings.Current.HdrDetectionEnabled)
+        {
+            foreach (var p in AllPhotos) p.IsHdr = false;
+            return;
+        }
+
+        foreach (var grp in AllPhotos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
+        {
+            var subset = grp.ToList();
+            var hdrFiles = HdrDetector.Detect(
+                subset,
+                AppSettings.Current.HdrMinBracketSize,
+                AppSettings.Current.HdrMinExposureSpread);
+            foreach (var p in subset)
+                p.IsHdr = hdrFiles.Contains(p.FileName);
+        }
+    }
+
+    /// <summary>
+    /// Phase-1 recursive-view variant of <see cref="ApplyPanoramaDetection"/>:
+    /// runs detection per subfolder, sets IsPanorama plus a per-subset
+    /// GroupId/BurstBadge so the burst-collapse toggle still stacks panoramas,
+    /// but skips the DB-side system-tag sync (deferred to Phase 2).
+    /// </summary>
+    private void ApplyPanoramaDetectionPerFolder()
+    {
+        if (AllPhotos.Count == 0) return;
+        if (!AppSettings.Current.PanoramaDetectionEnabled)
+        {
+            foreach (var p in AllPhotos) p.IsPanorama = false;
+            return;
+        }
+
+        var s = AppSettings.Current;
+        float minShift = Math.Clamp(1f - s.PanoramaMaxOverlapPct / 100f, 0f, 0.99f);
+        float maxShift = Math.Clamp(1f - s.PanoramaMinOverlapPct / 100f, minShift + 0.01f, 0.99f);
+
+        int nextGroupId = 0;
+        foreach (var p in AllPhotos)
+            if (p.GroupId > nextGroupId) nextGroupId = p.GroupId;
+
+        foreach (var grp in AllPhotos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
+        {
+            var subset = grp.ToList();
+            var result = PanoramaDetector.Detect(
+                subset,
+                Rawr.App.Services.PerceptualHash.StripWidth,
+                Rawr.App.Services.PerceptualHash.StripHeight,
+                minChainSize: s.PanoramaMinChainSize,
+                maxGapSeconds: s.PanoramaMaxGapSeconds,
+                minShift: minShift,
+                maxShift: maxShift,
+                maxDirectionDeltaDegrees: s.PanoramaDirectionToleranceDeg);
+
+            var panoFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var seq in result.Sequences)
+            {
+                nextGroupId++;
+                for (int i = 0; i < seq.Count; i++)
+                {
+                    seq[i].GroupId = nextGroupId;
+                    seq[i].BurstBadge = $"{i + 1}/{seq.Count}";
+                    panoFiles.Add(seq[i].FileName);
+                }
+            }
+            foreach (var p in subset)
+                p.IsPanorama = panoFiles.Contains(p.FileName);
+        }
+    }
+
     [RelayCommand]
     private void ClearFilters()
     {
@@ -3875,7 +4370,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void PersistPhoto(PhotoItem photo)
     {
-        _db?.Save(photo);
+        if (_db == null) return;
+        DbFor(photo).Save(photo);
         ScheduleXmpWrite(photo);
     }
 
@@ -3924,6 +4420,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 if (keyword == XmpSidecar.PickKeyword)   { photo.Flag = CullFlag.Pick;   continue; }
                 if (keyword == XmpSidecar.RejectKeyword) { photo.Flag = CullFlag.Reject; continue; }
 
+                // In recursive view we skip keyword→tag creation/assignment
+                // because tag IDs are synthetic display IDs that don't map back
+                // to the photo's subfolder DB. The keyword still gets re-applied
+                // the next time the folder is opened single-folder.
+                if (IsRecursiveView) continue;
+
                 var tag = Tags.FirstOrDefault(t => string.Equals(t.Name, keyword, StringComparison.OrdinalIgnoreCase));
                 if (tag == null)
                 {
@@ -3934,7 +4436,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     _db.AssignGroup(photo.FileName, tag.Id);
             }
             UpdateTagDisplay(photo);
-            _db.Save(photo);
+            DbFor(photo).Save(photo);
         }
     }
 
@@ -4520,7 +5022,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             try
             {
                 FileSystem.DeleteFile(photo.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-                _db?.DeletePhoto(photo.FileName);
+                DbFor(photo).DeletePhoto(photo.FileName);
                 AllPhotos.Remove(photo);
                 deleted++;
             }
@@ -4570,7 +5072,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             try
             {
                 FileSystem.DeleteFile(photo.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-                _db?.DeletePhoto(photo.FileName);
+                DbFor(photo).DeletePhoto(photo.FileName);
                 AllPhotos.Remove(photo);
                 deleted++;
             }
@@ -4604,7 +5106,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void SavePhoto(PhotoItem photo)
     {
-        _db?.Save(photo);
+        if (_db == null) return;
+        DbFor(photo).Save(photo);
         ScheduleXmpWrite(photo);
     }
 
@@ -4615,7 +5118,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SavePhotoBatch(IList<PhotoItem> photos)
     {
         if (photos.Count == 0) return;
-        _db?.SaveBatch(photos);
+        SaveAllPhotosPerOwningDb(photos);
         foreach (var p in photos) ScheduleXmpWrite(p);
     }
 
@@ -4869,6 +5372,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // wedged disk can't keep the process alive.
         _xmpWriter?.Flush(TimeSpan.FromSeconds(2));
         _xmpWriter?.Dispose();
-        _db?.Dispose();
+        foreach (var c in _contexts.Values) c.Db.Dispose();
+        _contexts.Clear();
+        // _db points into _contexts in normal flow; the loop above already
+        // disposed it. The redundant null-cond Dispose is harmless if the
+        // primary context was ever assigned out-of-band.
+        _db = null;
     }
 }

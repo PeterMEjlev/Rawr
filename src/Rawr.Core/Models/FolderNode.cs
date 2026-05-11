@@ -23,6 +23,22 @@ public sealed partial class FolderNode : ObservableObject
     /// </summary>
     public int MediaFileCount { get; }
 
+    /// <summary>
+    /// Count of supported image/video files in this folder *and every accessible
+    /// subfolder*. Only computed when <see cref="MediaFileCount"/> is zero — for
+    /// folders that have direct media we show the direct count (matches the
+    /// existing convention for leaf folders) and skip the extra walk.
+    /// Zero for the placeholder, drives, or inaccessible paths.
+    /// </summary>
+    public int TotalMediaFileCount { get; }
+
+    /// <summary>
+    /// What the folder-tree row should show as a count: prefer the direct count,
+    /// fall back to the recursive total so containers that only hold subfolders
+    /// (e.g. a top-level "LG" with FO1/FO2/…) still get a number.
+    /// </summary>
+    public int DisplayedMediaCount => MediaFileCount > 0 ? MediaFileCount : TotalMediaFileCount;
+
     public ObservableCollection<FolderNode> Children { get; } = [];
 
     [ObservableProperty] private bool _isExpanded;
@@ -37,6 +53,8 @@ public sealed partial class FolderNode : ObservableObject
         if (!string.IsNullOrEmpty(fullPath))
         {
             MediaFileCount = FolderScanner.CountSupportedFiles(fullPath);
+            if (MediaFileCount == 0)
+                TotalMediaFileCount = FolderScanner.CountSupportedFilesRecursive(fullPath);
             if (DirectoryHasSubfolders(fullPath))
                 Children.Add(new FolderNode(string.Empty, string.Empty) { IsPlaceholder = true });
         }

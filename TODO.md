@@ -16,3 +16,24 @@
 - ## Custom import settings when importing from an SD/CF card. i.e filters for putting photos or videos in seperate (sub)folders (or RAW vs JPG etc)
 
 - ## The histogram for a burst group and when going into the burst group are different?
+
+- ## if a top folder is open in rawr, and the app is restarted then only the subfolder of the top folder (that was open) is opened as the top level
+
+- ## click in video preview should play/pause
+
+- ## video metadata should include fps
+
+- ## ability to rotate vertical videos 
+
+- ## Add full video metadata:
+    Resolution:              4096 × 2160
+    Frame rate:              59.940 fps
+    Codec:                   HEVC / H.265
+    Bit depth:               10-bit
+    Chroma subsampling:      4:2:2
+    Video bitrate:           1001 Mb/s
+    Duration:                16.917 sec
+    File size:               1.97 GiB
+    Audio:                   PCM, 48 kHz, 16-bit, stereo
+
+- ## Phase 2 of recursive folder view: tag editing across subfolders (translate synthetic display IDs to per-subfolder DB IDs), restore HDR/Panorama auto-tag DB sync per subfolder, recursive Cache-All, ExecuteMacro tag part, XMP keyword auto-create

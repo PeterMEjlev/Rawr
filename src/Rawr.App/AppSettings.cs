@@ -47,6 +47,11 @@ public sealed class AppSettings
     public bool CollapseBurstsOnOpen { get; set; } = true;
     public SortField DefaultSortField { get; set; } = SortField.FileName;
 
+    // Sticky global preference for the toolbar "this folder / + subfolders"
+    // toggle. Persisted so the user's choice survives folder switches and app
+    // restarts.
+    public bool IncludeSubfolders { get; set; } = true;
+
     public byte FocusPeakingThreshold { get; set; } = 60;
 
     public ClippingMode ClippingMode { get; set; } = ClippingMode.Highlights;
@@ -141,6 +146,7 @@ public sealed class AppSettings
         DateFormat = DateFormat,
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,
         DefaultSortField = DefaultSortField,
+        IncludeSubfolders = IncludeSubfolders,
         FocusPeakingThreshold = FocusPeakingThreshold,
         ClippingMode = ClippingMode,
         ClippingThreshold = ClippingThreshold,

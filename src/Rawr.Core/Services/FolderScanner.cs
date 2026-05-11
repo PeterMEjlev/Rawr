@@ -52,6 +52,106 @@ public static class FolderScanner
     }
 
     /// <summary>
+    /// Recursive variant: returns supported image/video files in <paramref name="folderPath"/>
+    /// and every accessible subfolder. Walks the tree manually so that the per-folder
+    /// metadata directory (.rawr) and any other hidden bookkeeping can be skipped.
+    /// Results are sorted by full path so files within the same subfolder stay contiguous.
+    /// </summary>
+    public static List<string> ScanRecursive(string folderPath)
+    {
+        if (!Directory.Exists(folderPath))
+            return [];
+
+        var results = new List<string>();
+        var stack = new Stack<string>();
+        stack.Push(folderPath);
+
+        while (stack.Count > 0)
+        {
+            var dir = stack.Pop();
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(dir))
+                {
+                    if (SupportedExtensions.Contains(Path.GetExtension(file)))
+                        results.Add(file);
+                }
+            }
+            catch (UnauthorizedAccessException) { continue; }
+            catch (IOException) { continue; }
+
+            try
+            {
+                foreach (var sub in Directory.EnumerateDirectories(dir))
+                {
+                    if (string.Equals(Path.GetFileName(sub), ".rawr", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    stack.Push(sub);
+                }
+            }
+            catch (UnauthorizedAccessException) { continue; }
+            catch (IOException) { continue; }
+        }
+
+        results.Sort(StringComparer.OrdinalIgnoreCase);
+        return results;
+    }
+
+    /// <summary>
+    /// True iff <paramref name="folderPath"/> has at least one accessible subfolder
+    /// (excluding RAWR's internal .rawr directory) that itself contains a supported
+    /// media file. Used to decide whether opening a folder should default to the
+    /// recursive view.
+    /// </summary>
+    public static bool HasMediaInSubfolders(string folderPath)
+    {
+        if (!Directory.Exists(folderPath))
+            return false;
+
+        try
+        {
+            foreach (var sub in Directory.EnumerateDirectories(folderPath))
+            {
+                if (string.Equals(Path.GetFileName(sub), ".rawr", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (ContainsMediaRecursive(sub))
+                    return true;
+            }
+        }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (IOException) { return false; }
+
+        return false;
+    }
+
+    private static bool ContainsMediaRecursive(string dir)
+    {
+        var stack = new Stack<string>();
+        stack.Push(dir);
+        while (stack.Count > 0)
+        {
+            var d = stack.Pop();
+            try
+            {
+                foreach (var f in Directory.EnumerateFiles(d))
+                {
+                    if (SupportedExtensions.Contains(Path.GetExtension(f)))
+                        return true;
+                }
+                foreach (var sub in Directory.EnumerateDirectories(d))
+                {
+                    if (string.Equals(Path.GetFileName(sub), ".rawr", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    stack.Push(sub);
+                }
+            }
+            catch (UnauthorizedAccessException) { continue; }
+            catch (IOException) { continue; }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Quick check: does this folder contain any supported image files?
     /// </summary>
     public static bool HasRawFiles(string folderPath)
@@ -79,6 +179,43 @@ public static class FolderScanner
         }
         catch (UnauthorizedAccessException) { return 0; }
         catch (IOException) { return 0; }
+    }
+
+    /// <summary>
+    /// Count of supported image/video files in <paramref name="folderPath"/> and
+    /// every accessible subfolder. Skips RAWR's internal .rawr directory. Returns
+    /// 0 for missing or inaccessible paths. Used by the folder-tree row to show a
+    /// total under top-level containers whose direct file count is zero.
+    /// </summary>
+    public static int CountSupportedFilesRecursive(string folderPath)
+    {
+        if (!Directory.Exists(folderPath))
+            return 0;
+
+        int count = 0;
+        var stack = new Stack<string>();
+        stack.Push(folderPath);
+        while (stack.Count > 0)
+        {
+            var dir = stack.Pop();
+            try
+            {
+                foreach (var f in Directory.EnumerateFiles(dir))
+                {
+                    if (SupportedExtensions.Contains(Path.GetExtension(f)))
+                        count++;
+                }
+                foreach (var sub in Directory.EnumerateDirectories(dir))
+                {
+                    if (string.Equals(Path.GetFileName(sub), ".rawr", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    stack.Push(sub);
+                }
+            }
+            catch (UnauthorizedAccessException) { continue; }
+            catch (IOException) { continue; }
+        }
+        return count;
     }
 
     public static bool IsSupported(string filePath) =>
