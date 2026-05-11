@@ -143,6 +143,7 @@ public partial class MainWindow : Window
     private bool _videoSliderIsDragging;
     private bool _videoSuppressSliderEvent;
     private TimeSpan _videoDuration;
+    private uint _videoRotation; // 0/90/180/270 — reset on each new video
     private bool _videoIsMuted;
     private float _videoPlaybackRate = 1.0f;
     private Uri? _pendingVideoSource;
@@ -172,6 +173,7 @@ public partial class MainWindow : Window
 
     public ICommand RewindVideoCommand { get; }
     public ICommand ForwardVideoCommand { get; }
+    public ICommand RotateVideoCommand { get; }
 
     // Ctrl+Left is shared between two unrelated actions: on a video it seeks to
     // the start; on a photo it decrements exposure compensation. The ShortcutRegistry
@@ -197,6 +199,7 @@ public partial class MainWindow : Window
         DecreaseVideoSpeedCommand = new RelayCommand(() => StepVideoSpeed(-1));
         RewindVideoCommand = new RelayCommand(() => SeekVideo(-VideoSeekStepMs));
         ForwardVideoCommand = new RelayCommand(() => SeekVideo(+VideoSeekStepMs));
+        RotateVideoCommand = new RelayCommand(RotateVideo);
         SeekVideoStartOrDecreaseExposureCommand = new RelayCommand(() =>
         {
             if (DataContext is MainViewModel vm && vm.VideoSourceUri != null)
@@ -1573,6 +1576,7 @@ public partial class MainWindow : Window
         CancelVideoProxyPreparation();
         _videoTick.Stop();
         _videoSliderIsDragging = false;
+        _videoRotation = 0;
 
         var vm = DataContext as MainViewModel;
         if (vm?.VideoSourceUri == null)
@@ -1795,6 +1799,7 @@ public partial class MainWindow : Window
             }
 
             ApplyLogProfile(vm.SelectedLogProfile);
+            ApplyVideoRotation();
 
             if (!_videoIsPlaying)
             {
@@ -1906,6 +1911,22 @@ public partial class MainWindow : Window
     {
         if (_player == null) return;
         _player.Speed = _videoPlaybackRate;
+    }
+
+    // Cycle the video rotation 0 → 90 → 180 → 270 → 0. Bound to 'R'.
+    // For displaying portrait-shot videos correctly without re-encoding.
+    private void RotateVideo()
+    {
+        if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
+        _videoRotation = (_videoRotation + 90) % 360;
+        ApplyVideoRotation();
+    }
+
+    private void ApplyVideoRotation()
+    {
+        if (_player == null) return;
+        try { _player.Config.Video.Rotation = _videoRotation; }
+        catch (Exception ex) { VideoLog($"ApplyVideoRotation failed: {ex.Message}"); }
     }
 
     // Jump the playing video back to t=0. No-op when no video is loaded.
