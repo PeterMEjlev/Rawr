@@ -42,6 +42,11 @@ public sealed partial class PhotoItem : ObservableObject
     [ObservableProperty] private byte[]? _previewJpeg;    // medium JPEG bytes (~1620px)
     [ObservableProperty] private PhotoMetadata? _metadata;
 
+    // Detailed video stream/container info (codec, fps, bit depth, chroma, bitrate,
+    // duration, audio). Populated lazily by VideoProbe on selection; null for
+    // photos and for videos not yet probed.
+    [ObservableProperty] private VideoMetadata? _videoInfo;
+
     // 64-bit dHash over the embedded thumbnail. Used by BurstDetector to gate
     // grouping on visual similarity. Null until computed; persisted in culling.db.
     public ulong? Phash { get; set; }

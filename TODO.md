@@ -25,15 +25,4 @@
 
 - ## ability to rotate vertical videos 
 
-- ## Add full video metadata:
-    Resolution:              4096 × 2160
-    Frame rate:              59.940 fps
-    Codec:                   HEVC / H.265
-    Bit depth:               10-bit
-    Chroma subsampling:      4:2:2
-    Video bitrate:           1001 Mb/s
-    Duration:                16.917 sec
-    File size:               1.97 GiB
-    Audio:                   PCM, 48 kHz, 16-bit, stereo
-
 - ## Phase 2 of recursive folder view: tag editing across subfolders (translate synthetic display IDs to per-subfolder DB IDs), restore HDR/Panorama auto-tag DB sync per subfolder, recursive Cache-All, ExecuteMacro tag part, XMP keyword auto-create

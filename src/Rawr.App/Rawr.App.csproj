@@ -19,6 +19,7 @@
     <PackageReference Include="FlyleafLib" Version="3.*" />
     <PackageReference Include="FlyleafLib.Controls.WPF" Version="1.*" />
     <PackageReference Include="Soenneker.Libraries.FFmpeg" Version="4.0.1018" />
+    <PackageReference Include="Soenneker.Libraries.ffprobe" Version="4.*" />
   </ItemGroup>
 
   <ItemGroup>

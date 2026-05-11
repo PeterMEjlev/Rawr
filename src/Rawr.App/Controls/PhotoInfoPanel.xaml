@@ -234,6 +234,51 @@
                     </StackPanel>
                 </Border>
 
+                <!-- VIDEO section. Populated lazily by VideoProbe (ffprobe) when a
+                     video is selected; the whole card stays collapsed for photos
+                     and for videos whose probe hasn't completed yet. -->
+                <Border Style="{StaticResource SectionCard}"
+                        Visibility="{Binding Photo.VideoInfo, ElementName=Root, Converter={StaticResource NullToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="VIDEO" Style="{StaticResource SectionCardHeader}" />
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Resolution " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Photo.VideoInfo.DimensionsFormatted, ElementName=Root, FallbackValue='&#x2014;'}" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Frame rate " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Photo.VideoInfo.FrameRateFormatted, ElementName=Root, FallbackValue='&#x2014;'}" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Codec " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Photo.VideoInfo.CodecFormatted, ElementName=Root, FallbackValue='&#x2014;'}" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Bit depth " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Photo.VideoInfo.BitDepthFormatted, ElementName=Root, FallbackValue='&#x2014;'}" />
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Chroma " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Photo.VideoInfo.ChromaSubsamplingFormatted, ElementName=Root, FallbackValue='&#x2014;'}" />
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Bitrate " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Photo.VideoInfo.VideoBitrateFormatted, ElementName=Root, FallbackValue='&#x2014;'}" />
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Duration " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding Photo.VideoInfo.DurationFormatted, ElementName=Root, FallbackValue='&#x2014;'}" />
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="File size " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding Photo.VideoInfo.FileSizeFormatted, ElementName=Root, FallbackValue='&#x2014;'}" />
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Audio " Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding Photo.VideoInfo.AudioFormatted, ElementName=Root, FallbackValue='&#x2014;'}" TextWrapping="Wrap" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <Border Style="{StaticResource SectionCard}">
                     <StackPanel>
                         <TextBlock Text="SHORTCUTS" Style="{StaticResource SectionCardHeader}" />

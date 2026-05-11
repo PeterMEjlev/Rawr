@@ -7,10 +7,10 @@ namespace Rawr.App.Services;
 
 internal static class VideoProxyCache
 {
-    private const int ProxyVersion = 3;
-    private const int TargetMaxWidth = 960;
-    private const int TargetFps = 30;
-    private const int TargetCrf = 28;
+    private const int ProxyVersion = 4;
+    private const int TargetMaxWidth = 720;
+    private const int TargetFps = 24;
+    private const int TargetCrf = 30;
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly SemaphoreSlim EncodeGate = new(1, 1);
@@ -150,7 +150,13 @@ internal static class VideoProxyCache
             "-nostdin",
             "-v", "warning",
             "-threads", "0",
-            "-skip_frame", "noref");
+            // -skip_frame bidir drops every B-frame at decode (huge win for 4K
+            // HEVC 4:2:2 where NVDEC can't help and software decode dominates).
+            // -skip_loop_filter all disables the in-loop deblocker for another
+            // ~15-20% decode speedup. Cost: visible stutter during fast motion
+            // and slightly blockier output. Acceptable for a culling preview.
+            "-skip_frame", "bidir",
+            "-skip_loop_filter", "all");
 
         // Plan-specific pre-input args (e.g. -hwaccel cuda) MUST come before -i.
         AddArgs(psi, encoder.InputArgs);
@@ -158,18 +164,13 @@ internal static class VideoProxyCache
         AddArgs(
             psi,
             "-i", sourcePath,
+            "-an",
             "-map", "0:v:0",
-            "-map", "0:a?",
             "-vf", $"scale='min({TargetMaxWidth},iw)':-2:flags=fast_bilinear,fps={TargetFps}");
 
         AddArgs(psi, encoder.EncoderArgs);
 
-        AddArgs(
-            psi,
-            "-movflags", "+faststart",
-            "-c:a", "aac",
-            "-b:a", "96k",
-            outputPath);
+        AddArgs(psi, "-movflags", "+faststart", outputPath);
 
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start ffmpeg.");
         var stderrTask = process.StandardError.ReadToEndAsync(ct);
@@ -255,6 +256,14 @@ internal static class VideoProxyCache
                 && manifest.ProxyMaxWidth == TargetMaxWidth
                 && manifest.ProxyFps == TargetFps
                 && manifest.ProxyCrf == TargetCrf;
+            // v3 proxies (960p / 30 fps / CRF 28) were higher-quality but much
+            // slower to build on 4K HEVC 4:2:2. Keep them valid so a user who
+            // already paid the encode cost doesn't lose the proxy on upgrade.
+            var isV3Proxy =
+                manifest.Version == 3
+                && manifest.ProxyMaxWidth == 960
+                && manifest.ProxyFps == 30
+                && manifest.ProxyCrf == 28;
             var isFastPreviewProxy =
                 manifest.Version == 2
                 && manifest.ProxyMaxWidth == 1280
@@ -269,7 +278,7 @@ internal static class VideoProxyCache
             return info.Exists
                 && manifest.SourceSize == info.Length
                 && manifest.SourceLastWriteUtcTicks == info.LastWriteTimeUtc.Ticks
-                && (isCurrentProxy || isFastPreviewProxy || isLegacyProxy);
+                && (isCurrentProxy || isV3Proxy || isFastPreviewProxy || isLegacyProxy);
         }
         catch
         {

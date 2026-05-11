@@ -2424,6 +2424,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task LoadVideoPreviewForSelectedAsync(PhotoItem photo, CancellationToken ct)
     {
+        // Lazy ffprobe pass for the side panel's VIDEO section. Fire-and-forget so
+        // it doesn't gate preview-frame loading; the result lands on photo.VideoInfo
+        // via INotifyPropertyChanged when ready.
+        _ = EnsureVideoProbeAsync(photo, ct);
+
         try
         {
             var sourceUri = new Uri(photo.FilePath);
@@ -2462,6 +2467,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 PreviewImage = fullBs;
         }
         catch (OperationCanceledException) { /* selection moved on */ }
+    }
+
+    private async Task EnsureVideoProbeAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (photo.VideoInfo != null) return;
+        try
+        {
+            var info = await VideoProbe.GetAsync(photo.FilePath, ct).ConfigureAwait(false);
+            if (info == null || ct.IsCancellationRequested) return;
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                if (!ct.IsCancellationRequested) photo.VideoInfo = info;
+            });
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+        catch { /* probe failures shouldn't surface to the user */ }
     }
 
     public async Task<byte[]?> LoadPreviewJpegForPhotoAsync(PhotoItem photo, CancellationToken ct)
