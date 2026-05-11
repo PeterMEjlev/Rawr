@@ -1579,6 +1579,7 @@ public partial class MainWindow : Window
         _videoRotation = 0;
 
         var vm = DataContext as MainViewModel;
+        if (vm != null) vm.IsPreparingVideoProxy = false;
         if (vm?.VideoSourceUri == null)
         {
             _pendingVideoSource = null;
@@ -1629,15 +1630,25 @@ public partial class MainWindow : Window
         {
             if (photo != null && VideoProxyCache.TryGetFreshProxyPath(photo, out var proxyPath))
             {
+                vm.IsPreparingVideoProxy = false;
                 QueueVideoPlayback(new Uri(proxyPath), ownerSource);
                 return;
             }
 
-            QueueVideoPlayback(ownerSource, ownerSource);
+            // Source is high-bitrate (4K HEVC, 4:2:2, etc.) — direct playback would
+            // be choppy because the GPU decoder falls back to software. Keep the
+            // still preview JPEG visible and show the "Preparing…" overlay while
+            // ffmpeg builds the downscaled proxy.
+            vm.IsPreparingVideoProxy = true;
+            SetVideoSurfaceVisible(false);
+            _pendingVideoSource = null;
+            _pendingVideoOwnerSource = null;
+            _pendingVideoStartMs = 0;
             StartVideoProxyPreparation(photo, ownerSource);
             return;
         }
 
+        vm.IsPreparingVideoProxy = false;
         QueueVideoPlayback(ownerSource, ownerSource);
     }
 
@@ -1670,7 +1681,15 @@ public partial class MainWindow : Window
             if (ct.IsCancellationRequested) return;
             if (string.IsNullOrWhiteSpace(proxyPath))
             {
-                await Dispatcher.BeginInvoke(() => ClearVideoProxyPreparation(cts));
+                // ffmpeg couldn't build a proxy — fall back to direct playback of
+                // the source. It may be choppy, but it's better than a frozen still.
+                await Dispatcher.BeginInvoke(() =>
+                {
+                    ClearVideoProxyPreparation(cts);
+                    if (DataContext is not MainViewModel vm || vm.VideoSourceUri != ownerSource) return;
+                    vm.IsPreparingVideoProxy = false;
+                    QueueVideoPlayback(ownerSource, ownerSource);
+                });
                 return;
             }
 
@@ -1678,6 +1697,7 @@ public partial class MainWindow : Window
             {
                 ClearVideoProxyPreparation(cts);
                 if (DataContext is not MainViewModel vm || vm.VideoSourceUri != ownerSource) return;
+                vm.IsPreparingVideoProxy = false;
 
                 var proxyUri = new Uri(proxyPath);
                 if (_currentVideoSource == proxyUri) return;
@@ -1693,7 +1713,11 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             VideoLog($"Proxy generation failed for '{photo.FilePath}': {ex}");
-            await Dispatcher.BeginInvoke(() => ClearVideoProxyPreparation(cts));
+            await Dispatcher.BeginInvoke(() =>
+            {
+                ClearVideoProxyPreparation(cts);
+                if (DataContext is MainViewModel vm) vm.IsPreparingVideoProxy = false;
+            });
         }
     }
 

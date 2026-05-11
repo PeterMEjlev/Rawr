@@ -164,6 +164,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // Set when the selected item is a video. The MediaElement in the preview pane
     // binds to this; null hides the player and shows the still-image preview path.
     [ObservableProperty] private Uri? _videoSourceUri;
+
+    // True while a smooth-preview proxy is being generated for the selected video.
+    // The preview pane keeps the still JPEG up and shows a "Preparing…" overlay
+    // instead of playing the high-bitrate source (which decodes in software for
+    // HEVC 4:2:2 / Level 6.2 and stutters badly).
+    [ObservableProperty] private bool _isPreparingVideoProxy;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedPhotoCaptureDateFormatted))]
     private PhotoItem? _selectedPhoto;

@@ -2049,6 +2049,19 @@
                     <TextBlock Text="Loading…" Foreground="{StaticResource TextBrush}" />
                 </Border>
 
+                <!-- Smooth-preview proxy generation indicator. Replaces the choppy
+                     direct playback of high-bitrate HEVC (4K 4:2:2 etc.) with the
+                     still preview JPEG while ffmpeg builds a downscaled proxy. -->
+                <Border Background="#A0000000"
+                        Padding="16,10"
+                        CornerRadius="4"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"
+                        Visibility="{Binding IsPreparingVideoProxy, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Text="Preparing smooth preview…" Foreground="{StaticResource TextBrush}" />
+                </Border>
+
                 <!-- Star rating + tag overlays (top-right of preview) -->
                 <StackPanel HorizontalAlignment="Right"
                             VerticalAlignment="Top"

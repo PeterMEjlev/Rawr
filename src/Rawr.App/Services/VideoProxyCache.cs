@@ -150,13 +150,19 @@ internal static class VideoProxyCache
             "-nostdin",
             "-v", "warning",
             "-threads", "0",
-            "-skip_frame", "noref",
+            "-skip_frame", "noref");
+
+        // Plan-specific pre-input args (e.g. -hwaccel cuda) MUST come before -i.
+        AddArgs(psi, encoder.InputArgs);
+
+        AddArgs(
+            psi,
             "-i", sourcePath,
             "-map", "0:v:0",
             "-map", "0:a?",
             "-vf", $"scale='min({TargetMaxWidth},iw)':-2:flags=fast_bilinear,fps={TargetFps}");
 
-        AddArgs(psi, encoder.Args);
+        AddArgs(psi, encoder.EncoderArgs);
 
         AddArgs(
             psi,
@@ -189,27 +195,34 @@ internal static class VideoProxyCache
     {
         var quality = TargetCrf.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+        string[] nvencArgs =
+        [
+            "-c:v", "h264_nvenc",
+            "-preset", "p1",
+            "-tune", "ll",
+            "-rc", "vbr",
+            "-cq", quality,
+            "-b:v", "0",
+            "-pix_fmt", "yuv420p",
+        ];
+
+        string[] libx264Args =
+        [
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", quality,
+            "-pix_fmt", "yuv420p",
+        ];
+
+        // Plan order is fastest → most compatible. NVDEC handles 4:2:0 HEVC/H.264
+        // on the GPU (3–5× faster than software decode for 4K sources). For
+        // codecs/profiles it can't handle (HEVC 4:2:2, AV1 on older GPUs, etc.)
+        // CUDA init fails and the next plan retries on the CPU path.
         return
         [
-            new EncoderPlan(
-                "h264_nvenc",
-                [
-                    "-c:v", "h264_nvenc",
-                    "-preset", "p1",
-                    "-tune", "ll",
-                    "-rc", "vbr",
-                    "-cq", quality,
-                    "-b:v", "0",
-                    "-pix_fmt", "yuv420p",
-                ]),
-            new EncoderPlan(
-                "libx264",
-                [
-                    "-c:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-crf", quality,
-                    "-pix_fmt", "yuv420p",
-                ]),
+            new EncoderPlan("cuda+nvenc", ["-hwaccel", "cuda"], nvencArgs),
+            new EncoderPlan("nvenc", [], nvencArgs),
+            new EncoderPlan("libx264", [], libx264Args),
         ];
     }
 
@@ -224,7 +237,7 @@ internal static class VideoProxyCache
             psi.ArgumentList.Add(arg);
     }
 
-    private sealed record EncoderPlan(string Name, string[] Args);
+    private sealed record EncoderPlan(string Name, string[] InputArgs, string[] EncoderArgs);
 
     private static bool IsFresh(string sourcePath, string proxyPath, string manifestPath)
     {
