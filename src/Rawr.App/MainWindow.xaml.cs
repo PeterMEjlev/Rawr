@@ -78,7 +78,12 @@ public partial class MainWindow : Window
         config.Video.VideoAcceleration = true;
         config.Audio.Enabled = true;
         config.Player.AutoPlay = false;
-        return new Player(config);
+        var player = new Player(config);
+        // RAWR owns all keyboard input — clear FlyleafLib's built-in key map
+        // so Space/seek/etc don't double-fire alongside our PreviewKeyDown handler.
+        // Must be done after the Player ctor, which initializes the bindings list.
+        try { player.Config.Player.KeyBindings.RemoveAll(); } catch { /* harmless */ }
+        return player;
     }
 
     private record LayoutSettings(
@@ -1812,21 +1817,10 @@ public partial class MainWindow : Window
     private void Player_PlaybackStopped(object? sender, PlaybackStoppedArgs e)
     {
         VideoLog($"ev: PlaybackStopped success={e.Success} error='{e.Error}'");
-        Dispatcher.BeginInvoke(() =>
-        {
-            _videoIsPlaying = false;
-            _videoTick.Stop();
-            SetPlayPauseGlyph(playing: false);
-            // Only auto-hide when playback finished naturally (not on user-initiated stop).
-            if (e.Success)
-            {
-                SetVideoSurfaceVisible(false);
-                _videoSuppressSliderEvent = true;
-                VideoSlider.Value = 0;
-                _videoSuppressSliderEvent = false;
-                UpdateVideoTimeText(TimeSpan.Zero);
-            }
-        });
+        // FlyleafLib fires PlaybackStopped on Pause as well as on natural end, so we
+        // can't use this signal alone to hide the video surface. We let the surface
+        // stay visible (last frame holds) and rely on OnVideoSourceChanged to clear
+        // it when the user moves to a different photo.
     }
 
     private void StopVideoPlayback(bool resetPosition)
