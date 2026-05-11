@@ -613,31 +613,6 @@
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
-                <!-- Recursive (include subfolders) toggle. Always present in the
-                     toolbar; disabled when no folder is open or the current
-                     folder has no subfolders with media. -->
-                <ToggleButton DockPanel.Dock="Left"
-                              IsChecked="{Binding IsRecursiveView}"
-                              IsEnabled="{Binding HasSubfolderMedia}"
-                              MinWidth="92"
-                              Height="26"
-                              Padding="8,0"
-                              FontSize="12"
-                              Margin="0,0,8,0">
-                    <ToggleButton.Style>
-                        <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
-                            <Setter Property="Content" Value="⊞ This folder" />
-                            <Setter Property="ToolTip" Value="Showing photos from this folder only — click to include all subfolders" />
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Content" Value="⊟ + subfolders" />
-                                    <Setter Property="ToolTip" Value="Including all subfolders — click to show this folder only" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ToggleButton.Style>
-                </ToggleButton>
-
                 <!-- Burst collapse toggle -->
                 <ToggleButton DockPanel.Dock="Left"
                               IsChecked="{Binding BurstCollapsed}"
@@ -1276,6 +1251,18 @@
                                 </HierarchicalDataTemplate>
                             </TreeView.ItemTemplate>
                         </TreeView>
+
+                        <!-- Recursive (include subfolders) toggle. Sticky global
+                             preference: applies to every folder open, persisted
+                             in AppSettings.IncludeSubfolders. Disabled when the
+                             currently open folder has no subfolders with media. -->
+                        <CheckBox IsChecked="{Binding IsRecursiveView}"
+                                  IsEnabled="{Binding HasSubfolderMedia}"
+                                  Content="Include subfolders"
+                                  FontSize="11"
+                                  Foreground="{StaticResource TextDimBrush}"
+                                  Margin="10,0,6,8"
+                                  ToolTip="When on, the photo list shows every supported file in this folder and all its subfolders. Sticky global preference." />
 
                         <!-- ── FILTERS section ── -->
                         <TextBlock Text="FILTERS" Style="{StaticResource SidebarSectionHeader}" />
