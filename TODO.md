@@ -13,7 +13,7 @@
 
 - ## The histogram for a burst group and when going into the burst group are different?
 
-- ## if a top folder is open in rawr, and the app is restarted then only the subfolder of the top folder (that was open) is opened as the top level
+
 
 - ## video metadata should include fps
 

@@ -90,6 +90,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool _highResPreviewLoaded;
     private PhotoItem? _metadataSubscription;
 
+    // The in-flight LoadFolderAsync, so a subsequent call can cancel-then-await
+    // before tearing down DB contexts. Without this, GeneratePreviewsAsync's
+    // background SaveBatch (on a threadpool thread) can race the dispose loop at
+    // line ~1238 and hit ObjectDisposedException on a sqlite3_stmt.
+    private Task _activeLoadTask = Task.CompletedTask;
+
     // Per-folder "resume where I left off" — persisted to <folder>/.rawr/session.json.
     // Suppressed while a folder is being loaded so the reset/restore sequence doesn't
     // overwrite the file with transient null state.
@@ -1181,12 +1187,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public async Task LoadFolderAsync(string folderPath)
+    public Task LoadFolderAsync(string folderPath)
     {
+        // Cancel the previous load *before* we await its task, so its
+        // GeneratePreviewsAsync chain (and the background SaveBatch inside it)
+        // unwinds promptly. Then await it to completion so its DB contexts are no
+        // longer in use by the time the new load disposes them.
+        _indexCts?.Cancel();
+        var previousLoad = _activeLoadTask;
+        var task = LoadFolderCoreAsync(folderPath, previousLoad);
+        _activeLoadTask = task;
+        return task;
+    }
+
+    private async Task LoadFolderCoreAsync(string folderPath, Task previousLoad)
+    {
+        // Wait for any prior load to settle. Exceptions from the previous load
+        // (including the OperationCanceledException we just triggered) belong to
+        // its caller, not us — swallow them here.
+        try { await previousLoad.ConfigureAwait(true); }
+        catch { /* previous load's exceptions surface via its own await */ }
+
         FlushSessionSave();
 
         // Cancel any in-progress indexing
-        _indexCts?.Cancel();
         _previewCts?.Cancel();
         _rawDecodeCts?.Cancel();
         _rawPrefetchCts?.Cancel();
@@ -1425,8 +1449,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             IsLoading = false;
             try
             {
+                // Persist the *tree root*, not the currently-viewed folder. In-tree
+                // navigation reuses LoadFolderAsync for subfolders; writing folderPath
+                // here would promote whichever subfolder was last selected to be the
+                // restored root next launch, hiding the parent and its siblings.
+                var rootToPersist = FolderTreeRoots.Count > 0
+                    ? FolderTreeRoots[0].FullPath
+                    : folderPath;
                 Directory.CreateDirectory(SettingsDir);
-                await File.WriteAllTextAsync(LastFolderFile, folderPath, ct);
+                await File.WriteAllTextAsync(LastFolderFile, rootToPersist, ct);
             }
             catch { /* non-critical */ }
         }
@@ -1644,6 +1675,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             try { await Task.Run(() => SaveAllPhotosPerOwningDb(AllPhotos), ct); }
             catch (OperationCanceledException) { }
+            // LoadFolderAsync's serialization (await previousLoad) should keep
+            // the DB alive for the entire batch, but if something else races us
+            // — disposal during shutdown, an explicit teardown path — the save
+            // is best-effort. Don't crash the UI on a dropped sqlite_stmt.
+            catch (ObjectDisposedException) { }
         }
 
         if (BurstFilter != BurstFilterMode.Any || SortField == SortField.Burst)
