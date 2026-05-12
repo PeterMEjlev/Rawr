@@ -570,6 +570,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ObservableRangeCollection<PhotoItem> AllPhotos { get; } = [];
     public ObservableRangeCollection<PhotoItem> FilteredPhotos { get; } = [];
 
+    // Mixed list that the grid view binds to: same photos as FilteredPhotos, plus
+    // DateHeaderItem rows inserted at calendar-day boundaries when sorted by capture
+    // time. The filmstrip and all index-based code still operate on FilteredPhotos
+    // — this collection exists solely so the grid can render full-width separators.
+    public ObservableRangeCollection<object> GridItems { get; } = [];
+
     // Multi-selection set that bulk operations (rate/flag/colour/tag/copy/delete) act on.
     // SelectedPhoto is the *anchor* — the focused tile that drives preview, EXIF, and
     // arrow-key navigation; it is always also a member of SelectedPhotos when non-null.
@@ -842,6 +848,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _cache = null;
             AllPhotos.Clear();
             FilteredPhotos.Clear();
+            GridItems.Clear();
             Tags.Clear();
             PreviewImage = null;
             VideoSourceUri = null;
@@ -1266,6 +1273,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         AllPhotos.Clear();
         FilteredPhotos.Clear();
+        GridItems.Clear();
         Tags.Clear();
         TagFilter = null;
         PreviewImage = null;
@@ -1682,7 +1690,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             catch (ObjectDisposedException) { }
         }
 
-        if (BurstFilter != BurstFilterMode.Any || SortField == SortField.Burst)
+        // CaptureDate sort and the time-of-day filter both key off Metadata.CaptureTime,
+        // which only just finished loading; without re-applying, the grid stays stuck in
+        // the alphabetical fallback order produced by the initial ApplyFilter (and the
+        // calendar-day separators we'd draw between days have nothing to anchor to).
+        if (BurstFilter != BurstFilterMode.Any
+            || SortField == SortField.Burst
+            || SortField == SortField.CaptureDate
+            || IsTimeOfDayFilterActive)
             ApplyFilter();
         else
             // The parallel pass populated clipping percentages and tag counts that
@@ -1733,6 +1748,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedPhotoChanged(PhotoItem? value)
     {
+        // Grid view selects by item identity (it binds SelectedItem ↔ SelectedPhoto
+        // because its source mixes photos and DateHeaderItems); keep the integer
+        // SelectedIndex in step so the filmstrip + all index-keyed navigation /
+        // prefetch / eviction logic still sees the same anchor. Setting it to the
+        // current value is a no-op via [ObservableProperty]'s SetProperty, so the
+        // reverse path (OnSelectedIndexChanged → SelectedPhoto = …) doesn't loop.
+        if (value != null)
+        {
+            var idx = FilteredPhotos.IndexOf(value);
+            if (idx >= 0 && SelectedIndex != idx) SelectedIndex = idx;
+        }
+
         OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
 
         if (_metadataSubscription != null)
@@ -5014,6 +5041,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         FilteredPhotos.ReplaceRange(filtered);
+        RebuildGridItems(filtered);
         VisibleCount = filtered.Count;
         UpdateFilterDescription();
 
@@ -5021,6 +5049,46 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RefreshFilterBuckets();
         OnPropertyChanged(nameof(CopyTargetCount));
         SaveSessionIfNeeded();
+    }
+
+    // Interleaves DateHeaderItem separators between calendar-day boundaries for
+    // the grid view. Only active when sorted by capture time — for any other
+    // sort, chronological gaps are meaningless and we hand the grid a flat copy.
+    private void RebuildGridItems(IReadOnlyList<PhotoItem> filtered)
+    {
+        var items = new List<object>(filtered.Count + 16);
+        if (SortField != SortField.CaptureDate || filtered.Count == 0)
+        {
+            items.AddRange(filtered);
+            GridItems.ReplaceRange(items);
+            return;
+        }
+
+        DateTime? lastDate = null;
+        foreach (var photo in filtered)
+        {
+            var capture = photo.Metadata?.CaptureTime;
+            // Photos without capture time keep flowing under the most recent
+            // header; they'd otherwise scatter into a single "unknown" bucket
+            // that adds noise without helping.
+            if (capture.HasValue)
+            {
+                var d = capture.Value.Date;
+                if (lastDate == null || d != lastDate.Value)
+                {
+                    items.Add(new DateHeaderItem(d, FormatHeaderDate(d)));
+                    lastDate = d;
+                }
+            }
+            items.Add(photo);
+        }
+        GridItems.ReplaceRange(items);
+    }
+
+    private static string FormatHeaderDate(DateTime date)
+    {
+        // Long date with weekday — readable at a glance without parsing yyyy-mm-dd.
+        return date.ToString("dddd, MMMM d, yyyy", System.Globalization.CultureInfo.CurrentCulture);
     }
 
     // ── Per-folder session persistence ──
@@ -5271,6 +5339,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     // ── Delete ──
 
+    // Picks the survivor that should become the new anchor after `victims` are
+    // removed: the first non-victim after the current anchor, falling back to
+    // the first non-victim before it. Returns null if no survivor exists or
+    // the anchor isn't in the current view.
+    private PhotoItem? PickAnchorAfterDeletion(IReadOnlyCollection<PhotoItem> victims)
+    {
+        if (SelectedPhoto == null || victims.Count == 0) return null;
+        var anchorIdx = FilteredPhotos.IndexOf(SelectedPhoto);
+        if (anchorIdx < 0) return null;
+        var toDelete = victims as HashSet<PhotoItem> ?? new HashSet<PhotoItem>(victims);
+        for (int i = anchorIdx + 1; i < FilteredPhotos.Count; i++)
+            if (!toDelete.Contains(FilteredPhotos[i])) return FilteredPhotos[i];
+        for (int i = anchorIdx - 1; i >= 0; i--)
+            if (!toDelete.Contains(FilteredPhotos[i])) return FilteredPhotos[i];
+        return null;
+    }
+
     [RelayCommand]
     private void DeletePhoto()
     {
@@ -5284,6 +5369,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var title = photos.Count == 1 ? "Delete Photo" : "Delete Photos";
         var result = MessageBox.Show(prompt, title, MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
+
+        var nextAnchor = PickAnchorAfterDeletion(photos);
 
         int deleted = 0;
         var failed = new List<string>();
@@ -5301,6 +5388,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 failed.Add($"{photo.FileName}: {ex.Message}");
             }
         }
+
+        // Hand RestoreSelection a survivor adjacent to the old anchor so it
+        // doesn't fall back to FilteredPhotos[0] when the anchor was deleted.
+        if (nextAnchor != null && AllPhotos.Contains(nextAnchor))
+            SelectedPhoto = nextAnchor;
 
         TotalCount = AllPhotos.Count;
         ApplyFilter();
@@ -5336,6 +5428,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
 
+        var nextAnchor = PickAnchorAfterDeletion(rejected);
+
         int deleted = 0;
         foreach (var photo in rejected)
         {
@@ -5348,6 +5442,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             catch { /* skip files that can't be deleted */ }
         }
+
+        if (nextAnchor != null && AllPhotos.Contains(nextAnchor))
+            SelectedPhoto = nextAnchor;
 
         TotalCount = AllPhotos.Count;
         ApplyFilter();
