@@ -1935,6 +1935,7 @@
                         MouseWheel="PreviewHost_MouseWheel"
                         MouseLeftButtonDown="PreviewHost_MouseLeftButtonDown"
                         MouseLeftButtonUp="PreviewHost_MouseLeftButtonUp"
+                        PreviewMouseLeftButtonUp="PreviewHost_PreviewMouseLeftButtonUp"
                         MouseMove="PreviewHost_MouseMove">
                     <Border.ContextMenu>
                         <ContextMenu>
@@ -1984,7 +1985,15 @@
                         <flyleaf:FlyleafHost x:Name="VideoPlayer"
                                              Margin="8"
                                              Background="Black"
-                                             Visibility="Collapsed" />
+                                             Visibility="Collapsed"
+                                             MouseBindings="None"
+                                             KeyBindings="None"
+                                             ToggleFullScreenOnDoubleClick="None"
+                                             BringToFrontOnClick="False"
+                                             AttachedDragMove="None"
+                                             PanMoveOnCtrl="None"
+                                             PanZoomOnCtrlWheel="None"
+                                             PanRotateOnShiftWheel="None" />
 
                         <!-- Focus Peaking overlay — shares transforms with PreviewImageElement via binding -->
                         <Image x:Name="FocusPeakingOverlayImage"

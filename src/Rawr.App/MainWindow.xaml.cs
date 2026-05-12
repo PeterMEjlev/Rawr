@@ -1286,6 +1286,18 @@ public partial class MainWindow : Window
         PreviewTranslate.Y = _panStartTy + (pos.Y - _panStart.Y);
     }
 
+    private void PreviewHost_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // Tunneling handler — fires before FlyleafHost (child) can mark the event
+        // handled. Before first playback the FlyleafHost is collapsed and the user
+        // is actually clicking the still preview image, so we don't bounds-check
+        // against VideoPlayer here; PreviewHost itself is the preview pane.
+        if (e.ClickCount != 1) return;
+        if ((DataContext as MainViewModel)?.VideoSourceUri == null) return;
+        ToggleVideoPlayPauseDebounced();
+        e.Handled = true;
+    }
+
     private void PreviewHost_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (!_isPanning || sender is not FrameworkElement host) return;
@@ -1615,6 +1627,31 @@ public partial class MainWindow : Window
         if (_player == null) return;
         if (!ReferenceEquals(VideoPlayer.Player, _player))
             VideoPlayer.Player = _player;
+        WireUpSurfaceClickToggle();
+    }
+
+    private bool _surfaceClickWired;
+    private bool _surfaceCreatedSubscribed;
+    private void WireUpSurfaceClickToggle()
+    {
+        if (_surfaceClickWired) return;
+        var surface = VideoPlayer.Surface;
+        if (surface == null)
+        {
+            if (!_surfaceCreatedSubscribed)
+            {
+                VideoPlayer.SurfaceCreated += (_, _) => WireUpSurfaceClickToggle();
+                _surfaceCreatedSubscribed = true;
+            }
+            return;
+        }
+        // FlyleafHost renders into a separate WPF Window (Surface); WPF events
+        // on the FlyleafHost element itself never fire over the video pixels.
+        surface.AddHandler(
+            UIElement.PreviewMouseLeftButtonUpEvent,
+            new MouseButtonEventHandler(VideoPlayer_PreviewMouseLeftButtonUp),
+            handledEventsToo: true);
+        _surfaceClickWired = true;
     }
 
     private void BeginVideoPlayback(MainViewModel vm)
@@ -1876,6 +1913,30 @@ public partial class MainWindow : Window
     }
 
     private void VideoPlayPause_Click(object sender, RoutedEventArgs e) => ToggleVideoPlayPause();
+
+    private void VideoPlayer_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount > 1) return;
+        if ((DataContext as MainViewModel)?.VideoSourceUri == null) return;
+        if (VideoPlayer.Visibility != Visibility.Visible) return;
+        // FlyleafHost.Surface receives input routed from the whole MainWindow,
+        // so filter to clicks whose position falls within the FlyleafHost element.
+        var pos = e.GetPosition(VideoPlayer);
+        if (pos.X < 0 || pos.Y < 0 || pos.X > VideoPlayer.ActualWidth || pos.Y > VideoPlayer.ActualHeight) return;
+        ToggleVideoPlayPauseDebounced();
+        e.Handled = true;
+    }
+
+    private DateTime _lastVideoToggleAt = DateTime.MinValue;
+    private void ToggleVideoPlayPauseDebounced()
+    {
+        // Surface + PreviewHost handlers may both fire for one click depending on
+        // whether FlyleafHost.Surface is alive; ignore the second within 50ms.
+        var now = DateTime.UtcNow;
+        if ((now - _lastVideoToggleAt).TotalMilliseconds < 50) return;
+        _lastVideoToggleAt = now;
+        ToggleVideoPlayPause();
+    }
 
     private void ToggleVideoPlayPause()
     {

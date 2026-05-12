@@ -7,11 +7,7 @@
 
 - ## Subject classifier — small zero-shot model (CLIP-tiny or similar) tags photos with "person", "landscape", "food", "animal". Filterable. Surprisingly accurate even at small sizes.
 
-- ## the tooltip for shortcuts with special characters like ÆØÅ just show up as \ and not the actual keyboard shortcut
-
 - ## When a file is deleted, the selected photo goes to the first photo. it needs to go to the next photo instead
-
-- ## Goto last star rated / flagged / labeled / tagged photo. basically last photo that was interacted with in a folder (resume where last sorting started)
 
 - ## Custom import settings when importing from an SD/CF card. i.e filters for putting photos or videos in seperate (sub)folders (or RAW vs JPG etc)
 
@@ -22,7 +18,5 @@
 - ## click in video preview should play/pause
 
 - ## video metadata should include fps
-
-- ## ability to rotate vertical videos 
 
 - ## Phase 2 of recursive folder view: tag editing across subfolders (translate synthetic display IDs to per-subfolder DB IDs), restore HDR/Panorama auto-tag DB sync per subfolder, recursive Cache-All, ExecuteMacro tag part, XMP keyword auto-create
