@@ -199,7 +199,14 @@ public partial class MainWindow : Window
         DecreaseVideoSpeedCommand = new RelayCommand(() => StepVideoSpeed(-1));
         RewindVideoCommand = new RelayCommand(() => SeekVideo(-VideoSeekStepMs));
         ForwardVideoCommand = new RelayCommand(() => SeekVideo(+VideoSeekStepMs));
-        RotateVideoCommand = new RelayCommand(RotateVideo);
+        RotateVideoCommand = new RelayCommand(() =>
+        {
+            // R is shared: rotates the active video, or rotates the active photo
+            // preview when no video is loaded.
+            if (DataContext is not MainViewModel vm) return;
+            if (vm.VideoSourceUri != null) RotateVideo();
+            else if (vm.RotatePhotoCommand.CanExecute(null)) vm.RotatePhotoCommand.Execute(null);
+        });
         SeekVideoStartOrDecreaseExposureCommand = new RelayCommand(() =>
         {
             if (DataContext is MainViewModel vm && vm.VideoSourceUri != null)

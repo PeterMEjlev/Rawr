@@ -79,6 +79,17 @@ public sealed partial class PhotoItem : ObservableObject
     // user navigates far enough away. Not observable — never bound to UI.
     public byte[]? FullJpeg { get; set; }
 
+    // EXIF orientation resolved to a degrees-clockwise rotation. The full-resolution
+    // embedded JPEG often lacks the orientation tag (CR3 etc.) so we fall back to
+    // the smaller default thumb and cache the answer here for the rest of the
+    // session. Transient — not persisted.
+    public double JpegRotationDegrees { get; set; }
+
+    // Extra clockwise rotation the user has dialled in for the current session via
+    // the rotate shortcut (R). Applied on top of whatever orientation the preview
+    // pipeline produced. Transient — resets when the app restarts.
+    public double UserRotationDegrees { get; set; }
+
     /// <summary>
     /// Clamp rating to 0-5 range.
     /// </summary>

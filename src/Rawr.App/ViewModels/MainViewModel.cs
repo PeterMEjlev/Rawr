@@ -1953,6 +1953,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleGridExpanded() => IsGridExpanded = !IsGridExpanded;
 
     [RelayCommand]
+    private void RotatePhoto()
+    {
+        var photo = SelectedPhoto;
+        if (photo == null || photo.IsVideo) return;
+        photo.UserRotationDegrees = (photo.UserRotationDegrees + 90) % 360;
+        // Re-run the EV pipeline against the existing base so the rotation is
+        // re-applied to whatever's currently showing (JPG small/large or RAW).
+        var ct = _previewCts?.Token ?? CancellationToken.None;
+        _ = ApplyExposureAsync(photo, ExposureCompensation, ct);
+    }
+
+    [RelayCommand]
     private void ToggleFocusPeaking()
     {
         if (FocusPeakingEnabled) DisableOverlays();
@@ -2030,16 +2042,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ = ComputeFocusPeakingAsync(photo, ct);
     }
 
-    private void SetBasePreview(BitmapSource bitmap)
+    private string _basePreviewLabel = "EV";
+
+    private void SetBasePreview(BitmapSource bitmap, string label = "EV (JPG small)")
     {
         _basePreviewImage = bitmap;
+        _basePreviewLabel = label;
         // The linear RAW path is the only one that doesn't band under ±EV, so it
         // wins on screen by default. But the cached RAW is downsampled to
         // LinearRawPreviewWidth — when a higher-resolution JPEG bitmap arrives (zoom
         // time, after ExtractFullJpeg pulls the sensor-sized embedded preview) and
         // the user isn't applying EV, prefer it so pixel-peeping shows real detail.
         if (_baseRawImage != null && !PreferJpegOverRaw(bitmap)) return;
-        PreviewImage = ExposureCompensation == 0.0 ? bitmap : ExposureProcessor.Apply(bitmap, ExposureCompensation);
+        var adjusted = ExposureCompensation == 0.0 ? bitmap : ExposureProcessor.Apply(bitmap, ExposureCompensation);
+        PreviewImage = ApplyUserRotation(adjusted);
+        ExposureSourceLabel = label;
+    }
+
+    private BitmapSource ApplyUserRotation(BitmapSource bitmap)
+    {
+        var deg = SelectedPhoto?.UserRotationDegrees ?? 0;
+        if (deg == 0) return bitmap;
+        var rotated = new TransformedBitmap(bitmap, new RotateTransform(deg));
+        rotated.Freeze();
+        return rotated;
     }
 
     private bool PreferJpegOverRaw(BitmapSource jpegBitmap)
@@ -2075,7 +2101,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (ev == 0.0 && _basePreviewImage != null
             && (_baseRawImage == null || _basePreviewImage.PixelWidth > _baseRawImage.Width))
         {
-            if (SelectedPhoto == photo) PreviewImage = _basePreviewImage;
+            if (SelectedPhoto == photo)
+            {
+                PreviewImage = ApplyUserRotation(_basePreviewImage);
+                ExposureSourceLabel = _basePreviewLabel;
+            }
             return;
         }
 
@@ -2088,7 +2118,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ev, ct), ct);
                 if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
-                PreviewImage = rendered;
+                PreviewImage = ApplyUserRotation(rendered);
+                ExposureSourceLabel = "EV (RAW)";
             }
             catch (OperationCanceledException) { /* superseded by a newer slider value */ }
             return;
@@ -2102,7 +2133,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 ? baseImage
                 : await Task.Run(() => ExposureProcessor.Apply(baseImage, ev), ct);
             if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
-            PreviewImage = adjusted;
+            PreviewImage = ApplyUserRotation(adjusted);
+            ExposureSourceLabel = _basePreviewLabel;
         }
         catch (OperationCanceledException) { /* superseded */ }
     }
@@ -2122,13 +2154,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (raw == null)
             {
                 // Surface the failure so users don't silently keep operating on JPEG.
-                ExposureSourceLabel = "EV (JPG — RAW decode failed)";
+                ExposureSourceLabel = _basePreviewLabel + " (RAW decode failed)";
                 return;
             }
 
             _baseRawImage = raw;
             IsLinearRawReady = true;
-            ExposureSourceLabel = "EV (RAW)";
             // Clipping detection runs on the linear RAW; if the user already toggled it
             // on while we were decoding, paint the overlay now that sensor data is here.
             if (ClippingEnabled) _ = ComputeClippingAsync(photo, raw, ct);
@@ -2146,7 +2177,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 bool keepJpeg = ExposureCompensation == 0.0
                     && _basePreviewImage != null
                     && _basePreviewImage.PixelWidth > raw.Width;
-                if (!keepJpeg) PreviewImage = rendered;
+                if (!keepJpeg)
+                {
+                    PreviewImage = ApplyUserRotation(rendered);
+                    ExposureSourceLabel = "EV (RAW)";
+                }
             }
         }
         catch (OperationCanceledException) { /* selection moved on */ }
@@ -2369,7 +2404,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 var bs = await Task.Run(() => LoadBitmapFromJpeg(cached), ct);
                 if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
                 photo.PreviewJpeg = cached;
-                if (bs != null) SetBasePreview(bs);
+                if (bs != null) SetBasePreview(bs, "EV (JPG small)");
                 _ = ComputeHistogramAsync(photo, ct);
                 if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
                 _ = PreloadFullJpegAsync(photo, ct);
@@ -2380,7 +2415,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // Fast path: a previous decode already wrote the linear-RAW buffer to
             // disk. If no JPEG preview is cached yet, keep the previous frame up
             // briefly and let the delayed RAW path replace it once navigation settles.
+            // Skip when the user opted out of RAW decoding — that path won't paint
+            // the preview and we'd be left blank.
             if (photo.IsRaw && _libRaw != null && _cache != null
+                && !AppSettings.Current.UseEmbeddedJpegOnly
                 && CacheFor(photo).HasLinearRaw(photo.FileName))
             {
                 StartRawDecode(photo);
@@ -2393,7 +2431,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 var thumbBs = await Task.Run(() => LoadBitmapFromJpeg(photo.ThumbnailJpeg), ct);
                 if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+                {
                     PreviewImage = thumbBs;
+                    ExposureSourceLabel = "EV (JPG thumb)";
+                }
             }
             else
             {
@@ -2413,7 +2454,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var fullBs = await Task.Run(() => LoadBitmapFromJpeg(processed), ct);
             if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
 
-            if (fullBs != null) SetBasePreview(fullBs);
+            if (fullBs != null) SetBasePreview(fullBs, "EV (JPG small)");
             _ = ComputeHistogramAsync(photo, ct);
             if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
             _ = PreloadFullJpegAsync(photo, ct);
@@ -2522,6 +2563,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void StartRawDecode(PhotoItem photo)
     {
         if (!photo.IsRaw || photo.IsVideo) return;
+        if (AppSettings.Current.UseEmbeddedJpegOnly)
+        {
+            // RAW decode skipped by user setting — the JPG preview stays on screen.
+            // _basePreviewLabel was set by whichever preview path painted it.
+            return;
+        }
         _rawDecodeCts?.Cancel();
         _rawDecodeCts = new CancellationTokenSource();
         _ = StartRawDecodeAfterSettleAsync(photo, _rawDecodeCts.Token);
@@ -2596,14 +2643,131 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
             photo.FullJpeg ??= jpeg;
 
-            var bs = await Task.Run(() => LoadBitmapFromJpeg(jpeg, decodePixelWidth: 0), ct);
+            var rotation = await Task.Run(() => ResolveJpegRotation(photo, jpeg), ct);
+            var bs = await Task.Run(() => LoadBitmapFromJpeg(jpeg, decodePixelWidth: 0, rotationOverride: rotation), ct);
             if (!ct.IsCancellationRequested && SelectedPhoto == photo)
             {
-                if (bs != null) SetBasePreview(bs);
+                if (bs != null) SetBasePreview(bs, "EV (JPG large)");
                 else PreviewImage = null;
             }
         }
         catch (OperationCanceledException) { /* selection moved on */ }
+    }
+
+    // The largest embedded JPEG often lacks the EXIF orientation tag, so reading
+    // from it alone gives 0° and a vertical photo paints sideways at zoom. Try
+    // the source file's EXIF first (works for JPEGs and any RAW that has a WIC
+    // codec installed), then fall back to extracting the default thumb via the
+    // configured extractor. Cache the answer on PhotoItem so subsequent zooms
+    // skip the re-extraction.
+    private double ResolveJpegRotation(PhotoItem photo, byte[] fullJpeg)
+    {
+        if (photo.JpegRotationDegrees != 0.0) return photo.JpegRotationDegrees;
+
+        var r = ReadExifRotationFromJpeg(fullJpeg);
+        if (r != 0.0) { photo.JpegRotationDegrees = r; return r; }
+
+        r = ReadExifRotationFromFile(photo.FilePath);
+        if (r != 0.0) { photo.JpegRotationDegrees = r; return r; }
+
+        if (photo.IsRaw)
+        {
+            try
+            {
+                var thumb = ExtractorFor(photo).ExtractPreview(photo.FilePath);
+                if (thumb != null) r = ReadExifRotationFromJpeg(thumb);
+            }
+            catch { /* extraction failure — fall through to aspect heuristic */ }
+        }
+
+        // CR3 and a few others ship the medium thumb as pixels-pre-rotated with NO
+        // EXIF tag, while the full-res embedded JPEG stays in camera-native
+        // landscape (also no EXIF). Aspect alone can't tell 90° CW from 90° CCW
+        // (orientation 6 vs 8) and either choice is 180° wrong half the time, so
+        // determine the rotation by matching content against the small preview,
+        // which we know is already correctly oriented.
+        if (r == 0.0 && _basePreviewImage is { } basePreview)
+            r = DetermineRotationByContentMatch(basePreview, fullJpeg);
+
+        photo.JpegRotationDegrees = r;
+        return r;
+    }
+
+    private static double DetermineRotationByContentMatch(BitmapSource reference, byte[] fullJpeg)
+    {
+        const int GridSize = 32;
+        var refGrid = ToGrayscaleGrid(reference, GridSize);
+        if (refGrid == null) return 0.0;
+
+        try
+        {
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.StreamSource = new MemoryStream(fullJpeg);
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.DecodePixelWidth = 256; // big enough to keep detail, small enough to stay cheap
+            bi.EndInit();
+            bi.Freeze();
+
+            double bestDiff = double.MaxValue;
+            double bestAngle = 0.0;
+            foreach (var angle in new[] { 0.0, 90.0, 180.0, 270.0 })
+            {
+                BitmapSource candidate = bi;
+                if (angle != 0.0)
+                {
+                    var rotated = new TransformedBitmap(bi, new RotateTransform(angle));
+                    rotated.Freeze();
+                    candidate = rotated;
+                }
+                var grid = ToGrayscaleGrid(candidate, GridSize);
+                if (grid == null) continue;
+                long sum = 0;
+                for (int i = 0; i < grid.Length; i++) sum += Math.Abs(grid[i] - refGrid[i]);
+                if (sum < bestDiff) { bestDiff = sum; bestAngle = angle; }
+            }
+            return bestAngle;
+        }
+        catch { return 0.0; }
+    }
+
+    private static byte[]? ToGrayscaleGrid(BitmapSource source, int size)
+    {
+        try
+        {
+            var scaled = new TransformedBitmap(source,
+                new System.Windows.Media.ScaleTransform((double)size / source.PixelWidth,
+                                                       (double)size / source.PixelHeight));
+            scaled.Freeze();
+            var gray = new FormatConvertedBitmap(scaled, System.Windows.Media.PixelFormats.Gray8, null, 0);
+            gray.Freeze();
+            var pixels = new byte[size * size];
+            gray.CopyPixels(pixels, size, 0);
+            return pixels;
+        }
+        catch { return null; }
+    }
+
+    private static double ReadExifRotationFromJpeg(byte[] jpeg)
+    {
+        try
+        {
+            using var ms = new MemoryStream(jpeg);
+            var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+            return ReadExifRotation(decoder.Frames[0].Metadata as BitmapMetadata);
+        }
+        catch { return 0.0; }
+    }
+
+    private static double ReadExifRotationFromFile(string filePath)
+    {
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+            return ReadExifRotation(decoder.Frames[0].Metadata as BitmapMetadata);
+        }
+        catch { return 0.0; }
     }
 
     /// <summary>
@@ -3145,19 +3309,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static BitmapSource? LoadBitmapFromJpeg(byte[] jpeg, int decodePixelWidth = PreviewDecodeWidth)
+    private static BitmapSource? LoadBitmapFromJpeg(byte[] jpeg, int decodePixelWidth = PreviewDecodeWidth, double? rotationOverride = null)
     {
         try
         {
             // Read EXIF orientation from headers — cheap, no pixel decode.
-            double rotation = 0.0;
-            try
+            // Callers can override when they've resolved rotation from another source
+            // (e.g., a fallback thumb's EXIF when this JPEG's EXIF is missing).
+            double rotation = rotationOverride ?? 0.0;
+            if (rotationOverride == null)
             {
-                using var msMeta = new MemoryStream(jpeg);
-                var metaDecoder = BitmapDecoder.Create(msMeta, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-                rotation = ReadExifRotation(metaDecoder.Frames[0].Metadata as BitmapMetadata);
+                try
+                {
+                    using var msMeta = new MemoryStream(jpeg);
+                    var metaDecoder = BitmapDecoder.Create(msMeta, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                    rotation = ReadExifRotation(metaDecoder.Frames[0].Metadata as BitmapMetadata);
+                }
+                catch { /* no EXIF — leave at 0 */ }
             }
-            catch { /* no EXIF — leave at 0 */ }
 
             var bi = new BitmapImage();
             bi.BeginInit();

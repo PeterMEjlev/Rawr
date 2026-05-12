@@ -84,7 +84,7 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("DecreaseVideoSpeed", "Decrease video speed",   CatVideo, Key.Down, ModifierKeys.Control, w => w.DecreaseVideoSpeedCommand),
             new("RewindVideo",        "Rewind video",           CatVideo, Key.Left, ModifierKeys.Shift,   w => w.RewindVideoCommand),
             new("ForwardVideo",       "Forward video",          CatVideo, Key.Right, ModifierKeys.Shift,  w => w.ForwardVideoCommand),
-            new("RotateVideo",        "Rotate video 90°",   CatVideo, Key.R,    ModifierKeys.None,   w => w.RotateVideoCommand),
+            new("RotateVideo",        "Rotate photo / video 90°", CatVideo, Key.R, ModifierKeys.None,   w => w.RotateVideoCommand),
             new("OpenTags",           "Open tags panel",      CatView, Key.T, ModifierKeys.None, w => w.OpenTagsCommand),
 
             // Filters

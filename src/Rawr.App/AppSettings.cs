@@ -76,6 +76,13 @@ public sealed class AppSettings
     public double DoubleClickZoom { get; set; } = 3.0;
     public int ScrollSpeedPercent { get; set; } = Rawr.App.Controls.ScrollSpeed.DefaultPercent;
 
+    // When true, RAWR never decodes the linear RAW sensor data for previews —
+    // it sticks with the camera's embedded JPEG. Avoids the colour noise that
+    // shows up at zoom on RAW. Side effect: clipping detection (which needs
+    // the linear sensor data) won't paint, and exposure compensation falls
+    // back to the JPEG path (less accurate at the extremes).
+    public bool UseEmbeddedJpegOnly { get; set; } = false;
+
     // Step size for the Shift+Left/Right video seek shortcuts.
     public int VideoSeekStepSeconds { get; set; } = 5;
 
@@ -154,6 +161,7 @@ public sealed class AppSettings
         ClosedEyeThreshold = ClosedEyeThreshold,
         DoubleClickZoom = DoubleClickZoom,
         ScrollSpeedPercent = ScrollSpeedPercent,
+        UseEmbeddedJpegOnly = UseEmbeddedJpegOnly,
         VideoSeekStepSeconds = VideoSeekStepSeconds,
         AutoPlayVideo = AutoPlayVideo,
         KeyBindings = new Dictionary<string, string>(KeyBindings),

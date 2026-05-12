@@ -85,6 +85,7 @@ public partial class SettingsWindow : Window
         ScrollSpeedSlider.Value = Math.Clamp(current.ScrollSpeedPercent, ScrollSpeed.MinPercent, ScrollSpeed.MaxPercent);
         VideoSeekStepSlider.Value = Math.Clamp(current.VideoSeekStepSeconds, 1, 30);
         AutoPlayVideoCheck.IsChecked = current.AutoPlayVideo;
+        UseEmbeddedJpegOnlyCheck.IsChecked = current.UseEmbeddedJpegOnly;
 
         // HDR detection
         HdrEnabledCheck.IsChecked = current.HdrDetectionEnabled;
@@ -359,6 +360,7 @@ public partial class SettingsWindow : Window
             ScrollSpeedPercent  = (int)ScrollSpeedSlider.Value,
             VideoSeekStepSeconds = (int)VideoSeekStepSlider.Value,
             AutoPlayVideo       = AutoPlayVideoCheck.IsChecked == true,
+            UseEmbeddedJpegOnly = UseEmbeddedJpegOnlyCheck.IsChecked == true,
             HdrDetectionEnabled = HdrEnabledCheck.IsChecked == true,
             HdrMinBracketSize   = (int)HdrMinBracketSizeSlider.Value,
             HdrMinExposureSpread = (float)HdrExposureSpreadSlider.Value,

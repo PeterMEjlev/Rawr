@@ -9,14 +9,14 @@
 
 - ## When a file is deleted, the selected photo goes to the first photo. it needs to go to the next photo instead
 
-- ## Custom import settings when importing from an SD/CF card. i.e filters for putting photos or videos in seperate (sub)folders (or RAW vs JPG etc)
+- ## Custom import settings when importing from an SD/CF card. i.e filters for putting photos or videos in seperate (sub)folders (or RAW vs JPG etc). The app should auto detect new sd/cf cards like LR.
 
 - ## The histogram for a burst group and when going into the burst group are different?
 
 - ## if a top folder is open in rawr, and the app is restarted then only the subfolder of the top folder (that was open) is opened as the top level
 
-- ## click in video preview should play/pause
-
 - ## video metadata should include fps
 
 - ## Phase 2 of recursive folder view: tag editing across subfolders (translate synthetic display IDs to per-subfolder DB IDs), restore HDR/Panorama auto-tag DB sync per subfolder, recursive Cache-All, ExecuteMacro tag part, XMP keyword auto-create
+
+- ## reverse scroll direction in filmstrip via a setting

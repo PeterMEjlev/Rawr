@@ -104,6 +104,21 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,20" />
 
+                        <!-- Preview -->
+                        <Separator Margin="0,0,0,16" />
+                        <TextBlock Text="PREVIEW"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   Margin="0,0,0,10" />
+                        <CheckBox x:Name="UseEmbeddedJpegOnlyCheck"
+                                  Content="Use embedded JPEG only (skip RAW decoding)"
+                                  Margin="0,0,0,4" />
+                        <TextBlock Text="Stays on the camera's embedded JPEG instead of decoding the linear RAW. Avoids the colour noise visible when zooming in. Disables clipping detection and falls back to JPEG-based exposure adjustment."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,20" />
+
                         <!-- Sorting -->
                         <Separator Margin="0,0,0,16" />
                         <TextBlock Text="SORTING"
