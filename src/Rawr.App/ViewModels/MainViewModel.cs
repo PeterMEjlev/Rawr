@@ -267,6 +267,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _exposureCts;
     private CancellationTokenSource? _rawDecodeCts;
 
+    // Why the on-screen preview is JPG-derived even though the user expects RAW.
+    // Surfaced as a suffix on ExposureSourceLabel so a silently-broken RAW pipeline
+    // (LibRaw missing, per-file decode failure) is visible without a debugger
+    // attached. Sticky across slider moves — only OnSelectedIndexChanged resets it.
+    private enum RawDecodeStatus
+    {
+        Pending,            // decode in flight or not yet started
+        Available,          // _baseRawImage populated
+        NotApplicable,      // file isn't RAW (or is a video)
+        LibRawUnavailable,  // _libRaw == null at startup
+        DecodeFailed,       // ExtractLinearRgb returned null / threw
+    }
+    private RawDecodeStatus _rawDecodeStatus = RawDecodeStatus.Pending;
+
     // Filter state
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
@@ -1662,6 +1676,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _rawPrefetchCts?.Cancel();
         _basePreviewImage = null;
         _baseRawImage = null;
+        _rawDecodeStatus = RawDecodeStatus.Pending;
         IsLinearRawReady = false;
         ExposureSourceLabel = "EV";
         _exposureCompensation = 0.0;
@@ -2056,8 +2071,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (_baseRawImage != null && !PreferJpegOverRaw(bitmap)) return;
         var adjusted = ExposureCompensation == 0.0 ? bitmap : ExposureProcessor.Apply(bitmap, ExposureCompensation);
         PreviewImage = ApplyUserRotation(adjusted);
-        ExposureSourceLabel = label;
+        ExposureSourceLabel = DecorateLabel(label);
     }
+
+    // Append a suffix to JPG-flavored labels when the RAW pipeline is broken or
+    // unavailable, so the user can see *why* they're stuck on JPG (and so the
+    // suffix survives slider moves instead of being clobbered by ApplyExposureAsync).
+    private string DecorateLabel(string baseLabel) => _rawDecodeStatus switch
+    {
+        RawDecodeStatus.LibRawUnavailable => baseLabel + " (RAW unavailable)",
+        RawDecodeStatus.DecodeFailed      => baseLabel + " (RAW decode failed)",
+        _                                  => baseLabel,
+    };
 
     private BitmapSource ApplyUserRotation(BitmapSource bitmap)
     {
@@ -2104,7 +2129,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (SelectedPhoto == photo)
             {
                 PreviewImage = ApplyUserRotation(_basePreviewImage);
-                ExposureSourceLabel = _basePreviewLabel;
+                ExposureSourceLabel = DecorateLabel(_basePreviewLabel);
             }
             return;
         }
@@ -2134,7 +2159,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 : await Task.Run(() => ExposureProcessor.Apply(baseImage, ev), ct);
             if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
             PreviewImage = ApplyUserRotation(adjusted);
-            ExposureSourceLabel = _basePreviewLabel;
+            ExposureSourceLabel = DecorateLabel(_basePreviewLabel);
         }
         catch (OperationCanceledException) { /* superseded */ }
     }
@@ -2146,7 +2171,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task LoadLinearRawAsync(PhotoItem photo, CancellationToken ct)
     {
-        if (_libRaw == null || !photo.IsRaw || photo.IsVideo) return;
+        if (!photo.IsRaw || photo.IsVideo)
+        {
+            _rawDecodeStatus = RawDecodeStatus.NotApplicable;
+            return;
+        }
+        if (_libRaw == null)
+        {
+            _rawDecodeStatus = RawDecodeStatus.LibRawUnavailable;
+            if (SelectedPhoto == photo) ExposureSourceLabel = DecorateLabel(_basePreviewLabel);
+            return;
+        }
         try
         {
             var raw = await Task.Run(() => LoadOrDecodeLinearRaw(photo, ct), ct);
@@ -2154,11 +2189,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (raw == null)
             {
                 // Surface the failure so users don't silently keep operating on JPEG.
-                ExposureSourceLabel = _basePreviewLabel + " (RAW decode failed)";
+                _rawDecodeStatus = RawDecodeStatus.DecodeFailed;
+                ExposureSourceLabel = DecorateLabel(_basePreviewLabel);
                 return;
             }
 
             _baseRawImage = raw;
+            _rawDecodeStatus = RawDecodeStatus.Available;
             IsLinearRawReady = true;
             // Clipping detection runs on the linear RAW; if the user already toggled it
             // on while we were decoding, paint the overlay now that sensor data is here.
@@ -2187,7 +2224,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         catch (OperationCanceledException) { /* selection moved on */ }
         catch
         {
-            ExposureSourceLabel = "EV (JPG — RAW decode failed)";
+            _rawDecodeStatus = RawDecodeStatus.DecodeFailed;
+            if (SelectedPhoto == photo) ExposureSourceLabel = DecorateLabel(_basePreviewLabel);
         }
     }
 
@@ -2433,7 +2471,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 if (!ct.IsCancellationRequested && SelectedPhoto == photo)
                 {
                     PreviewImage = thumbBs;
-                    ExposureSourceLabel = "EV (JPG thumb)";
+                    ExposureSourceLabel = DecorateLabel("EV (JPG thumb)");
                 }
             }
             else

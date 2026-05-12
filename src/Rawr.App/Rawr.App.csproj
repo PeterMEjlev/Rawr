@@ -25,8 +25,11 @@
   <ItemGroup>
     <Resource Include="Assets\rawr.ico" />
 
-    <!-- LibRaw native DLLs and their dependencies. Place all DLLs in src/Rawr.App/native/ -->
+    <!-- LibRaw native DLLs and their dependencies. Place all DLLs in src/Rawr.App/native/.
+         Link strips the "native\" prefix so they land flat alongside RAWR.exe — P/Invoke
+         (LibRawInterop) looks next to the executable, not in subdirectories. -->
     <Content Include="native\*.dll">
+      <Link>%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
 
