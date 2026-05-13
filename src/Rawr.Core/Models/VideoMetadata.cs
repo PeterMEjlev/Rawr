@@ -10,6 +10,11 @@ public sealed class VideoMetadata
     public int WidthPx { get; init; }
     public int HeightPx { get; init; }
     public double FrameRate { get; init; }
+    // Original capture/recording rate for slow-motion clips (e.g. Canon R5 HFR
+    // stores 119.88 fps footage in a 29.97 fps container). 0 when unknown or
+    // equal to FrameRate. Populated after the ffprobe pass by reading the
+    // Canon UUID atom directly, so it's a settable property rather than init.
+    public double CaptureFrameRate { get; set; }
     public string CodecName { get; init; } = "";       // e.g. "hevc", "h264"
     public string CodecProfile { get; init; } = "";    // e.g. "Main 10"
     public int BitDepth { get; init; }                 // 8, 10, 12
@@ -26,8 +31,16 @@ public sealed class VideoMetadata
     public string DimensionsFormatted =>
         WidthPx > 0 && HeightPx > 0 ? $"{WidthPx} × {HeightPx}" : "";
 
-    public string FrameRateFormatted =>
-        FrameRate > 0 ? $"{FrameRate:0.###} fps" : "";
+    public string FrameRateFormatted
+    {
+        get
+        {
+            if (FrameRate <= 0) return "";
+            if (CaptureFrameRate > 0 && CaptureFrameRate > FrameRate + 0.01)
+                return $"{FrameRate:0.###} fps (capture {CaptureFrameRate:0.###} fps)";
+            return $"{FrameRate:0.###} fps";
+        }
+    }
 
     /// <summary>Friendlier codec label, e.g. "HEVC / H.265" instead of raw "hevc".</summary>
     public string CodecFormatted

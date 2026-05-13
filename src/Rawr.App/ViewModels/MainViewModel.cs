@@ -270,6 +270,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private BitmapSource? _basePreviewImage;
     private LinearRawImage? _baseRawImage;
+    // Full-resolution linear RAW for the currently selected photo, populated by
+    // the zoom-time decode. Stays alongside the downsampled _baseRawImage so the
+    // EV slider can render fast against the small buffer during drags, then
+    // upgrade to full-res once the drag settles (see ApplyExposureAsync). Cleared
+    // on selection change so we don't keep ~180 MB of RAW pixels per photo.
+    private LinearRawImage? _fullRawImage;
     private CancellationTokenSource? _exposureCts;
     private CancellationTokenSource? _rawDecodeCts;
 
@@ -1727,6 +1733,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _rawPrefetchCts?.Cancel();
         _basePreviewImage = null;
         _baseRawImage = null;
+        _fullRawImage = null;
         _rawDecodeStatus = RawDecodeStatus.Pending;
         IsLinearRawReady = false;
         ExposureSourceLabel = "EV";
@@ -2126,12 +2133,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _basePreviewImage = bitmap;
         _basePreviewLabel = label;
-        // The linear RAW path is the only one that doesn't band under ±EV, so it
-        // wins on screen by default. But the cached RAW is downsampled to
-        // LinearRawPreviewWidth — when a higher-resolution JPEG bitmap arrives (zoom
-        // time, after ExtractFullJpeg pulls the sensor-sized embedded preview) and
-        // the user isn't applying EV, prefer it so pixel-peeping shows real detail.
-        if (_baseRawImage != null && !PreferJpegOverRaw(bitmap)) return;
+        // Once a linear RAW exists for this photo, it owns the screen — even at
+        // zoom-time when a higher-resolution JPEG would otherwise arrive. Keep
+        // the JPG bytes resident for histogram/export/EXIF, just don't paint.
+        if (_baseRawImage != null) return;
         var adjusted = ExposureCompensation == 0.0 ? bitmap : ExposureProcessor.Apply(bitmap, ExposureCompensation);
         PreviewImage = ApplyUserRotation(adjusted);
         ExposureSourceLabel = DecorateLabel(label);
@@ -2156,14 +2161,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return rotated;
     }
 
-    private bool PreferJpegOverRaw(BitmapSource jpegBitmap)
-    {
-        var raw = _baseRawImage;
-        if (raw == null) return true;
-        if (ExposureCompensation != 0.0) return false;
-        return jpegBitmap.PixelWidth > raw.Width;
-    }
-
     [RelayCommand] private void IncreaseExposure() =>
         ExposureCompensation = Math.Round(Math.Clamp(ExposureCompensation + 0.2, -5.0, 5.0), 10);
 
@@ -2183,31 +2180,31 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task ApplyExposureAsync(PhotoItem photo, double ev, CancellationToken ct)
     {
-        // At EV=0 we pay no precision cost going through the JPEG, so if a higher-res
-        // JPEG bitmap is cached (typical after zoom-time ExtractFullJpeg), use it
-        // directly — the RAW path's cached buffer is downsampled to LinearRawPreviewWidth.
-        if (ev == 0.0 && _basePreviewImage != null
-            && (_baseRawImage == null || _basePreviewImage.PixelWidth > _baseRawImage.Width))
-        {
-            if (SelectedPhoto == photo)
-            {
-                PreviewImage = ApplyUserRotation(_basePreviewImage);
-                ExposureSourceLabel = DecorateLabel(_basePreviewLabel);
-            }
-            return;
-        }
-
-        // Otherwise prefer the linear RAW path — that's the only one that reflects
-        // true sensor highlights/shadows under non-zero EV.
-        var raw = _baseRawImage;
-        if (raw != null)
+        // RAW path takes precedence whenever it's available — the JPEG shortcut
+        // at EV=0 was useful when zoom-time JPGs were the only crisp option, but
+        // we now upgrade to full-res RAW at zoom, so the JPG path is JPG-only
+        // fallback when RAW didn't decode (or hasn't yet).
+        var rawDown = _baseRawImage;
+        var rawFull = _fullRawImage;
+        if (rawDown != null)
         {
             try
             {
-                var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ev, ct), ct);
+                // Render the downsampled RAW first for slider responsiveness; if
+                // a full-res buffer is resident (post-zoom), follow up with a
+                // full-res pass. Rapid slider moves cancel the full-res render
+                // before it finishes, so drag stays cheap.
+                var renderedDown = await Task.Run(() => ExposureProcessor.Render(rawDown, ev, ct), ct);
                 if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
-                PreviewImage = ApplyUserRotation(rendered);
+                PreviewImage = ApplyUserRotation(renderedDown);
                 ExposureSourceLabel = "EV (RAW)";
+
+                if (rawFull != null)
+                {
+                    var renderedFull = await Task.Run(() => ExposureProcessor.Render(rawFull, ev, ct), ct);
+                    if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+                        PreviewImage = ApplyUserRotation(renderedFull);
+                }
             }
             catch (OperationCanceledException) { /* superseded by a newer slider value */ }
             return;
@@ -2266,22 +2263,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // Replace the JPEG-based histogram (already shown) with one computed from
             // the linear sensor data — the JPEG histogram understates highlight clip.
             _ = ComputeHistogramAsync(photo, ct);
-            // Re-render the current preview through the linear pipeline so the user
-            // sees the more accurate rendition even at EV=0, and so subsequent slider
-            // moves operate on real sensor data. Skip the swap if a higher-res JPEG
-            // is already on screen at EV=0 — clobbering it would visibly drop detail
-            // for someone pixel-peeping at zoom.
+            // Re-render the current preview through the linear pipeline. RAW
+            // wins unconditionally now — the zoom path upgrades to full-res RAW
+            // via LoadHighResRawAsync if the user is pixel-peeping.
             var rendered = await Task.Run(() => ExposureProcessor.Render(raw, ExposureCompensation, ct), ct);
             if (!ct.IsCancellationRequested && SelectedPhoto == photo)
             {
-                bool keepJpeg = ExposureCompensation == 0.0
-                    && _basePreviewImage != null
-                    && _basePreviewImage.PixelWidth > raw.Width;
-                if (!keepJpeg)
-                {
-                    PreviewImage = ApplyUserRotation(rendered);
-                    ExposureSourceLabel = "EV (RAW)";
-                }
+                PreviewImage = ApplyUserRotation(rendered);
+                ExposureSourceLabel = "EV (RAW)";
             }
         }
         catch (OperationCanceledException) { /* selection moved on */ }
@@ -2736,6 +2725,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _highResPreviewLoaded = true; // guard against duplicate concurrent calls
         var ct = _previewCts?.Token ?? CancellationToken.None;
 
+        // When a linear RAW already exists for this photo, the user wants the
+        // full-resolution RAW render at zoom (not the embedded JPG). The
+        // downsampled RAW stays on screen during the ~1-3 s decode.
+        if (_baseRawImage != null
+            && _libRaw != null
+            && !AppSettings.Current.UseEmbeddedJpegOnly)
+        {
+            await LoadHighResRawAsync(photo, ct);
+            return;
+        }
+
         try
         {
             // Reuse pre-extracted bytes if PreloadFullJpegAsync already finished.
@@ -2751,6 +2751,58 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 if (bs != null) SetBasePreview(bs, "EV (JPG large)");
                 else PreviewImage = null;
             }
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+    }
+
+    // Zoom-time upgrade from the downsampled _baseRawImage (~2400 px wide) to a
+    // full-sensor linear RAW render. The full buffer is held in _fullRawImage
+    // for the lifetime of the selection so re-zooms and EV-slider moves don't
+    // re-pay the LibRaw decode (~1-3 s for cRAW). Falls back to the embedded
+    // full-res JPEG if the on-demand decode fails — better than leaving the
+    // user stuck with the downsampled view.
+    private async Task LoadHighResRawAsync(PhotoItem photo, CancellationToken ct)
+    {
+        try
+        {
+            var full = _fullRawImage;
+            if (full == null)
+            {
+                full = await Task.Run(() => _libRaw!.ExtractLinearRgb(photo.FilePath), ct);
+                if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+                if (full == null)
+                {
+                    // Decode failed — surface the embedded JPG so the user gets
+                    // a crisp zoom anyway.
+                    await LoadHighResJpegAsync(photo, ct);
+                    return;
+                }
+                _fullRawImage = full;
+            }
+
+            var rendered = await Task.Run(() => ExposureProcessor.Render(full, ExposureCompensation, ct), ct);
+            if (!ct.IsCancellationRequested && SelectedPhoto == photo)
+            {
+                PreviewImage = ApplyUserRotation(rendered);
+                ExposureSourceLabel = "EV (RAW)";
+            }
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+    }
+
+    private async Task LoadHighResJpegAsync(PhotoItem photo, CancellationToken ct)
+    {
+        try
+        {
+            var jpeg = photo.FullJpeg ?? await Task.Run(() => ExtractorFor(photo).ExtractFullJpeg(photo.FilePath), ct);
+            if (ct.IsCancellationRequested || jpeg == null || SelectedPhoto != photo) return;
+
+            photo.FullJpeg ??= jpeg;
+
+            var rotation = await Task.Run(() => ResolveJpegRotation(photo, jpeg), ct);
+            var bs = await Task.Run(() => LoadBitmapFromJpeg(jpeg, decodePixelWidth: 0, rotationOverride: rotation), ct);
+            if (!ct.IsCancellationRequested && SelectedPhoto == photo && bs != null)
+                SetBasePreview(bs, "EV (JPG large)");
         }
         catch (OperationCanceledException) { /* selection moved on */ }
     }

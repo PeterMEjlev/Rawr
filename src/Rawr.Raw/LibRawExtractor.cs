@@ -90,12 +90,18 @@ public sealed class LibRawExtractor : IPreviewExtractor
             ret = LibRawInterop.Unpack(handle);
             if (ret != 0) return null;
 
-            // Use camera-recorded WB. cam_mul is populated by Unpack(); copying it to
-            // user_mul stands in for use_camera_wb=1, whose setter isn't always exported.
+            // Use camera-recorded WB. cam_mul is populated by Unpack() for most
+            // cameras, but for some Canon CR2 bodies (5D Mk IV among them) it stays
+            // at 0 until DcrawProcess runs. The previous `if (m > 0) Set...` left
+            // user_mul partially-zeroed in that case, and dcraw_process treated the
+            // zeros as "kill this Bayer channel", producing the blue/purple sensor-
+            // noise rendering. Fall back to neutral 1.0 so every channel has a
+            // multiplier — the result is a coherent (if WB-incorrect) image rather
+            // than a Bayer-channel-zeroed mess.
             for (int i = 0; i < 4; i++)
             {
                 float m = LibRawInterop.GetCamMul(handle, i);
-                if (m > 0) LibRawInterop.SetUserMul(handle, i, m);
+                LibRawInterop.SetUserMul(handle, i, m > 0 ? m : 1.0f);
             }
 
             ret = LibRawInterop.DcrawProcess(handle);

@@ -2328,6 +2328,8 @@
                             <ComboBoxItem Content="1x" Tag="1" />
                             <ComboBoxItem Content="1.5x" Tag="1.5" />
                             <ComboBoxItem Content="2x" Tag="2" />
+                            <ComboBoxItem Content="3x" Tag="3" />
+                            <ComboBoxItem Content="4x" Tag="4" />
                         </ComboBox>
                         <ComboBox x:Name="VideoLogProfileBox"
                                   DockPanel.Dock="Right"

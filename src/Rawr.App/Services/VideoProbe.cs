@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -49,6 +50,11 @@ internal static class VideoProbe
 
             var meta = Parse(json, info.Length);
             if (meta == null) return null;
+
+            // Canon HFR clips re-time their original capture rate (e.g. 119.88 fps)
+            // into a 29.97 fps container. ffprobe only sees the playback rate, so
+            // pull the true capture rate from the Canon UUID atom in moov.
+            meta.CaptureFrameRate = TryReadCanonCaptureFrameRate(filePath, meta.FrameRate);
 
             lock (CacheLock) Cache[cacheKey] = meta;
             return meta;
@@ -291,6 +297,141 @@ internal static class VideoProbe
             else if (digits > 0) break;
         }
         return digits > 0 && value is >= 8 and <= 64 ? value : 0;
+    }
+
+    // Canon UUID atom marker. The makernote-style payload inside the moov.uuid
+    // box stores the original capture frame rate as two adjacent rationals
+    // (playback_num/den, capture_num/den) somewhere inside Canon's binary
+    // makernote sub-record. We don't try to parse the full makernote — instead
+    // we scan the Canon UUID payload for an adjacent rational pair whose
+    // denominator is 1 (PAL) or 1001 (NTSC) and whose numerators yield two
+    // plausible frame rates with capture > playback. That's robust to Canon
+    // firmware shuffling the sub-record around.
+    private static readonly byte[] CanonUuid =
+    {
+        0x85, 0xC0, 0xB6, 0x87, 0x82, 0x0F, 0x11, 0xE0,
+        0x81, 0x11, 0xF4, 0xCE, 0x46, 0x2B, 0x6A, 0x48,
+    };
+
+    private static double TryReadCanonCaptureFrameRate(string filePath, double playbackFps)
+    {
+        try
+        {
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            // Walk top-level boxes looking for moov. We never read the whole file —
+            // each iteration only seeks forward by the box size.
+            long pos = 0;
+            long fileLen = fs.Length;
+            while (pos + 8 <= fileLen)
+            {
+                fs.Position = pos;
+                Span<byte> hdr = stackalloc byte[8];
+                if (fs.Read(hdr) != 8) break;
+                uint size32 = (uint)(hdr[0] << 24 | hdr[1] << 16 | hdr[2] << 8 | hdr[3]);
+                long boxSize = size32;
+                int headerSize = 8;
+                if (size32 == 1)
+                {
+                    Span<byte> ext = stackalloc byte[8];
+                    if (fs.Read(ext) != 8) break;
+                    boxSize = BinaryPrimitives.ReadInt64BigEndian(ext);
+                    headerSize = 16;
+                }
+                else if (size32 == 0)
+                {
+                    boxSize = fileLen - pos;
+                }
+                if (boxSize < headerSize) break;
+
+                if (hdr[4] == (byte)'m' && hdr[5] == (byte)'o' && hdr[6] == (byte)'o' && hdr[7] == (byte)'v')
+                {
+                    return ScanMoovForCanonCaptureFps(fs, pos + headerSize, pos + boxSize, playbackFps);
+                }
+                pos += boxSize;
+            }
+        }
+        catch { }
+        return 0;
+    }
+
+    private static double ScanMoovForCanonCaptureFps(FileStream fs, long payloadStart, long payloadEnd, double playbackFps)
+    {
+        // Walk moov children looking for a uuid box that carries Canon's marker.
+        long pos = payloadStart;
+        while (pos + 8 <= payloadEnd)
+        {
+            fs.Position = pos;
+            Span<byte> hdr = stackalloc byte[8];
+            if (fs.Read(hdr) != 8) break;
+            uint size32 = (uint)(hdr[0] << 24 | hdr[1] << 16 | hdr[2] << 8 | hdr[3]);
+            long boxSize = size32;
+            int headerSize = 8;
+            if (size32 == 1)
+            {
+                Span<byte> ext = stackalloc byte[8];
+                if (fs.Read(ext) != 8) break;
+                boxSize = BinaryPrimitives.ReadInt64BigEndian(ext);
+                headerSize = 16;
+            }
+            else if (size32 == 0)
+            {
+                boxSize = payloadEnd - pos;
+            }
+            if (boxSize < headerSize || pos + boxSize > payloadEnd) break;
+
+            if (hdr[4] == (byte)'u' && hdr[5] == (byte)'u' && hdr[6] == (byte)'i' && hdr[7] == (byte)'d')
+            {
+                Span<byte> uuid = stackalloc byte[16];
+                if (fs.Read(uuid) == 16 && uuid.SequenceEqual(CanonUuid))
+                {
+                    long innerStart = pos + headerSize + 16;
+                    long innerLen = boxSize - headerSize - 16;
+                    return SearchCanonPayloadForRatePair(fs, innerStart, innerLen, playbackFps);
+                }
+            }
+            pos += boxSize;
+        }
+        return 0;
+    }
+
+    private static double SearchCanonPayloadForRatePair(FileStream fs, long start, long length, double playbackFps)
+    {
+        // Cap the scan so we don't read huge payloads. Canon's makernote lives
+        // in the first ~64 KB of the UUID box on R5; bound to 1 MB for safety.
+        const int MaxScanBytes = 1 << 20;
+        int toRead = (int)Math.Min(length, MaxScanBytes);
+        if (toRead < 16) return 0;
+        var buf = new byte[toRead];
+        fs.Position = start;
+        int got = 0;
+        while (got < toRead)
+        {
+            int n = fs.Read(buf, got, toRead - got);
+            if (n <= 0) break;
+            got += n;
+        }
+        if (got < 16) return 0;
+
+        for (int i = 0; i + 16 <= got; i++)
+        {
+            uint num1 = BinaryPrimitives.ReadUInt32LittleEndian(buf.AsSpan(i, 4));
+            uint den1 = BinaryPrimitives.ReadUInt32LittleEndian(buf.AsSpan(i + 4, 4));
+            uint num2 = BinaryPrimitives.ReadUInt32LittleEndian(buf.AsSpan(i + 8, 4));
+            uint den2 = BinaryPrimitives.ReadUInt32LittleEndian(buf.AsSpan(i + 12, 4));
+            if (den1 != den2) continue;
+            if (den1 != 1 && den1 != 1001) continue;
+            if (num2 <= num1) continue;
+
+            double fps1 = (double)num1 / den1;
+            double fps2 = (double)num2 / den1;
+            if (fps1 < 1 || fps1 > 600 || fps2 < 1 || fps2 > 600) continue;
+            // First rational should match the container's playback rate within
+            // a small tolerance — guards against accidental hits on unrelated
+            // pairs that happen to look like rationals.
+            if (playbackFps > 0 && Math.Abs(fps1 - playbackFps) > 0.5) continue;
+            return fps2;
+        }
+        return 0;
     }
 
     private static string? FindFfprobe()

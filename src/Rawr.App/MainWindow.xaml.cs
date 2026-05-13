@@ -185,7 +185,7 @@ public partial class MainWindow : Window
 
     // Speeds offered by the video-controls dropdown — same values shared by the
     // Ctrl+Up / Ctrl+Down shortcuts so keyboard and mouse stay in sync.
-    private static readonly float[] VideoSpeedSteps = { 0.25f, 0.5f, 1.0f, 1.5f, 2.0f };
+    private static readonly float[] VideoSpeedSteps = { 0.25f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f };
 
     public MainWindow()
     {
@@ -1995,7 +1995,7 @@ public partial class MainWindow : Window
         if (item.Tag is not string value) return;
         if (!float.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var rate)) return;
 
-        _videoPlaybackRate = Math.Clamp(rate, 0.25f, 2.0f);
+        _videoPlaybackRate = Math.Clamp(rate, 0.25f, 4.0f);
         ApplyVideoPlaybackRate();
     }
 
