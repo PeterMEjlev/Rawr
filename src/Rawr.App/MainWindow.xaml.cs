@@ -143,7 +143,7 @@ public partial class MainWindow : Window
     private bool _videoSliderIsDragging;
     private bool _videoSuppressSliderEvent;
     private TimeSpan _videoDuration;
-    private uint _videoRotation; // 0/90/180/270 — reset on each new video
+    private uint _videoRotation; // 0/90/180/270 — mirrors SelectedPhoto.UserRotationDegrees so it survives nav-away-and-back
     private bool _videoIsMuted;
     private float _videoPlaybackRate = 1.0f;
     private Uri? _pendingVideoSource;
@@ -1595,9 +1595,11 @@ public partial class MainWindow : Window
         CancelVideoProxyPreparation();
         _videoTick.Stop();
         _videoSliderIsDragging = false;
-        _videoRotation = 0;
 
         var vm = DataContext as MainViewModel;
+        // Restore any rotation the user previously dialled in for this video so
+        // navigating away and back doesn't snap it back to landscape.
+        _videoRotation = NormalizeRotation(vm?.SelectedPhoto?.UserRotationDegrees ?? 0);
         if (vm != null) vm.IsPreparingVideoProxy = false;
         if (vm?.VideoSourceUri == null)
         {
@@ -2011,7 +2013,14 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel vm || vm.VideoSourceUri == null) return;
         _videoRotation = (_videoRotation + 90) % 360;
+        if (vm.SelectedPhoto != null) vm.SelectedPhoto.UserRotationDegrees = _videoRotation;
         ApplyVideoRotation();
+    }
+
+    private static uint NormalizeRotation(double deg)
+    {
+        var r = ((int)Math.Round(deg) % 360 + 360) % 360;
+        return (uint)(r - r % 90);
     }
 
     private void ApplyVideoRotation()
