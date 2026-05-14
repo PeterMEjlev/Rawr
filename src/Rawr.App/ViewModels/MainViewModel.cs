@@ -176,6 +176,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // instead of playing the high-bitrate source (which decodes in software for
     // HEVC 4:2:2 / Level 6.2 and stutters badly).
     [ObservableProperty] private bool _isPreparingVideoProxy;
+    // Fraction in [0, 1] when ffmpeg reports out_time and we know the source
+    // duration; -1 while the encode is starting (no progress yet) so the UI can
+    // show an indeterminate state instead of a stale percentage.
+    [ObservableProperty] private double _videoProxyProgress = -1;
+    [ObservableProperty] private string _videoProxyProgressText = "Preparing smooth preview…";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedPhotoCaptureDateFormatted))]
     private PhotoItem? _selectedPhoto;
@@ -3563,10 +3568,36 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyBulkRatingEdit(SelectedPhotosSnapshot(), newRating);
     }
 
-    private List<PhotoItem> SelectedPhotosSnapshot() =>
-        SelectedPhotos.Count == 0 && SelectedPhoto != null
+    private List<PhotoItem> SelectedPhotosSnapshot()
+    {
+        List<PhotoItem> source = SelectedPhotos.Count == 0 && SelectedPhoto != null
             ? [SelectedPhoto]
             : SelectedPhotos.ToList();
+        return ExpandCollapsedBurstRepresentatives(source);
+    }
+
+    private List<PhotoItem> ExpandCollapsedBurstRepresentatives(IEnumerable<PhotoItem> photos)
+    {
+        var result = new List<PhotoItem>();
+        var seen = new HashSet<PhotoItem>();
+
+        void Add(PhotoItem photo)
+        {
+            if (seen.Add(photo))
+                result.Add(photo);
+        }
+
+        foreach (var photo in photos)
+        {
+            Add(photo);
+            if (photo.CollapsedBurstCount <= 0 || photo.GroupId <= 0) continue;
+
+            foreach (var member in GetBurstMembers(photo.GroupId))
+                Add(member);
+        }
+
+        return result;
+    }
 
     private void ApplyBulkRatingEdit(IList<PhotoItem> photos, int newRating)
     {
@@ -3924,12 +3955,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             StatusText = "Tag editing is disabled in recursive view. Toggle ‘Include subfolders’ off to edit tags.";
             return;
         }
-        // Anchor's prior assignment decides direction; the same op is applied to
-        // every selected photo, even those that already match the target state
-        // (those become no-ops in ApplyTagEdit). Single compound undo entry.
-        var assignToAll = !SelectedPhoto.TagIds.Contains(tag.Id);
-
         var photos = SelectedPhotosSnapshot();
+        var hasCollapsedBurstRepresentative =
+            SelectedPhoto.CollapsedBurstCount > 0 || SelectedPhotos.Any(p => p.CollapsedBurstCount > 0);
+
+        // Normal multi-select keeps the existing anchor-driven toggle semantics.
+        // Collapsed bursts are different: the representative stands for hidden
+        // frames too, so a partial tag state fills missing burst members and only
+        // toggles off once every target already has the tag.
+        var assignToAll = hasCollapsedBurstRepresentative
+            ? photos.Any(p => !p.TagIds.Contains(tag.Id))
+            : !SelectedPhoto.TagIds.Contains(tag.Id);
+
         var changedPhotos = photos
             .Where(p => p.TagIds.Contains(tag.Id) != assignToAll)
             .ToList();
@@ -5258,7 +5295,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var idx = FilteredPhotos.IndexOf(previousSelection);
             if (idx >= 0)
             {
-                SelectedIndex = idx;
+                RestoreSelectionAt(idx);
                 return;
             }
             // Hidden because we just collapsed a burst the user was inside —
@@ -5269,7 +5306,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 {
                     if (FilteredPhotos[i].GroupId == previousSelection.GroupId)
                     {
-                        SelectedIndex = i;
+                        RestoreSelectionAt(i);
                         return;
                     }
                 }
@@ -5278,7 +5315,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (FilteredPhotos.Count > 0)
         {
-            SelectedIndex = 0;
+            RestoreSelectionAt(0);
         }
         else
         {
@@ -5293,6 +5330,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             FocusPeakingOverlay = null;
             HistogramData = null;
         }
+    }
+
+    private void RestoreSelectionAt(int index)
+    {
+        if (index < 0 || index >= FilteredPhotos.Count) return;
+
+        var restored = FilteredPhotos[index];
+        if (SelectedIndex == index)
+            OnSelectedIndexChanged(index);
+        else
+            SelectedIndex = index;
+
+        // ApplyFilter intentionally clears the multi-selection before rebuilding
+        // the view. If the restored index/photo is identical to the previous
+        // selection, the generated property setter is a no-op, so rebuild the
+        // selected set explicitly. This also lets collapsed burst representatives
+        // stand in for every frame even when a tag/rating filter only matched one.
+        ReconcileSingleSelection(restored);
     }
 
     private void UpdateFilterDescription()

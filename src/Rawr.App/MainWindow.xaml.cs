@@ -1685,6 +1685,8 @@ public partial class MainWindow : Window
             // be choppy because the GPU decoder falls back to software. Keep the
             // still preview JPEG visible and show the "Preparing…" overlay while
             // ffmpeg builds the downscaled proxy.
+            vm.VideoProxyProgress = -1;
+            vm.VideoProxyProgressText = "Preparing smooth preview…";
             vm.IsPreparingVideoProxy = true;
             SetVideoSurfaceVisible(false);
             _pendingVideoSource = null;
@@ -1721,9 +1723,18 @@ public partial class MainWindow : Window
         if (photo == null) return;
         var ct = cts.Token;
 
+        var progress = new Progress<VideoProxyProgress>(p =>
+        {
+            // Progress<T> already marshals to the captured SynchronizationContext
+            // (the UI dispatcher here), so we don't need an extra BeginInvoke.
+            if (DataContext is not MainViewModel vm || vm.VideoSourceUri != ownerSource) return;
+            vm.VideoProxyProgress = p.HasFraction ? p.Fraction : -1;
+            vm.VideoProxyProgressText = p.Text;
+        });
+
         try
         {
-            var proxyPath = await VideoProxyCache.GetOrCreateAsync(photo, progress: null, ct).ConfigureAwait(false);
+            var proxyPath = await VideoProxyCache.GetOrCreateAsync(photo, progress, ct).ConfigureAwait(false);
             if (ct.IsCancellationRequested) return;
             if (string.IsNullOrWhiteSpace(proxyPath))
             {

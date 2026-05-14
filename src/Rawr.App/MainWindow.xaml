@@ -2113,7 +2113,29 @@
                         VerticalAlignment="Center"
                         IsHitTestVisible="False"
                         Visibility="{Binding IsPreparingVideoProxy, Converter={StaticResource NullToVisibility}}">
-                    <TextBlock Text="Preparing smooth preview…" Foreground="{StaticResource TextBrush}" />
+                    <StackPanel MinWidth="260">
+                        <TextBlock Text="{Binding VideoProxyProgressText}"
+                                   Foreground="{StaticResource TextBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,6" />
+                        <ProgressBar Height="6"
+                                     Minimum="0"
+                                     Maximum="1"
+                                     Value="{Binding VideoProxyProgress, Mode=OneWay}">
+                            <ProgressBar.Style>
+                                <Style TargetType="ProgressBar">
+                                    <Setter Property="IsIndeterminate" Value="False" />
+                                    <Style.Triggers>
+                                        <!-- VideoProxyProgress is -1 until ffmpeg
+                                             emits its first out_time_us frame. -->
+                                        <DataTrigger Binding="{Binding VideoProxyProgress}" Value="-1">
+                                            <Setter Property="IsIndeterminate" Value="True" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ProgressBar.Style>
+                        </ProgressBar>
+                    </StackPanel>
                 </Border>
 
                 <!-- Star rating + tag overlays (top-right of preview) -->

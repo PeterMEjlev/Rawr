@@ -4,6 +4,12 @@
 
 - ## If EV(RAW) has been loaded keep that when zooming in, instead of going to JPG(Large) 
 
+- ## Filter by camera
+
+- ## Change "Filters" title to "Quick Filters" in order to differentiate it from the Filters button (which is the advanced filters)
+
+- ## BUG: Clicking on the "Filter" button when the filter menu is already open, closes it like it should. however if the user clicks anywhere in the app where the filter menu was before, then it pops up again, suggesting it hasnt been properly closed.
+
 ## OPUS:
 - ## Allow user to manually add location metadata to selected photos (using the map function)
 
@@ -15,9 +21,6 @@
 
 - ## The histogram for a burst group and when going into the burst group are different?
 
-- ## video metadata should include fps (see laptop txt file for prompt)
 
 - ## Phase 2 of recursive folder view: tag editing across subfolders (translate synthetic display IDs to per-subfolder DB IDs), restore HDR/Panorama auto-tag DB sync per subfolder, recursive Cache-All, ExecuteMacro tag part, XMP keyword auto-create
-
-- ## Top folders not correctly identifying amount of photos
 

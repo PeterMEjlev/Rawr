@@ -90,19 +90,40 @@ public sealed class LibRawExtractor : IPreviewExtractor
             ret = LibRawInterop.Unpack(handle);
             if (ret != 0) return null;
 
-            // Use camera-recorded WB. cam_mul is populated by Unpack() for most
-            // cameras, but for some Canon CR2 bodies (5D Mk IV among them) it stays
-            // at 0 until DcrawProcess runs. The previous `if (m > 0) Set...` left
-            // user_mul partially-zeroed in that case, and dcraw_process treated the
-            // zeros as "kill this Bayer channel", producing the blue/purple sensor-
-            // noise rendering. Fall back to neutral 1.0 so every channel has a
-            // multiplier — the result is a coherent (if WB-incorrect) image rather
-            // than a Bayer-channel-zeroed mess.
-            for (int i = 0; i < 4; i++)
+            // Apply camera WB. The accessor `libraw_set_use_camera_wb` isn't
+            // exported on the LibRaw 0.22.1 build we ship, so we have to plumb
+            // the multipliers through user_mul. Two failure modes to guard:
+            //   1. cam_mul not yet populated after Unpack for some Canon CR2s —
+            //      it goes (X, 0, 0, 0) and dcraw_process then zeroes G+B during
+            //      demosaic, producing the pure-red bug observed on portrait
+            //      0Q9A9997.CR2 / 0Q9A0132.CR2. Re-check pre_mul (populated by
+            //      identify() during open_file, more reliable but Canon usually
+            //      leaves G2=0 — G1 is a fine substitute for the second green).
+            //   2. Neither source available — fall back to neutral (1,1,1,1).
+            //      Image will be colour-cast but balanced, which beats a
+            //      Bayer-channel-zeroed sensor-noise render.
+            float wbR  = LibRawInterop.GetCamMul(handle, 0);
+            float wbG1 = LibRawInterop.GetCamMul(handle, 1);
+            float wbB  = LibRawInterop.GetCamMul(handle, 2);
+            float wbG2 = LibRawInterop.GetCamMul(handle, 3);
+            bool camMulOk = wbR > 0 && wbG1 > 0 && wbB > 0 && wbG2 > 0;
+            if (!camMulOk)
             {
-                float m = LibRawInterop.GetCamMul(handle, i);
-                LibRawInterop.SetUserMul(handle, i, m > 0 ? m : 1.0f);
+                float pR  = LibRawInterop.GetPreMul(handle, 0);
+                float pG1 = LibRawInterop.GetPreMul(handle, 1);
+                float pB  = LibRawInterop.GetPreMul(handle, 2);
+                float pG2 = LibRawInterop.GetPreMul(handle, 3);
+                if (pG2 <= 0) pG2 = pG1;
+                if (pR > 0 && pG1 > 0 && pB > 0)
+                {
+                    wbR = pR; wbG1 = pG1; wbB = pB; wbG2 = pG2;
+                    camMulOk = true;
+                }
             }
+            LibRawInterop.SetUserMul(handle, 0, camMulOk ? wbR  : 1.0f);
+            LibRawInterop.SetUserMul(handle, 1, camMulOk ? wbG1 : 1.0f);
+            LibRawInterop.SetUserMul(handle, 2, camMulOk ? wbB  : 1.0f);
+            LibRawInterop.SetUserMul(handle, 3, camMulOk ? wbG2 : 1.0f);
 
             ret = LibRawInterop.DcrawProcess(handle);
             if (ret != 0) return null;

@@ -149,6 +149,16 @@ internal static partial class LibRawInterop
     internal static partial float GetCamMul(nint handle, int index);
 
     /// <summary>
+    /// Read a single channel of the camera pre-multipliers (0=R, 1=G, 2=B, 3=G2).
+    /// Populated earlier than cam_mul (typically by identify() during open_file),
+    /// so it's a useful fallback when cam_mul is incomplete after Unpack. Values
+    /// are in float form (e.g. ~2.0 for R on daylight), not the cam_mul int scale.
+    /// G2 (index 3) is commonly 0 on Canon — substitute G1 there.
+    /// </summary>
+    [LibraryImport(LibName, EntryPoint = "libraw_get_pre_mul")]
+    internal static partial float GetPreMul(nint handle, int index);
+
+    /// <summary>
     /// Set a user white balance multiplier. Setting these to the cam_mul values is
     /// equivalent to use_camera_wb=1 for builds where that setter isn't exported.
     /// </summary>

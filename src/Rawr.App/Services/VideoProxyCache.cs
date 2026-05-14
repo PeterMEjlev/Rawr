@@ -5,6 +5,16 @@ using Rawr.Core.Models;
 
 namespace Rawr.App.Services;
 
+/// <summary>
+/// Snapshot of proxy-generation progress. <see cref="Fraction"/> is in [0, 1]
+/// when the source duration is known, or NaN for indeterminate progress.
+/// </summary>
+internal readonly record struct VideoProxyProgress(double Fraction, string Text)
+{
+    public bool HasFraction => !double.IsNaN(Fraction);
+    public static VideoProxyProgress Indeterminate(string text) => new(double.NaN, text);
+}
+
 internal static class VideoProxyCache
 {
     private const int ProxyVersion = 4;
@@ -51,7 +61,10 @@ internal static class VideoProxyCache
         return IsFresh(photo.FilePath, proxyPath, GetManifestPath(photo.FilePath));
     }
 
-    public static async Task<string?> GetOrCreateAsync(PhotoItem photo, IProgress<string>? progress, CancellationToken ct)
+    public static async Task<string?> GetOrCreateAsync(
+        PhotoItem photo,
+        IProgress<VideoProxyProgress>? progress,
+        CancellationToken ct)
     {
         var ffmpeg = FindFfmpeg();
         if (ffmpeg == null) return null;
@@ -62,7 +75,14 @@ internal static class VideoProxyCache
         if (IsFresh(sourcePath, proxyPath, manifestPath))
             return proxyPath;
 
-        progress?.Report("Preparing smooth preview...");
+        progress?.Report(VideoProxyProgress.Indeterminate("Preparing smooth preview…"));
+
+        // The VM populates VideoInfo via a fire-and-forget probe — frequently
+        // not ready yet when a heavy clip is selected from a cold state. We
+        // treat its duration as a hint only; the authoritative value comes
+        // from ffmpeg's own "Duration:" header parsed off stderr below, which
+        // works even when ffprobe couldn't read the container.
+        var durationHintSeconds = photo.VideoInfo?.DurationSeconds ?? 0;
 
         var cacheDir = Path.GetDirectoryName(proxyPath);
         if (string.IsNullOrWhiteSpace(cacheDir)) return null;
@@ -78,7 +98,7 @@ internal static class VideoProxyCache
                 if (IsFresh(sourcePath, proxyPath, manifestPath))
                     return proxyPath;
 
-                await RunFfmpegAsync(ffmpeg, sourcePath, tempPath, ct).ConfigureAwait(false);
+                await RunFfmpegAsync(ffmpeg, sourcePath, tempPath, durationHintSeconds, progress, ct).ConfigureAwait(false);
 
                 var tempInfo = new FileInfo(tempPath);
                 if (!tempInfo.Exists || tempInfo.Length == 0)
@@ -104,14 +124,20 @@ internal static class VideoProxyCache
         }
     }
 
-    private static async Task RunFfmpegAsync(string ffmpegPath, string sourcePath, string outputPath, CancellationToken ct)
+    private static async Task RunFfmpegAsync(
+        string ffmpegPath,
+        string sourcePath,
+        string outputPath,
+        double durationSeconds,
+        IProgress<VideoProxyProgress>? progress,
+        CancellationToken ct)
     {
         var failures = new List<string>();
         foreach (var encoder in GetEncoderPlans())
         {
             try
             {
-                await RunFfmpegAsync(ffmpegPath, sourcePath, outputPath, encoder, ct).ConfigureAwait(false);
+                await RunFfmpegAsync(ffmpegPath, sourcePath, outputPath, encoder, durationSeconds, progress, ct).ConfigureAwait(false);
                 return;
             }
             catch (OperationCanceledException)
@@ -133,6 +159,8 @@ internal static class VideoProxyCache
         string sourcePath,
         string outputPath,
         EncoderPlan encoder,
+        double durationHintSeconds,
+        IProgress<VideoProxyProgress>? progress,
         CancellationToken ct)
     {
         var psi = new ProcessStartInfo(ffmpegPath)
@@ -148,7 +176,11 @@ internal static class VideoProxyCache
             "-hide_banner",
             "-y",
             "-nostdin",
-            "-v", "warning",
+            // -v info is required for the "Duration:" header that we parse off
+            // stderr to drive the progress bar. ffmpeg also prints periodic
+            // "time=HH:MM:SS.ff ..." stats lines at this level, which give us
+            // the encoded position without needing a separate -progress channel.
+            "-v", "info",
             "-threads", "0",
             // -skip_frame bidir drops every B-frame at decode (huge win for 4K
             // HEVC 4:2:2 where NVDEC can't help and software decode dominates).
@@ -173,7 +205,7 @@ internal static class VideoProxyCache
         AddArgs(psi, "-movflags", "+faststart", outputPath);
 
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start ffmpeg.");
-        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        var stderrTask = ConsumeStderrAsync(process.StandardError, durationHintSeconds, progress, ct);
         var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
 
         try
@@ -190,6 +222,102 @@ internal static class VideoProxyCache
         var stdout = await stdoutTask.ConfigureAwait(false);
         if (process.ExitCode != 0)
             throw new InvalidOperationException($"ffmpeg exited with {process.ExitCode}: {stderr}{stdout}");
+    }
+
+    private static async Task<string> ConsumeStderrAsync(
+        StreamReader stderr,
+        double durationHintSeconds,
+        IProgress<VideoProxyProgress>? progress,
+        CancellationToken ct)
+    {
+        // ffmpeg at -v info prints two things we care about, both to stderr:
+        //   • Once, near startup:   "  Duration: 00:00:30.50, start: 0.000000, ..."
+        //   • Repeatedly, during encode: "frame=N fps=N q=... time=HH:MM:SS.ff bitrate=... speed=Nx"
+        // The stats line is terminated by '\r' (so it overwrites itself in a TTY);
+        // StreamReader.ReadLineAsync treats \r as a line terminator, so each stats
+        // tick comes through as its own line. Everything is also buffered for
+        // error diagnostics in the non-zero-exit path.
+        var buffer = new System.Text.StringBuilder();
+        var durationSeconds = durationHintSeconds;
+        var lastReportedPercent = -1;
+        string? line;
+        while ((line = await stderr.ReadLineAsync(ct).ConfigureAwait(false)) != null)
+        {
+            buffer.AppendLine(line);
+            if (progress == null) continue;
+
+            if (durationSeconds <= 0)
+            {
+                var d = TryParseDurationHeader(line);
+                if (d > 0) durationSeconds = d;
+            }
+
+            if (durationSeconds <= 0) continue;
+
+            var t = TryParseTimeStat(line);
+            if (t <= 0) continue;
+
+            var fraction = Math.Clamp(t / durationSeconds, 0.0, 1.0);
+            var percent = (int)Math.Round(fraction * 100);
+            if (percent == lastReportedPercent) continue;
+            lastReportedPercent = percent;
+            progress.Report(new VideoProxyProgress(fraction, $"Preparing smooth preview… {percent}%"));
+        }
+        return buffer.ToString();
+    }
+
+    private static double TryParseDurationHeader(string line)
+    {
+        // Looking for the literal "  Duration: " prefix that ffmpeg emits once
+        // per input. Tolerate other text on the line (e.g. ", start: ..., bitrate: ...")
+        // by parsing only the timestamp that follows the marker.
+        const string marker = "Duration:";
+        var idx = line.IndexOf(marker, StringComparison.Ordinal);
+        if (idx < 0) return 0;
+        return ParseHmsTimestamp(line.AsSpan(idx + marker.Length).TrimStart());
+    }
+
+    private static double TryParseTimeStat(string line)
+    {
+        // Stats lines contain "time=HH:MM:SS.ff" surrounded by other key=value
+        // pairs. We don't anchor to start-of-line because the prefix is
+        // whitespace-padded (e.g. "frame=  120 ..."). "N/A" before the first
+        // frame is rejected by the digit check in ParseHmsTimestamp.
+        const string marker = "time=";
+        var idx = line.IndexOf(marker, StringComparison.Ordinal);
+        if (idx < 0) return 0;
+        return ParseHmsTimestamp(line.AsSpan(idx + marker.Length));
+    }
+
+    private static double ParseHmsTimestamp(ReadOnlySpan<char> span)
+    {
+        // Reads a leading "HH:MM:SS.ff" timestamp, stopping at the first
+        // non-numeric / non-':' / non-'.' character. Returns 0 if the prefix
+        // isn't a valid timestamp (covers ffmpeg's "N/A" placeholder).
+        int end = 0;
+        while (end < span.Length)
+        {
+            var c = span[end];
+            if ((c >= '0' && c <= '9') || c == ':' || c == '.') { end++; continue; }
+            break;
+        }
+        if (end < 7) return 0; // "0:00:00" is the shortest valid form
+
+        var token = span[..end];
+        int first = token.IndexOf(':');
+        if (first <= 0) return 0;
+        int second = token[(first + 1)..].IndexOf(':');
+        if (second <= 0) return 0;
+        second += first + 1;
+
+        if (!int.TryParse(token[..first], System.Globalization.NumberStyles.Integer,
+                          System.Globalization.CultureInfo.InvariantCulture, out var h)) return 0;
+        if (!int.TryParse(token[(first + 1)..second], System.Globalization.NumberStyles.Integer,
+                          System.Globalization.CultureInfo.InvariantCulture, out var m)) return 0;
+        if (!double.TryParse(token[(second + 1)..], System.Globalization.NumberStyles.Float,
+                             System.Globalization.CultureInfo.InvariantCulture, out var s)) return 0;
+        if (h < 0 || m < 0 || s < 0) return 0;
+        return h * 3600.0 + m * 60.0 + s;
     }
 
     private static EncoderPlan[] GetEncoderPlans()

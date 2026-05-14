@@ -74,7 +74,11 @@ public sealed class PreviewCache
     //   [24..31] source last-write-time UTC ticks (int64)
     //   [32..]   pixels: ushort[width*height*3], little-endian, RGB-interleaved
     private const uint LinearRawMagic = 0x4C574152u; // 'R','A','W','L' little-endian
-    private const int LinearRawVersion = 1;
+    // v2: bumped after the WB fix in LibRawExtractor. v1 caches written by the
+    // pre-fix decode contain pure-R-with-zero-G/B pixels (the partial-WB bug),
+    // so we invalidate them en masse rather than rely on users manually deleting
+    // *_linearraw.bin files.
+    private const int LinearRawVersion = 2;
     private const int LinearRawHeaderBytes = 32;
 
     /// <summary>

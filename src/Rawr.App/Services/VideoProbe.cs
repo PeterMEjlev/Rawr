@@ -322,17 +322,17 @@ internal static class VideoProbe
             // each iteration only seeks forward by the box size.
             long pos = 0;
             long fileLen = fs.Length;
+            Span<byte> hdr = stackalloc byte[8];
+            Span<byte> ext = stackalloc byte[8];
             while (pos + 8 <= fileLen)
             {
                 fs.Position = pos;
-                Span<byte> hdr = stackalloc byte[8];
                 if (fs.Read(hdr) != 8) break;
                 uint size32 = (uint)(hdr[0] << 24 | hdr[1] << 16 | hdr[2] << 8 | hdr[3]);
                 long boxSize = size32;
                 int headerSize = 8;
                 if (size32 == 1)
                 {
-                    Span<byte> ext = stackalloc byte[8];
                     if (fs.Read(ext) != 8) break;
                     boxSize = BinaryPrimitives.ReadInt64BigEndian(ext);
                     headerSize = 16;
@@ -358,17 +358,18 @@ internal static class VideoProbe
     {
         // Walk moov children looking for a uuid box that carries Canon's marker.
         long pos = payloadStart;
+        Span<byte> hdr = stackalloc byte[8];
+        Span<byte> ext = stackalloc byte[8];
+        Span<byte> uuid = stackalloc byte[16];
         while (pos + 8 <= payloadEnd)
         {
             fs.Position = pos;
-            Span<byte> hdr = stackalloc byte[8];
             if (fs.Read(hdr) != 8) break;
             uint size32 = (uint)(hdr[0] << 24 | hdr[1] << 16 | hdr[2] << 8 | hdr[3]);
             long boxSize = size32;
             int headerSize = 8;
             if (size32 == 1)
             {
-                Span<byte> ext = stackalloc byte[8];
                 if (fs.Read(ext) != 8) break;
                 boxSize = BinaryPrimitives.ReadInt64BigEndian(ext);
                 headerSize = 16;
@@ -381,7 +382,6 @@ internal static class VideoProbe
 
             if (hdr[4] == (byte)'u' && hdr[5] == (byte)'u' && hdr[6] == (byte)'i' && hdr[7] == (byte)'d')
             {
-                Span<byte> uuid = stackalloc byte[16];
                 if (fs.Read(uuid) == 16 && uuid.SequenceEqual(CanonUuid))
                 {
                     long innerStart = pos + headerSize + 16;
