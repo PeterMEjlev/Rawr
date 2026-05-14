@@ -91,6 +91,14 @@ public sealed class AppSettings
     // still thumbnail stays visible until the user presses Space or clicks play.
     public bool AutoPlayVideo { get; set; } = true;
 
+    // Last folder used as the destination of a card import. Empty until the
+    // user runs the importer at least once. Used to pre-fill the import dialog.
+    public string LastImportDestination { get; set; } = "";
+
+    // Auto-open the import dialog when a camera card is plugged in. Off lets
+    // the user trigger import manually via the toolbar button.
+    public bool AutoImportOnCardInsert { get; set; } = true;
+
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
     public Dictionary<string, string> KeyBindings { get; set; } = new();
@@ -166,6 +174,8 @@ public sealed class AppSettings
         UseEmbeddedJpegOnly = UseEmbeddedJpegOnly,
         VideoSeekStepSeconds = VideoSeekStepSeconds,
         AutoPlayVideo = AutoPlayVideo,
+        LastImportDestination = LastImportDestination,
+        AutoImportOnCardInsert = AutoImportOnCardInsert,
         KeyBindings = new Dictionary<string, string>(KeyBindings),
         LogProfileOverrides = LogProfileOverrides.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         Macros = Macros.Select(m => new KeyboardMacro

@@ -139,6 +139,11 @@ public partial class MainWindow : Window
     private SecondMonitorWindow? _secondMonitor;
     private LayoutSettings? _loadedLayout;
 
+    // Watches for camera card (SD / CF) insertions. WM_DEVICECHANGE messages are
+    // forwarded from the window's HwndSource hook (see OnSourceInitialized).
+    private MediaCardWatcher? _cardWatcher;
+    private bool _importDialogOpen;
+
     private bool _videoIsPlaying;
     private bool _videoSliderIsDragging;
     private bool _videoSuppressSliderEvent;
@@ -498,6 +503,9 @@ public partial class MainWindow : Window
         base.OnSourceInitialized(e);
         var hwnd = new WindowInteropHelper(this).Handle;
         HwndSource.FromHwnd(hwnd)?.AddHook(FullscreenWndProc);
+
+        _cardWatcher = new MediaCardWatcher();
+        _cardWatcher.CardInserted += OnCardInserted;
     }
 
     // While in photo-fullscreen, override the maximized bounds Windows asks us for
@@ -506,6 +514,11 @@ public partial class MainWindow : Window
     // OS uses normal workarea bounds.
     private IntPtr FullscreenWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == MediaCardWatcher.WM_DEVICECHANGE)
+        {
+            _cardWatcher?.HandleDeviceChangeMessage(wParam, lParam);
+            return IntPtr.Zero;
+        }
         if (msg != WM_GETMINMAXINFO || !_isPhotoFullscreen) return IntPtr.Zero;
 
         if (!TryGetNearestMonitorInfo(hwnd, out var info)) return IntPtr.Zero;
@@ -1455,6 +1468,81 @@ public partial class MainWindow : Window
 
         _lastClickedPhoto = photo;
         _lastClickTime = now;
+    }
+
+    // ── SD / CF card import ──
+
+    private async void OnImportFromCard(object sender, RoutedEventArgs e)
+    {
+        var cards = MediaCardWatcher.ScanNow();
+        if (cards.Count == 0)
+        {
+            MessageBox.Show(this,
+                "No camera card detected. Insert an SD or CF card that contains a DCIM folder and try again.",
+                "Import from card", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var card = cards[0];
+        if (cards.Count > 1)
+        {
+            // Prefer one whose drive letter the user might recognize; a fancy
+            // picker can come later. For now, take the first.
+        }
+
+        await ShowImportDialogAsync(card);
+    }
+
+    private void OnCardInserted(object? sender, MediaCardWatcher.MediaCard card)
+    {
+        // Marshal to UI thread; HandleDeviceChangeMessage's retry runs on Task.Run.
+        Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            if (!AppSettings.Current.AutoImportOnCardInsert) return;
+            if (_importDialogOpen) return;
+            await ShowImportDialogAsync(card);
+        }));
+    }
+
+    private async Task ShowImportDialogAsync(MediaCardWatcher.MediaCard card)
+    {
+        if (_importDialogOpen) return;
+        _importDialogOpen = true;
+        try
+        {
+            var defaultDest = AppSettings.Current.LastImportDestination ?? "";
+            var dlg = new ImportDialog(card, defaultDest) { Owner = this };
+            var ok = dlg.ShowDialog() == true;
+
+            if (!ok || dlg.Result is null) return;
+
+            AppSettings.Current.LastImportDestination = dlg.Destination;
+            AppSettings.Current.Save();
+
+            var r = dlg.Result;
+            var summary = $"Imported {r.Copied} file(s)" +
+                          (r.Skipped > 0 ? $", skipped {r.Skipped} duplicate(s)" : "") +
+                          (r.Failed > 0 ? $", {r.Failed} failed" : "") + ".";
+
+            if (dlg.EjectAfter && !string.IsNullOrEmpty(dlg.SourceDriveLetter))
+            {
+                var ejected = MediaCardWatcher.TryEject(dlg.SourceDriveLetter!);
+                summary += ejected
+                    ? "\n\nCard ejected — safe to remove."
+                    : "\n\nCould not eject the card automatically.";
+            }
+
+            MessageBox.Show(this, summary, "Import complete", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            if (r.Copied > 0 && DataContext is MainViewModel vm)
+            {
+                await vm.OpenRootFolderAsync(dlg.Destination);
+            }
+        }
+        finally
+        {
+            _importDialogOpen = false;
+        }
     }
 
     private void OnOpenMap(object sender, RoutedEventArgs e)
