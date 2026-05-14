@@ -1511,7 +1511,10 @@ public partial class MainWindow : Window
         try
         {
             var defaultDest = AppSettings.Current.LastImportDestination ?? "";
-            var dlg = new ImportDialog(card, defaultDest) { Owner = this };
+            string? treeRoot = null;
+            if (DataContext is MainViewModel vmRoot && vmRoot.FolderTreeRoots.Count > 0)
+                treeRoot = vmRoot.FolderTreeRoots[0].FullPath;
+            var dlg = new ImportDialog(card, defaultDest, treeRoot) { Owner = this };
             var ok = dlg.ShowDialog() == true;
 
             if (!ok || dlg.Result is null) return;

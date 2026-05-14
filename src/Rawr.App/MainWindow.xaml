@@ -1480,7 +1480,7 @@
                                   ToolTip="When on, the photo list shows every supported file in this folder and all its subfolders. Sticky global preference." />
 
                         <!-- ── FILTERS section ── -->
-                        <TextBlock Text="FILTERS" Style="{StaticResource SidebarSectionHeader}" />
+                        <TextBlock Text="QUICK FILTERS" Style="{StaticResource SidebarSectionHeader}" />
 
                         <!-- Rated subsection -->
                         <ToggleButton x:Name="RatedToggle" Content="Rated" Style="{StaticResource SidebarSubsectionToggle}" />

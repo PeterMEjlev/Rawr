@@ -3,9 +3,11 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using Rawr.App.Services;
+using Rawr.Core.Models;
 using Rawr.Core.Services;
 using Rawr.Raw;
 
@@ -126,7 +128,7 @@ public partial class ImportDialog : Window
         catch { return new ShellThumbnailExtractor(); }
     }
 
-    public ImportDialog(MediaCardWatcher.MediaCard card, string defaultDestination)
+    public ImportDialog(MediaCardWatcher.MediaCard card, string defaultDestination, string? treeRootFolder = null)
     {
         InitializeComponent();
         WindowHelper.ApplyDarkTitleBar(this);
@@ -142,6 +144,8 @@ public partial class ImportDialog : Window
         _suppressSelectAllSync = true;
         SelectAllCheck.IsChecked = true;
         _suppressSelectAllSync = false;
+
+        BuildDestinationTree(treeRootFolder);
 
         Loaded += async (_, _) => await PopulateAsync();
         Closing += (_, e) =>
@@ -324,6 +328,123 @@ public partial class ImportDialog : Window
         };
         if (dlg.ShowDialog(this) == true && !string.IsNullOrEmpty(dlg.FolderName))
             DestinationBox.Text = dlg.FolderName;
+    }
+
+    // ── Destination folder tree ──
+
+    private bool _suppressTreeSync;
+
+    private void BuildDestinationTree(string? rootFolder)
+    {
+        DestinationTree.Items.Clear();
+        if (string.IsNullOrEmpty(rootFolder) || !Directory.Exists(rootFolder))
+        {
+            EmptyTreeHint.Visibility = Visibility.Visible;
+            DestinationTree.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var name = Path.GetFileName(rootFolder.TrimEnd(Path.DirectorySeparatorChar));
+        if (string.IsNullOrEmpty(name)) name = rootFolder;
+        var root = new FolderNode(name, rootFolder) { IsExpanded = true };
+        DestinationTree.Items.Add(root);
+
+        // Initial selection: if the existing destination is the tree root or a descendant,
+        // highlight it. Otherwise leave nothing selected so a free-typed path doesn't get
+        // overwritten by the tree.
+        TrySelectMatchingNode(root, DestinationBox.Text);
+    }
+
+    private bool TrySelectMatchingNode(FolderNode node, string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        var canonNode = NormalizePath(node.FullPath);
+        var canonTarget = NormalizePath(path);
+        if (string.Equals(canonNode, canonTarget, StringComparison.OrdinalIgnoreCase))
+        {
+            _suppressTreeSync = true;
+            try { node.IsSelected = true; }
+            finally { _suppressTreeSync = false; }
+            return true;
+        }
+        if (canonTarget.StartsWith(canonNode + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            node.IsExpanded = true; // forces children to load
+            foreach (var child in node.Children)
+            {
+                if (TrySelectMatchingNode(child, path)) return true;
+            }
+        }
+        return false;
+    }
+
+    private static string NormalizePath(string path) =>
+        path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    private void DestinationTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (_suppressTreeSync) return;
+        if (e.NewValue is FolderNode node && !string.IsNullOrEmpty(node.FullPath))
+        {
+            DestinationBox.Text = node.FullPath;
+        }
+    }
+
+    private void NewFolder_Click(object sender, RoutedEventArgs e)
+    {
+        // Parent: the selected tree node, or the typed destination, or the tree root.
+        string parent;
+        FolderNode? parentNode = DestinationTree.SelectedItem as FolderNode;
+        if (parentNode != null && Directory.Exists(parentNode.FullPath))
+            parent = parentNode.FullPath;
+        else if (!string.IsNullOrWhiteSpace(DestinationBox.Text) && Directory.Exists(DestinationBox.Text))
+            parent = DestinationBox.Text;
+        else if (DestinationTree.Items.Count > 0 && DestinationTree.Items[0] is FolderNode rootNode)
+        {
+            parent = rootNode.FullPath;
+            parentNode = rootNode;
+        }
+        else
+        {
+            MessageBox.Show(this,
+                "Select a folder in the tree (or use Browse) before creating a subfolder.",
+                "New folder", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var defaultName = DateTime.Now.ToString("yyyy-MM-dd");
+        var name = InputDialog.Show(this, "New folder", $"Create a new subfolder under:\n{parent}", defaultName);
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        // Strip characters that are invalid in a single segment.
+        foreach (var c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c.ToString(), "");
+        name = name.Trim();
+        if (string.IsNullOrEmpty(name)) return;
+
+        var newPath = Path.Combine(parent, name);
+        try { Directory.CreateDirectory(newPath); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Couldn't create folder:\n{ex.Message}",
+                "New folder", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        DestinationBox.Text = newPath;
+        if (parentNode != null)
+        {
+            parentNode.RefreshChildren();
+            // Try to select the new node.
+            foreach (var child in parentNode.Children)
+            {
+                if (string.Equals(NormalizePath(child.FullPath), NormalizePath(newPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    child.IsSelected = true;
+                    break;
+                }
+            }
+        }
     }
 
     private async void Import_Click(object sender, RoutedEventArgs e)
