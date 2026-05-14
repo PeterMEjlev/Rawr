@@ -76,6 +76,20 @@ To produce a standalone executable:
 dotnet publish src/Rawr.App -c Release -r win-x64 --self-contained
 ```
 
+To produce a Windows installer with Inno Setup:
+
+```powershell
+winget install JRSoftware.InnoSetup
+powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
+```
+
+The installer is written to `artifacts/installer/` as
+`RAWR-Setup-0.1.0-win-x64.exe`. Pass a numeric version when cutting a build:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1 -Version 0.2.0
+```
+
 ## Optional: enabling LibRaw
 
 Out of the box RAWR uses Windows Imaging Component (WIC) for preview

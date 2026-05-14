@@ -25,7 +25,18 @@
                 Padding="14,10">
             <StackPanel>
                 <TextBlock Text="SOURCE" Style="{StaticResource SectionCardHeader}" />
-                <TextBlock x:Name="SourceText" FontSize="13" Margin="0,2,0,0" />
+                <Grid Margin="0,2,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="SourceText" FontSize="13" VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Content="Browse…"
+                            Margin="10,0,0,0"
+                            Padding="10,3"
+                            Click="BrowseSource_Click" />
+                </Grid>
             </StackPanel>
         </Border>
 

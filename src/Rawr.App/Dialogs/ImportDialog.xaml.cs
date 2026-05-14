@@ -94,7 +94,7 @@ public partial class ImportDialog : Window
     public bool ImportSucceeded { get; private set; }
     public ImportResult? Result { get; private set; }
 
-    private readonly string _root;
+    private string _root;
     private bool _suppressSelectAllSync;
     private CancellationTokenSource? _cts;
     private CancellationTokenSource? _thumbnailCts;
@@ -162,7 +162,7 @@ public partial class ImportDialog : Window
 
     private async Task PopulateAsync()
     {
-        StatusText.Text = "Scanning card…";
+        StatusText.Text = "Scanning…";
         var root = _root;
         var files = await Task.Run(() =>
         {
@@ -328,6 +328,25 @@ public partial class ImportDialog : Window
         };
         if (dlg.ShowDialog(this) == true && !string.IsNullOrEmpty(dlg.FolderName))
             DestinationBox.Text = dlg.FolderName;
+    }
+
+    private async void BrowseSource_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFolderDialog
+        {
+            Title = "Choose import source folder",
+            InitialDirectory = Directory.Exists(_root) ? _root : ""
+        };
+        if (dlg.ShowDialog(this) != true || string.IsNullOrEmpty(dlg.FolderName)) return;
+
+        _root = dlg.FolderName;
+        SourceDriveLetter = null;
+        SourceText.Text = dlg.FolderName;
+        EjectAfterCheck.Visibility = Visibility.Collapsed;
+
+        _thumbnailCts?.Cancel();
+        Files.Clear();
+        await PopulateAsync();
     }
 
     // ── Destination folder tree ──
