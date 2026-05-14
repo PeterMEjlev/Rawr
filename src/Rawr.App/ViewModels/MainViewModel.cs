@@ -302,18 +302,40 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     [NotifyPropertyChangedFor(nameof(ActiveRatingValue))]
+    [NotifyPropertyChangedFor(nameof(RatingFilterActiveValues))]
     [NotifyPropertyChangedFor(nameof(RatingModeLabel))]
     private RatingFilterMode _ratingFilterMode;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveRatingValue))]
+    [NotifyPropertyChangedFor(nameof(RatingFilterActiveValues))]
     private int _ratingFilterValue;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RatingModeLabel))]
     private RatingFilterMode _ratingCycleMode = RatingFilterMode.Exact;
 
+    // Additional star values selected via shift-click in the Filter popup.
+    // Only meaningful in Exact mode; cleared when switching to AtLeast/LessThan.
+    // RatingFilterValue remains the "anchor" so existing sidebar/copy code keeps working.
+    private readonly HashSet<int> _ratingFilterExtraValues = new();
+    public IReadOnlyCollection<int> RatingFilterExtraValues => _ratingFilterExtraValues;
+
     public int ActiveRatingValue => RatingFilterMode == RatingFilterMode.Any ? -1 : RatingFilterValue;
+
+    // Union of the anchor + shift-click extras, used by the Filter popup buttons to
+    // highlight every value currently in the active set.
+    public IReadOnlyCollection<int> RatingFilterActiveValues
+    {
+        get
+        {
+            if (RatingFilterMode == RatingFilterMode.Any) return Array.Empty<int>();
+            if (RatingFilterMode != RatingFilterMode.Exact || _ratingFilterExtraValues.Count == 0)
+                return new[] { RatingFilterValue };
+            var set = new HashSet<int>(_ratingFilterExtraValues) { RatingFilterValue };
+            return set;
+        }
+    }
 
     public string RatingModeLabel => RatingCycleMode switch
     {
@@ -324,11 +346,51 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(FlagFilterActiveValues))]
     private CullFlag? _flagFilter;
+
+    private readonly HashSet<CullFlag> _flagFilterExtraValues = new();
+    public IReadOnlyCollection<CullFlag> FlagFilterExtraValues => _flagFilterExtraValues;
+    public IReadOnlyCollection<CullFlag> FlagFilterActiveValues
+    {
+        get
+        {
+            if (!FlagFilter.HasValue) return Array.Empty<CullFlag>();
+            if (_flagFilterExtraValues.Count == 0) return new[] { FlagFilter.Value };
+            var set = new HashSet<CullFlag>(_flagFilterExtraValues) { FlagFilter.Value };
+            return set;
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(ColorLabelFilterActiveValues))]
     private ColorLabel? _colorLabelFilter;
+
+    private readonly HashSet<ColorLabel> _colorLabelFilterExtraValues = new();
+    public IReadOnlyCollection<ColorLabel> ColorLabelFilterExtraValues => _colorLabelFilterExtraValues;
+    public IReadOnlyCollection<ColorLabel> ColorLabelFilterActiveValues
+    {
+        get
+        {
+            if (!ColorLabelFilter.HasValue) return Array.Empty<ColorLabel>();
+            if (_colorLabelFilterExtraValues.Count == 0) return new[] { ColorLabelFilter.Value };
+            var set = new HashSet<ColorLabel>(_colorLabelFilterExtraValues) { ColorLabelFilter.Value };
+            return set;
+        }
+    }
+
+    // Cameras (CameraFormatted strings) currently selected. Unlike the other filters
+    // this one has no "anchor" — empty set means inactive. Photos with empty EXIF
+    // camera info match the sentinel UnknownCameraKey.
+    public const string UnknownCameraKey = "(Unknown)";
+    private readonly HashSet<string> _cameraFilters = new(StringComparer.Ordinal);
+    public IReadOnlyCollection<string> CameraFilters => _cameraFilters;
+    public bool IsCameraFilterActive => _cameraFilters.Count > 0;
+
+    // Cameras present in the currently-loaded photos. Repopulated from AllPhotos
+    // whenever metadata changes; bound to the Filter popup.
+    public ObservableCollection<string> AvailableCameras { get; } = new();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
@@ -336,7 +398,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(ImageTypeFilterActiveValues))]
     private ImageTypeFilterMode _imageTypeFilter = ImageTypeFilterMode.Any;
+
+    private readonly HashSet<ImageTypeFilterMode> _imageTypeFilterExtraValues = new();
+    public IReadOnlyCollection<ImageTypeFilterMode> ImageTypeFilterExtraValues => _imageTypeFilterExtraValues;
+    public IReadOnlyCollection<ImageTypeFilterMode> ImageTypeFilterActiveValues
+    {
+        get
+        {
+            if (ImageTypeFilter == ImageTypeFilterMode.Any) return Array.Empty<ImageTypeFilterMode>();
+            if (_imageTypeFilterExtraValues.Count == 0) return new[] { ImageTypeFilter };
+            var set = new HashSet<ImageTypeFilterMode>(_imageTypeFilterExtraValues) { ImageTypeFilter };
+            return set;
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
@@ -476,7 +552,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnTimeOfDayEndMinutesChanged(int value)   { if (!IsTimeOfDaySliderDragging) ApplyFilter(); }
     partial void OnIsTimeOfDaySliderDraggingChanged(bool value) { if (!value) ApplyFilter(); }
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive || IsRegionFilterActive;
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive || IsRegionFilterActive || IsCameraFilterActive;
 
     [ObservableProperty] private int _burstCount;
 
@@ -492,7 +568,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     [NotifyPropertyChangedFor(nameof(SelectedPhotoTagAssignments))]
+    [NotifyPropertyChangedFor(nameof(TagFilterActiveIds))]
     private PhotoTag? _tagFilter;
+
+    // Additional tag IDs selected via shift-click. Combined with TagFilter for the filter
+    // predicate and for highlighting active buttons in the popup.
+    private readonly HashSet<int> _tagFilterExtraIds = new();
+    public IReadOnlyCollection<int> TagFilterExtraIds => _tagFilterExtraIds;
+    public IReadOnlyCollection<int> TagFilterActiveIds
+    {
+        get
+        {
+            if (TagFilter == null) return Array.Empty<int>();
+            if (_tagFilterExtraIds.Count == 0) return new[] { TagFilter.Id };
+            var set = new HashSet<int>(_tagFilterExtraIds) { TagFilter.Id };
+            return set;
+        }
+    }
 
     public IEnumerable<TagAssignmentItem> SelectedPhotoTagAssignments =>
         Tags.Where(t => !t.IsSystem)
@@ -3740,6 +3832,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         RatingFilterMode = RatingFilterMode.Any;
         RatingFilterExclude = false;
+        if (_ratingFilterExtraValues.Count > 0)
+        {
+            _ratingFilterExtraValues.Clear();
+            OnPropertyChanged(nameof(RatingFilterExtraValues));
+            OnPropertyChanged(nameof(RatingFilterActiveValues));
+        }
         ApplyFilter();
     }
 
@@ -3754,23 +3852,75 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         };
         if (RatingFilterMode != RatingFilterMode.Any)
         {
+            // Leaving Exact discards any multi-selected extras — AtLeast/LessThan
+            // only have a single threshold value.
+            if (RatingCycleMode != RatingFilterMode.Exact && _ratingFilterExtraValues.Count > 0)
+            {
+                _ratingFilterExtraValues.Clear();
+                OnPropertyChanged(nameof(RatingFilterExtraValues));
+                OnPropertyChanged(nameof(RatingFilterActiveValues));
+            }
             RatingFilterMode = RatingCycleMode;
             ApplyFilter();
         }
     }
 
     [RelayCommand]
-    private void SetRatingValue(int value)
+    private void SetRatingValue(int value) => SetRatingValueCore(value, extend: false);
+
+    public void SetRatingValueCore(int value, bool extend)
     {
-        if (RatingFilterMode == RatingCycleMode && RatingFilterValue == value)
+        bool exactMode = RatingCycleMode == RatingFilterMode.Exact;
+        if (extend && exactMode && RatingFilterMode == RatingFilterMode.Exact)
         {
-            RatingFilterMode = RatingFilterMode.Any;
-            RatingFilterExclude = false;
+            // Shift-click in Exact mode toggles the value in the active set
+            // (anchor + extras). Plain click resets to single-select.
+            if (value == RatingFilterValue)
+            {
+                // Remove the anchor — promote an extra or turn the filter off.
+                if (_ratingFilterExtraValues.Count > 0)
+                {
+                    var first = _ratingFilterExtraValues.First();
+                    _ratingFilterExtraValues.Remove(first);
+                    RatingFilterValue = first;
+                }
+                else
+                {
+                    RatingFilterMode = RatingFilterMode.Any;
+                    RatingFilterExclude = false;
+                }
+            }
+            else if (_ratingFilterExtraValues.Remove(value))
+            {
+                // Removed from extras — no other state change.
+            }
+            else
+            {
+                _ratingFilterExtraValues.Add(value);
+            }
+            OnPropertyChanged(nameof(RatingFilterExtraValues));
+            OnPropertyChanged(nameof(RatingFilterActiveValues));
         }
         else
         {
-            RatingFilterMode = RatingCycleMode;
-            RatingFilterValue = value;
+            // Plain click: single-select. Clear any extras carried over from a
+            // previous multi-select session so the new selection stands alone.
+            if (_ratingFilterExtraValues.Count > 0)
+            {
+                _ratingFilterExtraValues.Clear();
+                OnPropertyChanged(nameof(RatingFilterExtraValues));
+            }
+            if (RatingFilterMode == RatingCycleMode && RatingFilterValue == value)
+            {
+                RatingFilterMode = RatingFilterMode.Any;
+                RatingFilterExclude = false;
+            }
+            else
+            {
+                RatingFilterMode = RatingCycleMode;
+                RatingFilterValue = value;
+            }
+            OnPropertyChanged(nameof(RatingFilterActiveValues));
         }
         ApplyFilter();
     }
@@ -3820,10 +3970,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // ── Flag filter ──
 
     [RelayCommand]
-    private void SetFlagFilter(CullFlag flag)
+    private void SetFlagFilter(CullFlag flag) => SetFlagFilterCore(flag, extend: false);
+
+    public void SetFlagFilterCore(CullFlag flag, bool extend)
     {
-        FlagFilter = FlagFilter == flag ? null : flag;
-        if (!FlagFilter.HasValue) FlagFilterExclude = false;
+        if (extend && FlagFilter.HasValue)
+        {
+            if (FlagFilter.Value == flag)
+            {
+                // Toggle off the anchor — promote an extra if available.
+                if (_flagFilterExtraValues.Count > 0)
+                {
+                    var first = _flagFilterExtraValues.First();
+                    _flagFilterExtraValues.Remove(first);
+                    FlagFilter = first;
+                }
+                else
+                {
+                    FlagFilter = null;
+                    FlagFilterExclude = false;
+                }
+            }
+            else if (_flagFilterExtraValues.Remove(flag))
+            {
+                // Removed from extras.
+            }
+            else
+            {
+                _flagFilterExtraValues.Add(flag);
+            }
+            OnPropertyChanged(nameof(FlagFilterExtraValues));
+            OnPropertyChanged(nameof(FlagFilterActiveValues));
+        }
+        else
+        {
+            if (_flagFilterExtraValues.Count > 0)
+            {
+                _flagFilterExtraValues.Clear();
+                OnPropertyChanged(nameof(FlagFilterExtraValues));
+            }
+            FlagFilter = FlagFilter == flag ? null : flag;
+            if (!FlagFilter.HasValue) FlagFilterExclude = false;
+            OnPropertyChanged(nameof(FlagFilterActiveValues));
+        }
         ApplyFilter();
     }
 
@@ -3832,14 +4021,58 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         FlagFilter = null;
         FlagFilterExclude = false;
+        if (_flagFilterExtraValues.Count > 0)
+        {
+            _flagFilterExtraValues.Clear();
+            OnPropertyChanged(nameof(FlagFilterExtraValues));
+            OnPropertyChanged(nameof(FlagFilterActiveValues));
+        }
         ApplyFilter();
     }
 
     [RelayCommand]
-    private void SetColorLabelFilter(ColorLabel label)
+    private void SetColorLabelFilter(ColorLabel label) => SetColorLabelFilterCore(label, extend: false);
+
+    public void SetColorLabelFilterCore(ColorLabel label, bool extend)
     {
-        ColorLabelFilter = ColorLabelFilter == label ? null : label;
-        if (!ColorLabelFilter.HasValue) ColorLabelFilterExclude = false;
+        if (extend && ColorLabelFilter.HasValue)
+        {
+            if (ColorLabelFilter.Value == label)
+            {
+                if (_colorLabelFilterExtraValues.Count > 0)
+                {
+                    var first = _colorLabelFilterExtraValues.First();
+                    _colorLabelFilterExtraValues.Remove(first);
+                    ColorLabelFilter = first;
+                }
+                else
+                {
+                    ColorLabelFilter = null;
+                    ColorLabelFilterExclude = false;
+                }
+            }
+            else if (_colorLabelFilterExtraValues.Remove(label))
+            {
+                // Removed from extras.
+            }
+            else
+            {
+                _colorLabelFilterExtraValues.Add(label);
+            }
+            OnPropertyChanged(nameof(ColorLabelFilterExtraValues));
+            OnPropertyChanged(nameof(ColorLabelFilterActiveValues));
+        }
+        else
+        {
+            if (_colorLabelFilterExtraValues.Count > 0)
+            {
+                _colorLabelFilterExtraValues.Clear();
+                OnPropertyChanged(nameof(ColorLabelFilterExtraValues));
+            }
+            ColorLabelFilter = ColorLabelFilter == label ? null : label;
+            if (!ColorLabelFilter.HasValue) ColorLabelFilterExclude = false;
+            OnPropertyChanged(nameof(ColorLabelFilterActiveValues));
+        }
         ApplyFilter();
     }
 
@@ -3848,16 +4081,108 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         ColorLabelFilter = null;
         ColorLabelFilterExclude = false;
+        if (_colorLabelFilterExtraValues.Count > 0)
+        {
+            _colorLabelFilterExtraValues.Clear();
+            OnPropertyChanged(nameof(ColorLabelFilterExtraValues));
+            OnPropertyChanged(nameof(ColorLabelFilterActiveValues));
+        }
+        ApplyFilter();
+    }
+
+    // ── Camera filter ──
+
+    [RelayCommand]
+    private void SetCameraFilter(string camera) => SetCameraFilterCore(camera, extend: false);
+
+    public void SetCameraFilterCore(string camera, bool extend)
+    {
+        if (string.IsNullOrEmpty(camera)) return;
+        bool changed;
+        if (extend)
+        {
+            changed = _cameraFilters.Remove(camera) || _cameraFilters.Add(camera);
+        }
+        else
+        {
+            // Plain click: toggle off if this was the sole selection, else snap to it.
+            if (_cameraFilters.Count == 1 && _cameraFilters.Contains(camera))
+            {
+                _cameraFilters.Clear();
+                changed = true;
+            }
+            else
+            {
+                _cameraFilters.Clear();
+                _cameraFilters.Add(camera);
+                changed = true;
+            }
+        }
+        if (changed)
+        {
+            OnPropertyChanged(nameof(CameraFilters));
+            OnPropertyChanged(nameof(IsCameraFilterActive));
+            OnPropertyChanged(nameof(HasActiveFilters));
+        }
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearCameraFilter()
+    {
+        if (_cameraFilters.Count == 0) return;
+        _cameraFilters.Clear();
+        OnPropertyChanged(nameof(CameraFilters));
+        OnPropertyChanged(nameof(IsCameraFilterActive));
+        OnPropertyChanged(nameof(HasActiveFilters));
         ApplyFilter();
     }
 
     // ── Tag commands ──
 
     [RelayCommand]
-    private void SetTagFilter(PhotoTag tag)
+    private void SetTagFilter(PhotoTag tag) => SetTagFilterCore(tag, extend: false);
+
+    public void SetTagFilterCore(PhotoTag tag, bool extend)
     {
-        TagFilter = TagFilter?.Id == tag.Id ? null : tag;
-        if (TagFilter == null) TagFilterExclude = false;
+        if (extend && TagFilter != null)
+        {
+            if (TagFilter.Id == tag.Id)
+            {
+                if (_tagFilterExtraIds.Count > 0)
+                {
+                    var firstId = _tagFilterExtraIds.First();
+                    _tagFilterExtraIds.Remove(firstId);
+                    TagFilter = Tags.FirstOrDefault(t => t.Id == firstId);
+                }
+                else
+                {
+                    TagFilter = null;
+                    TagFilterExclude = false;
+                }
+            }
+            else if (_tagFilterExtraIds.Remove(tag.Id))
+            {
+                // Removed from extras.
+            }
+            else
+            {
+                _tagFilterExtraIds.Add(tag.Id);
+            }
+            OnPropertyChanged(nameof(TagFilterExtraIds));
+            OnPropertyChanged(nameof(TagFilterActiveIds));
+        }
+        else
+        {
+            if (_tagFilterExtraIds.Count > 0)
+            {
+                _tagFilterExtraIds.Clear();
+                OnPropertyChanged(nameof(TagFilterExtraIds));
+            }
+            TagFilter = TagFilter?.Id == tag.Id ? null : tag;
+            if (TagFilter == null) TagFilterExclude = false;
+            OnPropertyChanged(nameof(TagFilterActiveIds));
+        }
         ApplyFilter();
     }
 
@@ -3866,6 +4191,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         TagFilter = null;
         TagFilterExclude = false;
+        if (_tagFilterExtraIds.Count > 0)
+        {
+            _tagFilterExtraIds.Clear();
+            OnPropertyChanged(nameof(TagFilterExtraIds));
+            OnPropertyChanged(nameof(TagFilterActiveIds));
+        }
         ApplyFilter();
     }
 
@@ -3936,10 +4267,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             UpdateTagDisplay(photo);
         }
         Tags.Remove(tag);
+        bool extrasChanged = _tagFilterExtraIds.Remove(tag.Id);
         if (TagFilter?.Id == tag.Id)
         {
-            TagFilter = null;
+            // Promote a remaining extra into the anchor slot if one exists.
+            if (_tagFilterExtraIds.Count > 0)
+            {
+                var firstId = _tagFilterExtraIds.First();
+                _tagFilterExtraIds.Remove(firstId);
+                TagFilter = Tags.FirstOrDefault(t => t.Id == firstId);
+                extrasChanged = true;
+            }
+            else
+            {
+                TagFilter = null;
+            }
             ApplyFilter();
+        }
+        if (extrasChanged)
+        {
+            OnPropertyChanged(nameof(TagFilterExtraIds));
+            OnPropertyChanged(nameof(TagFilterActiveIds));
         }
         OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
     }
@@ -3984,7 +4332,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 });
             else
                 foreach (var p in changedPhotos) ApplyTagEdit(p, tag, assignToAll);
-            if (TagFilter != null) ApplyFilter();
+            if (TagFilter != null || _tagFilterExtraIds.Count > 0) ApplyFilter();
         }
         void RevertAll()
         {
@@ -3995,7 +4343,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 });
             else
                 foreach (var p in changedPhotos) ApplyTagEdit(p, tag, !assignToAll);
-            if (TagFilter != null) ApplyFilter();
+            if (TagFilter != null || _tagFilterExtraIds.Count > 0) ApplyFilter();
         }
 
         ApplyAll();
@@ -4621,7 +4969,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RegionFilterMinLon = null;
         RegionFilterMaxLon = null;
         RegionFilterExclude = false;
+        ClearAllFilterExtras();
         ApplyFilter();
+    }
+
+    private void ClearAllFilterExtras()
+    {
+        bool changed = false;
+        if (_ratingFilterExtraValues.Count > 0)    { _ratingFilterExtraValues.Clear();    changed = true; OnPropertyChanged(nameof(RatingFilterExtraValues));    OnPropertyChanged(nameof(RatingFilterActiveValues)); }
+        if (_flagFilterExtraValues.Count > 0)      { _flagFilterExtraValues.Clear();      changed = true; OnPropertyChanged(nameof(FlagFilterExtraValues));      OnPropertyChanged(nameof(FlagFilterActiveValues)); }
+        if (_colorLabelFilterExtraValues.Count > 0){ _colorLabelFilterExtraValues.Clear();changed = true; OnPropertyChanged(nameof(ColorLabelFilterExtraValues));OnPropertyChanged(nameof(ColorLabelFilterActiveValues)); }
+        if (_tagFilterExtraIds.Count > 0)          { _tagFilterExtraIds.Clear();          changed = true; OnPropertyChanged(nameof(TagFilterExtraIds));          OnPropertyChanged(nameof(TagFilterActiveIds)); }
+        if (_imageTypeFilterExtraValues.Count > 0) { _imageTypeFilterExtraValues.Clear(); changed = true; OnPropertyChanged(nameof(ImageTypeFilterExtraValues)); OnPropertyChanged(nameof(ImageTypeFilterActiveValues)); }
+        if (_cameraFilters.Count > 0)              { _cameraFilters.Clear();              changed = true; OnPropertyChanged(nameof(CameraFilters));              OnPropertyChanged(nameof(IsCameraFilterActive)); }
+        if (changed) OnPropertyChanged(nameof(HasActiveFilters));
     }
 
     [RelayCommand]
@@ -4677,10 +5038,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // ── Image type filter ──
 
     [RelayCommand]
-    private void SetImageTypeFilter(ImageTypeFilterMode mode)
+    private void SetImageTypeFilter(ImageTypeFilterMode mode) => SetImageTypeFilterCore(mode, extend: false);
+
+    public void SetImageTypeFilterCore(ImageTypeFilterMode mode, bool extend)
     {
-        ImageTypeFilter = ImageTypeFilter == mode ? ImageTypeFilterMode.Any : mode;
-        if (ImageTypeFilter == ImageTypeFilterMode.Any) ImageTypeFilterExclude = false;
+        if (mode == ImageTypeFilterMode.Any) return;
+        if (extend && ImageTypeFilter != ImageTypeFilterMode.Any)
+        {
+            if (ImageTypeFilter == mode)
+            {
+                if (_imageTypeFilterExtraValues.Count > 0)
+                {
+                    var first = _imageTypeFilterExtraValues.First();
+                    _imageTypeFilterExtraValues.Remove(first);
+                    ImageTypeFilter = first;
+                }
+                else
+                {
+                    ImageTypeFilter = ImageTypeFilterMode.Any;
+                    ImageTypeFilterExclude = false;
+                }
+            }
+            else if (_imageTypeFilterExtraValues.Remove(mode))
+            {
+                // Removed from extras.
+            }
+            else
+            {
+                _imageTypeFilterExtraValues.Add(mode);
+            }
+            OnPropertyChanged(nameof(ImageTypeFilterExtraValues));
+            OnPropertyChanged(nameof(ImageTypeFilterActiveValues));
+        }
+        else
+        {
+            if (_imageTypeFilterExtraValues.Count > 0)
+            {
+                _imageTypeFilterExtraValues.Clear();
+                OnPropertyChanged(nameof(ImageTypeFilterExtraValues));
+            }
+            ImageTypeFilter = ImageTypeFilter == mode ? ImageTypeFilterMode.Any : mode;
+            if (ImageTypeFilter == ImageTypeFilterMode.Any) ImageTypeFilterExclude = false;
+            OnPropertyChanged(nameof(ImageTypeFilterActiveValues));
+        }
         ApplyFilter();
     }
 
@@ -4689,6 +5089,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         ImageTypeFilter = ImageTypeFilterMode.Any;
         ImageTypeFilterExclude = false;
+        if (_imageTypeFilterExtraValues.Count > 0)
+        {
+            _imageTypeFilterExtraValues.Clear();
+            OnPropertyChanged(nameof(ImageTypeFilterExtraValues));
+            OnPropertyChanged(nameof(ImageTypeFilterActiveValues));
+        }
         ApplyFilter();
     }
 
@@ -4976,39 +5382,105 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         IEnumerable<PhotoItem> visible = AllPhotos;
 
-        Func<PhotoItem, bool>? ratingPred = RatingFilterMode switch
+        Func<PhotoItem, bool>? ratingPred;
+        if (RatingFilterMode == RatingFilterMode.Exact && _ratingFilterExtraValues.Count > 0)
         {
-            RatingFilterMode.Exact    => p => p.Rating == RatingFilterValue,
-            RatingFilterMode.AtLeast  => p => p.Rating >= RatingFilterValue,
-            RatingFilterMode.LessThan => p => p.Rating <  RatingFilterValue,
-            _                         => null
-        };
+            // Multi-select in Exact mode: photo's rating must match any value in
+            // the anchor ∪ extras set. Snapshot to avoid capturing the mutable set.
+            var ratings = new HashSet<int>(_ratingFilterExtraValues) { RatingFilterValue };
+            ratingPred = p => ratings.Contains(p.Rating);
+        }
+        else
+        {
+            ratingPred = RatingFilterMode switch
+            {
+                RatingFilterMode.Exact    => p => p.Rating == RatingFilterValue,
+                RatingFilterMode.AtLeast  => p => p.Rating >= RatingFilterValue,
+                RatingFilterMode.LessThan => p => p.Rating <  RatingFilterValue,
+                _                         => null
+            };
+        }
         if (ratingPred != null)
             visible = RatingFilterExclude ? visible.Where(p => !ratingPred(p)) : visible.Where(ratingPred);
 
         if (FlagFilter.HasValue)
         {
-            var f = FlagFilter.Value;
-            visible = FlagFilterExclude ? visible.Where(p => p.Flag != f) : visible.Where(p => p.Flag == f);
+            if (_flagFilterExtraValues.Count > 0)
+            {
+                var flags = new HashSet<CullFlag>(_flagFilterExtraValues) { FlagFilter.Value };
+                visible = FlagFilterExclude ? visible.Where(p => !flags.Contains(p.Flag)) : visible.Where(p => flags.Contains(p.Flag));
+            }
+            else
+            {
+                var f = FlagFilter.Value;
+                visible = FlagFilterExclude ? visible.Where(p => p.Flag != f) : visible.Where(p => p.Flag == f);
+            }
         }
         if (ColorLabelFilter.HasValue)
         {
-            var c = ColorLabelFilter.Value;
-            visible = ColorLabelFilterExclude ? visible.Where(p => p.ColorLabel != c) : visible.Where(p => p.ColorLabel == c);
+            if (_colorLabelFilterExtraValues.Count > 0)
+            {
+                var labels = new HashSet<ColorLabel>(_colorLabelFilterExtraValues) { ColorLabelFilter.Value };
+                visible = ColorLabelFilterExclude ? visible.Where(p => !labels.Contains(p.ColorLabel)) : visible.Where(p => labels.Contains(p.ColorLabel));
+            }
+            else
+            {
+                var c = ColorLabelFilter.Value;
+                visible = ColorLabelFilterExclude ? visible.Where(p => p.ColorLabel != c) : visible.Where(p => p.ColorLabel == c);
+            }
         }
         if (TagFilter != null)
         {
-            var tagId = TagFilter.Id;
-            visible = TagFilterExclude ? visible.Where(p => !p.TagIds.Contains(tagId)) : visible.Where(p => p.TagIds.Contains(tagId));
+            if (_tagFilterExtraIds.Count > 0)
+            {
+                var tagIds = new HashSet<int>(_tagFilterExtraIds) { TagFilter.Id };
+                visible = TagFilterExclude
+                    ? visible.Where(p => !p.TagIds.Any(id => tagIds.Contains(id)))
+                    : visible.Where(p => p.TagIds.Any(id => tagIds.Contains(id)));
+            }
+            else
+            {
+                var tagId = TagFilter.Id;
+                visible = TagFilterExclude ? visible.Where(p => !p.TagIds.Contains(tagId)) : visible.Where(p => p.TagIds.Contains(tagId));
+            }
         }
 
-        Func<PhotoItem, bool>? typePred = ImageTypeFilter switch
+        if (_cameraFilters.Count > 0)
         {
-            ImageTypeFilterMode.RawOnly   => p => p.IsRaw,
-            ImageTypeFilterMode.JpegOnly  => p => !p.IsRaw && !p.IsVideo,
-            ImageTypeFilterMode.VideoOnly => p => p.IsVideo,
-            _                             => null
-        };
+            // Snapshot the set so the closure isn't tied to the mutable HashSet.
+            var camSet = new HashSet<string>(_cameraFilters, StringComparer.Ordinal);
+            bool includeUnknown = camSet.Contains(UnknownCameraKey);
+            Func<PhotoItem, bool> camPred = p =>
+            {
+                var name = p.Metadata?.CameraFormatted;
+                if (string.IsNullOrEmpty(name)) return includeUnknown;
+                return camSet.Contains(name);
+            };
+            visible = visible.Where(camPred);
+        }
+
+        Func<PhotoItem, bool>? typePred;
+        if (ImageTypeFilter != ImageTypeFilterMode.Any && _imageTypeFilterExtraValues.Count > 0)
+        {
+            var modes = new HashSet<ImageTypeFilterMode>(_imageTypeFilterExtraValues) { ImageTypeFilter };
+            typePred = p =>
+            {
+                if (modes.Contains(ImageTypeFilterMode.RawOnly)   && p.IsRaw) return true;
+                if (modes.Contains(ImageTypeFilterMode.JpegOnly)  && !p.IsRaw && !p.IsVideo) return true;
+                if (modes.Contains(ImageTypeFilterMode.VideoOnly) && p.IsVideo) return true;
+                return false;
+            };
+        }
+        else
+        {
+            typePred = ImageTypeFilter switch
+            {
+                ImageTypeFilterMode.RawOnly   => p => p.IsRaw,
+                ImageTypeFilterMode.JpegOnly  => p => !p.IsRaw && !p.IsVideo,
+                ImageTypeFilterMode.VideoOnly => p => p.IsVideo,
+                _                             => null
+            };
+        }
         if (typePred != null)
             visible = ImageTypeFilterExclude ? visible.Where(p => !typePred(p)) : visible.Where(typePred);
 
@@ -5195,6 +5667,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ExposureFilter = ExposureFilter,
         FaceFilter = FaceFilter,
         TagFilterId = TagFilter?.Id,
+        RatingFilterExtraValues = _ratingFilterExtraValues.Count > 0 ? _ratingFilterExtraValues.ToList() : null,
+        FlagFilterExtraValues = _flagFilterExtraValues.Count > 0 ? _flagFilterExtraValues.ToList() : null,
+        ColorLabelFilterExtraValues = _colorLabelFilterExtraValues.Count > 0 ? _colorLabelFilterExtraValues.ToList() : null,
+        TagFilterExtraIds = _tagFilterExtraIds.Count > 0 ? _tagFilterExtraIds.ToList() : null,
+        ImageTypeFilterExtraValues = _imageTypeFilterExtraValues.Count > 0 ? _imageTypeFilterExtraValues.ToList() : null,
+        CameraFilters = _cameraFilters.Count > 0 ? _cameraFilters.ToList() : null,
         RatingFilterExclude = RatingFilterExclude,
         FlagFilterExclude = FlagFilterExclude,
         ColorLabelFilterExclude = ColorLabelFilterExclude,
@@ -5226,6 +5704,55 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         TagFilter = s.TagFilterId.HasValue
             ? Tags.FirstOrDefault(t => t.Id == s.TagFilterId.Value)
             : null;
+
+        // Restore shift-click multi-selection extras. Skip values that don't make
+        // sense for the current mode (e.g. Rating extras when not in Exact mode)
+        // and tag IDs that no longer exist in this folder's tag set.
+        _ratingFilterExtraValues.Clear();
+        if (s.RatingFilterExtraValues != null && RatingFilterMode == RatingFilterMode.Exact)
+            foreach (var v in s.RatingFilterExtraValues)
+                if (v != s.RatingFilterValue) _ratingFilterExtraValues.Add(v);
+        OnPropertyChanged(nameof(RatingFilterExtraValues));
+        OnPropertyChanged(nameof(RatingFilterActiveValues));
+
+        _flagFilterExtraValues.Clear();
+        if (s.FlagFilterExtraValues != null && s.FlagFilter.HasValue)
+            foreach (var v in s.FlagFilterExtraValues)
+                if (v != s.FlagFilter.Value) _flagFilterExtraValues.Add(v);
+        OnPropertyChanged(nameof(FlagFilterExtraValues));
+        OnPropertyChanged(nameof(FlagFilterActiveValues));
+
+        _colorLabelFilterExtraValues.Clear();
+        if (s.ColorLabelFilterExtraValues != null && s.ColorLabelFilter.HasValue)
+            foreach (var v in s.ColorLabelFilterExtraValues)
+                if (v != s.ColorLabelFilter.Value) _colorLabelFilterExtraValues.Add(v);
+        OnPropertyChanged(nameof(ColorLabelFilterExtraValues));
+        OnPropertyChanged(nameof(ColorLabelFilterActiveValues));
+
+        _tagFilterExtraIds.Clear();
+        if (s.TagFilterExtraIds != null && TagFilter != null)
+        {
+            var existingIds = Tags.Select(t => t.Id).ToHashSet();
+            foreach (var id in s.TagFilterExtraIds)
+                if (id != TagFilter.Id && existingIds.Contains(id))
+                    _tagFilterExtraIds.Add(id);
+        }
+        OnPropertyChanged(nameof(TagFilterExtraIds));
+        OnPropertyChanged(nameof(TagFilterActiveIds));
+
+        _imageTypeFilterExtraValues.Clear();
+        if (s.ImageTypeFilterExtraValues != null && s.ImageTypeFilter != ImageTypeFilterMode.Any)
+            foreach (var v in s.ImageTypeFilterExtraValues)
+                if (v != s.ImageTypeFilter && v != ImageTypeFilterMode.Any) _imageTypeFilterExtraValues.Add(v);
+        OnPropertyChanged(nameof(ImageTypeFilterExtraValues));
+        OnPropertyChanged(nameof(ImageTypeFilterActiveValues));
+
+        _cameraFilters.Clear();
+        if (s.CameraFilters != null)
+            foreach (var c in s.CameraFilters) _cameraFilters.Add(c);
+        OnPropertyChanged(nameof(CameraFilters));
+        OnPropertyChanged(nameof(IsCameraFilterActive));
+        OnPropertyChanged(nameof(HasActiveFilters));
 
         RatingFilterExclude = s.RatingFilterExclude;
         FlagFilterExclude = s.FlagFilterExclude;
@@ -5354,26 +5881,74 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var parts = new List<string>();
         static string Tag(bool exclude, string s) => exclude ? "NOT " + s : s;
+        static string DescribeStar(int v) => v == 0 ? "0★" : $"{v}★";
 
-        var ratingDesc = RatingFilterMode switch
+        string? ratingDesc;
+        if (RatingFilterMode == RatingFilterMode.Exact && _ratingFilterExtraValues.Count > 0)
         {
-            RatingFilterMode.Exact    => RatingFilterValue == 0 ? "No stars" : $"={RatingFilterValue}★",
-            RatingFilterMode.AtLeast  => $"≥{RatingFilterValue}★",
-            RatingFilterMode.LessThan => $"<{RatingFilterValue}★",
-            _                         => null
-        };
+            var values = new List<int>(_ratingFilterExtraValues) { RatingFilterValue };
+            values.Sort();
+            ratingDesc = string.Join("+", values.Select(DescribeStar));
+        }
+        else
+        {
+            ratingDesc = RatingFilterMode switch
+            {
+                RatingFilterMode.Exact    => RatingFilterValue == 0 ? "No stars" : $"={RatingFilterValue}★",
+                RatingFilterMode.AtLeast  => $"≥{RatingFilterValue}★",
+                RatingFilterMode.LessThan => $"<{RatingFilterValue}★",
+                _                         => null
+            };
+        }
         if (ratingDesc != null) parts.Add(Tag(RatingFilterExclude, ratingDesc));
+
         if (FlagFilter.HasValue)
-            parts.Add(Tag(FlagFilterExclude, FlagFilter.Value.ToString()));
+        {
+            string flagDesc = _flagFilterExtraValues.Count > 0
+                ? string.Join("+", new[] { FlagFilter.Value }.Concat(_flagFilterExtraValues).Distinct().Select(f => f.ToString()))
+                : FlagFilter.Value.ToString();
+            parts.Add(Tag(FlagFilterExclude, flagDesc));
+        }
         if (ColorLabelFilter.HasValue)
-            parts.Add(Tag(ColorLabelFilterExclude, ColorLabelFilter.Value.ToString()));
+        {
+            string colorDesc = _colorLabelFilterExtraValues.Count > 0
+                ? string.Join("+", new[] { ColorLabelFilter.Value }.Concat(_colorLabelFilterExtraValues).Distinct().Select(c => c.ToString()))
+                : ColorLabelFilter.Value.ToString();
+            parts.Add(Tag(ColorLabelFilterExclude, colorDesc));
+        }
         if (TagFilter != null)
-            parts.Add(Tag(TagFilterExclude, TagFilter.Name));
+        {
+            string tagDesc = TagFilter.Name;
+            if (_tagFilterExtraIds.Count > 0)
+            {
+                var names = new List<string> { TagFilter.Name };
+                foreach (var id in _tagFilterExtraIds)
+                {
+                    var t = Tags.FirstOrDefault(x => x.Id == id);
+                    if (t != null) names.Add(t.Name);
+                }
+                tagDesc = string.Join("+", names);
+            }
+            parts.Add(Tag(TagFilterExclude, tagDesc));
+        }
+        if (_cameraFilters.Count > 0)
+            parts.Add(string.Join("+", _cameraFilters));
         if (BurstFilter == BurstFilterMode.OnlyInBursts) parts.Add(Tag(BurstFilterExclude, "Bursts"));
         else if (BurstFilter == BurstFilterMode.OnlySingles) parts.Add(Tag(BurstFilterExclude, "Singles"));
-        if (ImageTypeFilter == ImageTypeFilterMode.RawOnly) parts.Add(Tag(ImageTypeFilterExclude, "RAW"));
-        else if (ImageTypeFilter == ImageTypeFilterMode.JpegOnly) parts.Add(Tag(ImageTypeFilterExclude, "JPG"));
-        else if (ImageTypeFilter == ImageTypeFilterMode.VideoOnly) parts.Add(Tag(ImageTypeFilterExclude, "Video"));
+        if (ImageTypeFilter != ImageTypeFilterMode.Any)
+        {
+            static string TypeLabel(ImageTypeFilterMode m) => m switch
+            {
+                ImageTypeFilterMode.RawOnly => "RAW",
+                ImageTypeFilterMode.JpegOnly => "JPG",
+                ImageTypeFilterMode.VideoOnly => "Video",
+                _ => ""
+            };
+            string typeDesc = _imageTypeFilterExtraValues.Count > 0
+                ? string.Join("+", new[] { ImageTypeFilter }.Concat(_imageTypeFilterExtraValues).Distinct().Select(TypeLabel))
+                : TypeLabel(ImageTypeFilter);
+            parts.Add(Tag(ImageTypeFilterExclude, typeDesc));
+        }
         if (ExposureFilter == ExposureFilterMode.ClippedHighlights) parts.Add(Tag(ExposureFilterExclude, "Clipped highlights"));
         else if (ExposureFilter == ExposureFilterMode.CrushedShadows) parts.Add(Tag(ExposureFilterExclude, "Crushed shadows"));
         if (FaceFilter == FaceFilterMode.ClosedEyes) parts.Add(Tag(FaceFilterExclude, "Closed eyes"));
@@ -5640,22 +6215,36 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // actually know about.
     public int ClosedEyesCount => AllPhotos.Count(p => p.ClosedEyeCount.HasValue && p.ClosedEyeCount.Value > 0);
 
-    public bool IsRating5Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 5;
-    public bool IsRating4Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 4;
-    public bool IsRating3Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 3;
-    public bool IsRating2Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 2;
-    public bool IsRating1Active       => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 1;
-    public bool IsRatingUnratedActive => RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == 0;
+    // Sidebar bucket highlighting: a value is "active" if it's the anchor or in the
+    // shift-click extras set. The bucket itself is single-select when clicked from
+    // the sidebar (ClearOtherSidebarFilters wipes extras), but multi-select made
+    // via the Filter popup still reflects in the sidebar so the two stay in sync.
+    private bool RatingExactActive(int value) =>
+        RatingFilterMode == RatingFilterMode.Exact &&
+        (RatingFilterValue == value || _ratingFilterExtraValues.Contains(value));
 
-    public bool IsLabelRedActive    => ColorLabelFilter == ColorLabel.Red;
-    public bool IsLabelYellowActive => ColorLabelFilter == ColorLabel.Yellow;
-    public bool IsLabelGreenActive  => ColorLabelFilter == ColorLabel.Green;
-    public bool IsLabelBlueActive   => ColorLabelFilter == ColorLabel.Blue;
-    public bool IsLabelPurpleActive => ColorLabelFilter == ColorLabel.Purple;
+    public bool IsRating5Active       => RatingExactActive(5);
+    public bool IsRating4Active       => RatingExactActive(4);
+    public bool IsRating3Active       => RatingExactActive(3);
+    public bool IsRating2Active       => RatingExactActive(2);
+    public bool IsRating1Active       => RatingExactActive(1);
+    public bool IsRatingUnratedActive => RatingExactActive(0);
 
-    public bool IsFlagPickActive      => FlagFilter == CullFlag.Pick;
-    public bool IsFlagRejectActive    => FlagFilter == CullFlag.Reject;
-    public bool IsFlagUnflaggedActive => FlagFilter == CullFlag.Unflagged;
+    private bool LabelActive(ColorLabel label) =>
+        ColorLabelFilter == label || _colorLabelFilterExtraValues.Contains(label);
+
+    public bool IsLabelRedActive    => LabelActive(ColorLabel.Red);
+    public bool IsLabelYellowActive => LabelActive(ColorLabel.Yellow);
+    public bool IsLabelGreenActive  => LabelActive(ColorLabel.Green);
+    public bool IsLabelBlueActive   => LabelActive(ColorLabel.Blue);
+    public bool IsLabelPurpleActive => LabelActive(ColorLabel.Purple);
+
+    private bool FlagActive(CullFlag flag) =>
+        FlagFilter == flag || _flagFilterExtraValues.Contains(flag);
+
+    public bool IsFlagPickActive      => FlagActive(CullFlag.Pick);
+    public bool IsFlagRejectActive    => FlagActive(CullFlag.Reject);
+    public bool IsFlagUnflaggedActive => FlagActive(CullFlag.Unflagged);
 
     public bool IsExposureClippedHighlightsActive => ExposureFilter == ExposureFilterMode.ClippedHighlights;
     public bool IsExposureCrushedShadowsActive    => ExposureFilter == ExposureFilterMode.CrushedShadows;
@@ -5735,6 +6324,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void ClearOtherSidebarFilters(SidebarFilterKind keep)
     {
+        // The sidebar is single-select by design — drop any multi-selection state
+        // accumulated from the Filter popup so a sidebar click can't leave stale extras.
+        ClearAllFilterExtras();
+
         if (keep != SidebarFilterKind.Rating)
         {
             RatingFilterMode = RatingFilterMode.Any;
@@ -5822,6 +6415,40 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             foreach (var tag in Tags)
                 tag.Count = tagCounts[tag.Id];
         }
+
+        RefreshAvailableCameras();
+    }
+
+    // Rebuilds AvailableCameras from the current AllPhotos. Cameras are derived from
+    // PhotoMetadata.CameraFormatted. Photos still being indexed (Metadata == null)
+    // don't trigger the "(Unknown)" bucket — only photos where indexing has run and
+    // produced no camera EXIF (typical for edited JPGs and some videos) do. That way
+    // the popup isn't littered with "(Unknown)" the instant a folder opens. Drops
+    // CameraFilters entries that no longer exist so a folder switch doesn't leave the
+    // popup with stale highlights.
+    private void RefreshAvailableCameras()
+    {
+        var seen = new SortedSet<string>(StringComparer.Ordinal);
+        bool sawUnknown = false;
+        foreach (var p in AllPhotos)
+        {
+            if (p.Metadata == null) continue;
+            var name = p.Metadata.CameraFormatted;
+            if (string.IsNullOrEmpty(name)) sawUnknown = true;
+            else seen.Add(name);
+        }
+
+        // Build the desired list: known cameras alphabetically, with "(Unknown)" appended only
+        // when at least one photo is missing camera EXIF (so the bucket isn't shown for nothing).
+        var desired = new List<string>(seen);
+        if (sawUnknown) desired.Add(UnknownCameraKey);
+
+        if (AvailableCameras.SequenceEqual(desired, StringComparer.Ordinal)) return;
+        AvailableCameras.Clear();
+        foreach (var c in desired) AvailableCameras.Add(c);
+        // Don't prune _cameraFilters against `desired` here: indexing surfaces cameras
+        // incrementally, and a session-restored filter for a camera not yet detected
+        // would otherwise get silently dropped before its photos finish indexing.
     }
 
     public void Dispose()

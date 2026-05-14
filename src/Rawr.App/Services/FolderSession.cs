@@ -26,6 +26,15 @@ public sealed class FolderSession
     public FaceFilterMode FaceFilter { get; set; } = FaceFilterMode.Any;
     public int? TagFilterId { get; set; }
 
+    // Shift-click multi-select extras (in addition to the anchor field above).
+    // Null/empty arrays roundtrip to no extras, so older session.json files load cleanly.
+    public List<int>? RatingFilterExtraValues { get; set; }
+    public List<CullFlag>? FlagFilterExtraValues { get; set; }
+    public List<ColorLabel>? ColorLabelFilterExtraValues { get; set; }
+    public List<int>? TagFilterExtraIds { get; set; }
+    public List<ImageTypeFilterMode>? ImageTypeFilterExtraValues { get; set; }
+    public List<string>? CameraFilters { get; set; }
+
     public bool RatingFilterExclude { get; set; }
     public bool FlagFilterExclude { get; set; }
     public bool ColorLabelFilterExclude { get; set; }

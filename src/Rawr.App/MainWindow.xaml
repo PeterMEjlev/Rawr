@@ -109,36 +109,123 @@
                                         <Button Content="{Binding RatingModeLabel}" Command="{Binding CycleRatingModeCommand}" Width="28" />
                                     </StackPanel>
 
-                                    <!-- Star buttons 0–5 -->
+                                    <!-- Star buttons 0–5. Click + Tag instead of Command/CommandParameter
+                                         so the handler can detect Shift for multi-select toggling.
+                                         The DataTrigger MultiBinding asks the SetContains converter
+                                         whether this button's value is in RatingFilterActiveValues. -->
                                     <StackPanel Orientation="Horizontal">
-                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>0</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="0"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <Button Click="RatingValueButton_Click" Margin="0,0,3,0">
+                                            <Button.Tag><sys:Int32>0</sys:Int32></Button.Tag>
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource SetContains}">
+                                                                    <Binding Path="RatingFilterActiveValues" />
+                                                                    <Binding><Binding.Source><sys:Int32>0</sys:Int32></Binding.Source></Binding>
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
                                             0★
                                         </Button>
-                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="1"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <Button Click="RatingValueButton_Click" Margin="0,0,3,0">
+                                            <Button.Tag><sys:Int32>1</sys:Int32></Button.Tag>
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource SetContains}">
+                                                                    <Binding Path="RatingFilterActiveValues" />
+                                                                    <Binding><Binding.Source><sys:Int32>1</sys:Int32></Binding.Source></Binding>
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
                                             1★
                                         </Button>
-                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="2"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <Button Click="RatingValueButton_Click" Margin="0,0,3,0">
+                                            <Button.Tag><sys:Int32>2</sys:Int32></Button.Tag>
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource SetContains}">
+                                                                    <Binding Path="RatingFilterActiveValues" />
+                                                                    <Binding><Binding.Source><sys:Int32>2</sys:Int32></Binding.Source></Binding>
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
                                             2★
                                         </Button>
-                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="3"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <Button Click="RatingValueButton_Click" Margin="0,0,3,0">
+                                            <Button.Tag><sys:Int32>3</sys:Int32></Button.Tag>
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource SetContains}">
+                                                                    <Binding Path="RatingFilterActiveValues" />
+                                                                    <Binding><Binding.Source><sys:Int32>3</sys:Int32></Binding.Source></Binding>
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
                                             3★
                                         </Button>
-                                        <Button Command="{Binding SetRatingValueCommand}" Margin="0,0,3,0">
-                                            <Button.CommandParameter><sys:Int32>4</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="4"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <Button Click="RatingValueButton_Click" Margin="0,0,3,0">
+                                            <Button.Tag><sys:Int32>4</sys:Int32></Button.Tag>
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource SetContains}">
+                                                                    <Binding Path="RatingFilterActiveValues" />
+                                                                    <Binding><Binding.Source><sys:Int32>4</sys:Int32></Binding.Source></Binding>
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
                                             4★
                                         </Button>
-                                        <Button Command="{Binding SetRatingValueCommand}">
-                                            <Button.CommandParameter><sys:Int32>5</sys:Int32></Button.CommandParameter>
-                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ActiveRatingValue}" Value="5"><Setter Property="Background" Value="{StaticResource AccentBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                        <Button Click="RatingValueButton_Click">
+                                            <Button.Tag><sys:Int32>5</sys:Int32></Button.Tag>
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource SetContains}">
+                                                                    <Binding Path="RatingFilterActiveValues" />
+                                                                    <Binding><Binding.Source><sys:Int32>5</sys:Int32></Binding.Source></Binding>
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
                                             5★
                                         </Button>
                                     </StackPanel>
@@ -164,36 +251,54 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="Pick" Command="{Binding SetFlagFilterCommand}"
-                                            CommandParameter="{x:Static models:CullFlag.Pick}" Margin="0,0,3,0">
+                                    <Button Content="Pick" Click="FlagFilterButton_Click"
+                                            Tag="{x:Static models:CullFlag.Pick}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding FlagFilter}" Value="{x:Static models:CullFlag.Pick}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="FlagFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:CullFlag.Pick}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="Reject" Command="{Binding SetFlagFilterCommand}"
-                                            CommandParameter="{x:Static models:CullFlag.Reject}" Margin="0,0,3,0">
+                                    <Button Content="Reject" Click="FlagFilterButton_Click"
+                                            Tag="{x:Static models:CullFlag.Reject}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding FlagFilter}" Value="{x:Static models:CullFlag.Reject}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="FlagFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:CullFlag.Reject}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="Unflagged" Command="{Binding SetFlagFilterCommand}"
-                                            CommandParameter="{x:Static models:CullFlag.Unflagged}">
+                                    <Button Content="Unflagged" Click="FlagFilterButton_Click"
+                                            Tag="{x:Static models:CullFlag.Unflagged}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding FlagFilter}" Value="{x:Static models:CullFlag.Unflagged}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="FlagFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:CullFlag.Unflagged}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -221,24 +326,36 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="No Color" Command="{Binding SetColorLabelFilterCommand}"
-                                            CommandParameter="{x:Static models:ColorLabel.None}" Margin="0,0,3,0">
+                                    <Button Content="No Color" Click="ColorLabelFilterButton_Click"
+                                            Tag="{x:Static models:ColorLabel.None}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.None}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ColorLabelFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:ColorLabel.None}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Command="{Binding SetColorLabelFilterCommand}"
-                                            CommandParameter="{x:Static models:ColorLabel.Red}" Margin="0,0,3,0">
+                                    <Button Click="ColorLabelFilterButton_Click"
+                                            Tag="{x:Static models:ColorLabel.Red}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Red}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ColorLabelFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:ColorLabel.Red}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -250,12 +367,18 @@
                                             <TextBlock Text="Red" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Command="{Binding SetColorLabelFilterCommand}"
-                                            CommandParameter="{x:Static models:ColorLabel.Yellow}" Margin="0,0,3,0">
+                                    <Button Click="ColorLabelFilterButton_Click"
+                                            Tag="{x:Static models:ColorLabel.Yellow}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Yellow}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ColorLabelFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:ColorLabel.Yellow}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -267,12 +390,18 @@
                                             <TextBlock Text="Yellow" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Command="{Binding SetColorLabelFilterCommand}"
-                                            CommandParameter="{x:Static models:ColorLabel.Green}" Margin="0,0,3,0">
+                                    <Button Click="ColorLabelFilterButton_Click"
+                                            Tag="{x:Static models:ColorLabel.Green}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Green}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ColorLabelFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:ColorLabel.Green}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -284,12 +413,18 @@
                                             <TextBlock Text="Green" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Command="{Binding SetColorLabelFilterCommand}"
-                                            CommandParameter="{x:Static models:ColorLabel.Blue}" Margin="0,0,3,0">
+                                    <Button Click="ColorLabelFilterButton_Click"
+                                            Tag="{x:Static models:ColorLabel.Blue}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Blue}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ColorLabelFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:ColorLabel.Blue}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -301,12 +436,18 @@
                                             <TextBlock Text="Blue" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Command="{Binding SetColorLabelFilterCommand}"
-                                            CommandParameter="{x:Static models:ColorLabel.Purple}">
+                                    <Button Click="ColorLabelFilterButton_Click"
+                                            Tag="{x:Static models:ColorLabel.Purple}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ColorLabelFilter}" Value="{x:Static models:ColorLabel.Purple}">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ColorLabelFilterActiveValues" />
+                                                                <Binding Source="{x:Static models:ColorLabel.Purple}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -390,14 +531,20 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Content="RAW only"
-                                            Command="{Binding SetImageTypeFilterCommand}"
-                                            CommandParameter="{x:Static vm:ImageTypeFilterMode.RawOnly}"
+                                            Click="ImageTypeFilterButton_Click"
+                                            Tag="{x:Static vm:ImageTypeFilterMode.RawOnly}"
                                             Margin="0,0,3,0"
                                             ToolTip="Show only RAW files">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="RawOnly">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ImageTypeFilterActiveValues" />
+                                                                <Binding Source="{x:Static vm:ImageTypeFilterMode.RawOnly}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -405,14 +552,20 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Content="JPG only"
-                                            Command="{Binding SetImageTypeFilterCommand}"
-                                            CommandParameter="{x:Static vm:ImageTypeFilterMode.JpegOnly}"
+                                            Click="ImageTypeFilterButton_Click"
+                                            Tag="{x:Static vm:ImageTypeFilterMode.JpegOnly}"
                                             Margin="0,0,3,0"
                                             ToolTip="Show only JPEG files">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="JpegOnly">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ImageTypeFilterActiveValues" />
+                                                                <Binding Source="{x:Static vm:ImageTypeFilterMode.JpegOnly}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -420,13 +573,19 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Content="Video only"
-                                            Command="{Binding SetImageTypeFilterCommand}"
-                                            CommandParameter="{x:Static vm:ImageTypeFilterMode.VideoOnly}"
+                                            Click="ImageTypeFilterButton_Click"
+                                            Tag="{x:Static vm:ImageTypeFilterMode.VideoOnly}"
                                             ToolTip="Show only videos">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ImageTypeFilter}" Value="VideoOnly">
+                                                    <DataTrigger Value="True">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                <Binding Path="ImageTypeFilterActiveValues" />
+                                                                <Binding Source="{x:Static vm:ImageTypeFilterMode.VideoOnly}" />
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -536,6 +695,57 @@
                                                           IsDragging="{Binding IsTimeOfDaySliderDragging, Mode=TwoWay}" />
                                 </Grid>
 
+                                <!-- Camera. Auto-populated from EXIF on currently-loaded photos. WrapPanel
+                                     stays empty until metadata extraction has surfaced at least one camera. -->
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                        <TextBlock Text="CAMERA" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <WrapPanel Margin="0,0,0,0">
+                                        <Button Content="Any" Command="{Binding ClearCameraFilterCommand}" Margin="0,0,3,3">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCameraFilterActive}" Value="False">
+                                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <ItemsControl ItemsSource="{Binding AvailableCameras}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding}"
+                                                            Click="CameraFilterButton_Click"
+                                                            Margin="0,0,3,3">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Value="True">
+                                                                        <DataTrigger.Binding>
+                                                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                                                <Binding Path="DataContext.CameraFilters" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                                                <Binding />
+                                                                            </MultiBinding>
+                                                                        </DataTrigger.Binding>
+                                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </WrapPanel>
+                                </StackPanel>
+
                                 <!-- Groups -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                                     <TextBlock Text="TAGS" FontSize="10" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
@@ -564,17 +774,16 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Button Content="{Binding Name}"
-                                                        Command="{Binding DataContext.SetTagFilterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"
+                                                        Click="TagFilterButton_Click"
                                                         Margin="0,0,3,3">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                             <Style.Triggers>
                                                                 <DataTrigger Value="True">
                                                                     <DataTrigger.Binding>
-                                                                        <MultiBinding Converter="{StaticResource Equality}">
-                                                                            <Binding Path="DataContext.TagFilter" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
-                                                                            <Binding />
+                                                                        <MultiBinding Converter="{StaticResource SetContains}">
+                                                                            <Binding Path="DataContext.TagFilterActiveIds" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                                            <Binding Path="Id" />
                                                                         </MultiBinding>
                                                                     </DataTrigger.Binding>
                                                                     <Setter Property="Background" Value="{StaticResource AccentBrush}" />
@@ -603,6 +812,10 @@
                                 </WrapPanel>
 
                                 <Separator Margin="0,2,0,8" />
+                                <TextBlock Text="Shift+click to select multiple values"
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10" HorizontalAlignment="Center"
+                                           Margin="0,0,0,6" />
                                 <Button Content="Clear All Filters" Command="{Binding ClearFiltersCommand}"
                                         HorizontalAlignment="Stretch" ToolTip="Ctrl+Shift+X" />
 

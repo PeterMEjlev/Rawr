@@ -920,6 +920,46 @@ public partial class MainWindow : Window
             _suppressFilterToggleMouseUp = true;
     }
 
+    // Filter popup buttons route through Click handlers (not RelayCommand) so they can read
+    // Keyboard.Modifiers and pass Shift state into the ViewModel for multi-select toggling.
+    private static bool IsShiftDown() => Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
+    private void RatingValueButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is int value && DataContext is MainViewModel vm)
+            vm.SetRatingValueCore(value, IsShiftDown());
+    }
+
+    private void FlagFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is CullFlag flag && DataContext is MainViewModel vm)
+            vm.SetFlagFilterCore(flag, IsShiftDown());
+    }
+
+    private void ColorLabelFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is ColorLabel label && DataContext is MainViewModel vm)
+            vm.SetColorLabelFilterCore(label, IsShiftDown());
+    }
+
+    private void ImageTypeFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is ImageTypeFilterMode mode && DataContext is MainViewModel vm)
+            vm.SetImageTypeFilterCore(mode, IsShiftDown());
+    }
+
+    private void TagFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.DataContext is PhotoTag tag && DataContext is MainViewModel vm)
+            vm.SetTagFilterCore(tag, IsShiftDown());
+    }
+
+    private void CameraFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.DataContext is string camera && DataContext is MainViewModel vm)
+            vm.SetCameraFilterCore(camera, IsShiftDown());
+    }
+
     private void TagsToggleButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (!TagsPopup.IsOpen) return;

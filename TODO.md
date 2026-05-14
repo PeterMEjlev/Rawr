@@ -1,10 +1,11 @@
-## SONNET:
+### **SONNET:
 
 - ## reverse scroll direction in filmstrip via a setting
 
-- ## If EV(RAW) has been loaded keep that when zooming in, instead of going to JPG(Large) 
+- ## Add setting to only show JPG(Large) instead of actual RAW image (toggle)
 
-- ## Filter by camera
+
+
 
 - ## Change "Filters" title to "Quick Filters" in order to differentiate it from the Filters button (which is the advanced filters)
 
