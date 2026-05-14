@@ -102,6 +102,14 @@
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"
+                                   Margin="0,4,0,10" />
+                        <CheckBox x:Name="ReverseFilmstripScrollCheck"
+                                  Content="Reverse filmstrip scroll direction"
+                                  Margin="0,0,0,4" />
+                        <TextBlock Text="Swaps the scroll direction when using the mouse wheel in the filmstrip."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
                                    Margin="0,0,0,20" />
 
                         <!-- Preview -->

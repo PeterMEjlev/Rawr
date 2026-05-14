@@ -874,7 +874,7 @@ public partial class MainWindow : Window
         var sv = FindScrollViewer(lb);
         if (sv == null) return;
 
-        ScrollSpeed.ScrollHorizontal(sv, e);
+        ScrollSpeed.ScrollHorizontal(sv, e, AppSettings.Current.ReverseFilmstripScroll);
         e.Handled = true;
     }
 

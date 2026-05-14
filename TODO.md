@@ -1,15 +1,7 @@
 ### **SONNET:
 
-- ## reverse scroll direction in filmstrip via a setting
-
-- ## Add setting to only show JPG(Large) instead of actual RAW image (toggle)
-
-
-
 
 - ## Change "Filters" title to "Quick Filters" in order to differentiate it from the Filters button (which is the advanced filters)
-
-- ## BUG: Clicking on the "Filter" button when the filter menu is already open, closes it like it should. however if the user clicks anywhere in the app where the filter menu was before, then it pops up again, suggesting it hasnt been properly closed.
 
 ## OPUS:
 - ## Allow user to manually add location metadata to selected photos (using the map function)

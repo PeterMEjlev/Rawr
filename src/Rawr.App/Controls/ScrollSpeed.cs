@@ -18,8 +18,11 @@ public static class ScrollSpeed
     public static void ScrollVertical(ScrollViewer scrollViewer, MouseWheelEventArgs e) =>
         ScrollVertical(scrollViewer, e, VerticalWheelPixels);
 
-    public static void ScrollHorizontal(ScrollViewer scrollViewer, MouseWheelEventArgs e) =>
-        scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset + WheelPixels(e, HorizontalWheelPixels));
+    public static void ScrollHorizontal(ScrollViewer scrollViewer, MouseWheelEventArgs e, bool reverse = false)
+    {
+        var pixels = WheelPixels(e, HorizontalWheelPixels);
+        scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset + (reverse ? -pixels : pixels));
+    }
 
     private static void ScrollVertical(ScrollViewer scrollViewer, MouseWheelEventArgs e, double basePixels) =>
         scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - WheelPixels(e, basePixels));

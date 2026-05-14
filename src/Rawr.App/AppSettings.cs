@@ -75,6 +75,7 @@ public sealed class AppSettings
 
     public double DoubleClickZoom { get; set; } = 3.0;
     public int ScrollSpeedPercent { get; set; } = Rawr.App.Controls.ScrollSpeed.DefaultPercent;
+    public bool ReverseFilmstripScroll { get; set; } = false;
 
     // When true, RAWR never decodes the linear RAW sensor data for previews —
     // it sticks with the camera's embedded JPEG. Avoids the colour noise that
@@ -161,6 +162,7 @@ public sealed class AppSettings
         ClosedEyeThreshold = ClosedEyeThreshold,
         DoubleClickZoom = DoubleClickZoom,
         ScrollSpeedPercent = ScrollSpeedPercent,
+        ReverseFilmstripScroll = ReverseFilmstripScroll,
         UseEmbeddedJpegOnly = UseEmbeddedJpegOnly,
         VideoSeekStepSeconds = VideoSeekStepSeconds,
         AutoPlayVideo = AutoPlayVideo,

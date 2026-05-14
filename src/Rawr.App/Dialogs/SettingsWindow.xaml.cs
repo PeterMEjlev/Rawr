@@ -83,6 +83,7 @@ public partial class SettingsWindow : Window
         DateFormatBox.Text = current.DateFormat;
         DoubleClickZoomSlider.Value = Math.Clamp(current.DoubleClickZoom, 1.5, 16.0);
         ScrollSpeedSlider.Value = Math.Clamp(current.ScrollSpeedPercent, ScrollSpeed.MinPercent, ScrollSpeed.MaxPercent);
+        ReverseFilmstripScrollCheck.IsChecked = current.ReverseFilmstripScroll;
         VideoSeekStepSlider.Value = Math.Clamp(current.VideoSeekStepSeconds, 1, 30);
         AutoPlayVideoCheck.IsChecked = current.AutoPlayVideo;
         UseEmbeddedJpegOnlyCheck.IsChecked = current.UseEmbeddedJpegOnly;
@@ -358,6 +359,7 @@ public partial class SettingsWindow : Window
             ClosedEyeThreshold = (byte)ClosedEyeThresholdSlider.Value,
             DoubleClickZoom     = DoubleClickZoomSlider.Value,
             ScrollSpeedPercent  = (int)ScrollSpeedSlider.Value,
+            ReverseFilmstripScroll = ReverseFilmstripScrollCheck.IsChecked == true,
             VideoSeekStepSeconds = (int)VideoSeekStepSlider.Value,
             AutoPlayVideo       = AutoPlayVideoCheck.IsChecked == true,
             UseEmbeddedJpegOnly = UseEmbeddedJpegOnlyCheck.IsChecked == true,
