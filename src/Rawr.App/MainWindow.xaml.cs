@@ -1042,6 +1042,15 @@ public partial class MainWindow : Window
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Handled) return;
+
+        if (e.Key == Key.Escape)
+        {
+            if (FilterPopup.IsOpen) { FilterPopup.IsOpen = false; FilterToggleButton.IsChecked = false; e.Handled = true; return; }
+            if (TagsPopup.IsOpen)   { TagsPopup.IsOpen   = false; TagsToggleButton.IsChecked   = false; e.Handled = true; return; }
+            if (CopyPopup.IsOpen)   { CopyPopup.IsOpen   = false; CopyToggleButton.IsChecked   = false; e.Handled = true; return; }
+            if (ViewPopup.IsOpen)   { ViewPopup.IsOpen   = false; ViewToggleButton.IsChecked   = false; e.Handled = true; return; }
+        }
+
         if (Keyboard.Modifiers != ModifierKeys.None) return;
         var focusedElement = Keyboard.FocusedElement;
 
