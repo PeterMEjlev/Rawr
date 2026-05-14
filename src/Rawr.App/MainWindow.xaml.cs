@@ -908,6 +908,9 @@ public partial class MainWindow : Window
         _suppressFilterToggleMouseUp = false;
         FilterPopup.IsOpen = false;
         FilterToggleButton.IsChecked = false;
+        // ButtonBase captures the mouse on MouseDown; since we're handling MouseUp,
+        // its class handler won't run and won't release capture — do it here.
+        if (FilterToggleButton.IsMouseCaptured) FilterToggleButton.ReleaseMouseCapture();
         e.Handled = true;
     }
 
@@ -934,6 +937,7 @@ public partial class MainWindow : Window
         _suppressTagsToggleMouseUp = false;
         TagsPopup.IsOpen = false;
         TagsToggleButton.IsChecked = false;
+        if (TagsToggleButton.IsMouseCaptured) TagsToggleButton.ReleaseMouseCapture();
         e.Handled = true;
     }
 
