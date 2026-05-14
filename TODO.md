@@ -1,7 +1,9 @@
 ### **SONNET:
 
+- ## Update the SHORTCUTS panel with new shortcuts
 
-- ## Change "Filters" title to "Quick Filters" in order to differentiate it from the Filters button (which is the advanced filters)
+
+- ## Folders that are open in RAWR dont disappear when ejected
 
 ## OPUS:
 - ## Allow user to manually add location metadata to selected photos (using the map function)

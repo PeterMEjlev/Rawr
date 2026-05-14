@@ -80,9 +80,10 @@
                            PlacementTarget="{Binding ElementName=FilterToggleButton}"
                            Closed="FilterPopup_Closed"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource BgControlBrush}"
+                        <Border Background="{StaticResource BgPanelBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
+                                CornerRadius="{StaticResource CardCornerRadius}"
                                 Padding="10,8">
                             <StackPanel>
 
@@ -874,9 +875,10 @@
                            PlacementTarget="{Binding ElementName=TagsToggleButton}"
                            Closed="TagsPopup_Closed"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource BgControlBrush}"
+                        <Border Background="{StaticResource BgPanelBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
+                                CornerRadius="{StaticResource CardCornerRadius}"
                                 Padding="10,8"
                                 MinWidth="200">
                             <StackPanel>
@@ -988,9 +990,10 @@
                            PlacementTarget="{Binding ElementName=CopyToggleButton}"
                            Closed="CopyPopup_Closed"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource BgControlBrush}"
+                        <Border Background="{StaticResource BgPanelBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
+                                CornerRadius="{StaticResource CardCornerRadius}"
                                 Padding="10,8">
                             <StackPanel>
 
@@ -1291,9 +1294,10 @@
                            PlacementTarget="{Binding ElementName=ViewToggleButton}"
                            Closed="ViewPopup_Closed"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource BgControlBrush}"
+                        <Border Background="{StaticResource BgPanelBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
+                                CornerRadius="{StaticResource CardCornerRadius}"
                                 Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="PANELS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6" />
@@ -1367,27 +1371,30 @@
 
             <!-- ────── LEFT SIDEBAR ────── -->
             <Border Grid.Column="0"
-                    Background="{StaticResource BgPanelBrush}"
+                    Background="{StaticResource BgBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
+                              Padding="10,10,6,10"
                               PreviewMouseWheel="VerticalScrollViewer_PreviewMouseWheel">
-                    <StackPanel Margin="0,4,0,12">
+                    <StackPanel>
 
                         <!-- ── FOLDERS section ── -->
-                        <Grid>
+                        <Border Style="{StaticResource SectionCard}">
+                        <StackPanel>
+                        <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="FOLDERS" Style="{StaticResource SidebarSectionHeader}" />
+                            <TextBlock Grid.Column="0" Text="FOLDERS" Style="{StaticResource SectionCardHeader}" Margin="0" VerticalAlignment="Center" />
                             <Button Grid.Column="1"
                                     Content="+"
                                     Command="{Binding CreateNewFolderCommand}"
                                     ToolTip="Create new folder"
                                     Width="20" Height="20"
-                                    Padding="0" Margin="0,12,8,0"
+                                    Padding="0" Margin="0"
                                     FontSize="14"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -1395,8 +1402,8 @@
                         </Grid>
                         <TreeView x:Name="FolderTreeView"
                                   ItemsSource="{Binding FolderTreeRoots}"
-                                  Margin="6,0,6,4"
-                                  Padding="2,2,2,2"
+                                  Margin="0,0,0,4"
+                                  Padding="0"
                                   MaxHeight="320"
                                   SelectedItemChanged="FolderTreeView_SelectedItemChanged"
                                   PreviewMouseRightButtonDown="FolderTreeView_PreviewMouseRightButtonDown">
@@ -1476,11 +1483,15 @@
                                   Content="Include subfolders"
                                   FontSize="11"
                                   Foreground="{StaticResource TextDimBrush}"
-                                  Margin="10,0,6,8"
+                                  Margin="0,4,0,0"
                                   ToolTip="When on, the photo list shows every supported file in this folder and all its subfolders. Sticky global preference." />
+                        </StackPanel>
+                        </Border>
 
                         <!-- ── FILTERS section ── -->
-                        <TextBlock Text="QUICK FILTERS" Style="{StaticResource SidebarSectionHeader}" />
+                        <Border Style="{StaticResource SectionCard}">
+                        <StackPanel>
+                        <TextBlock Text="QUICK FILTERS" Style="{StaticResource SectionCardHeader}" />
 
                         <!-- Rated subsection -->
                         <ToggleButton x:Name="RatedToggle" Content="Rated" Style="{StaticResource SidebarSubsectionToggle}" />
@@ -1789,7 +1800,7 @@
                             </controls:SidebarBucketButton>
                         </StackPanel>
 
-                        <!-- ── TAGS section ── -->
+                        <!-- ── TAGS subsection ── -->
                         <ToggleButton x:Name="TagsToggle" Content="Tags" Style="{StaticResource SidebarSubsectionToggle}" />
                         <ItemsControl x:Name="SidebarTagsList" ItemsSource="{Binding Tags}" Margin="6,0,6,4"
                                       Visibility="{Binding IsChecked, ElementName=TagsToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1818,6 +1829,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </StackPanel>
+                        </Border>
 
                     </StackPanel>
                 </ScrollViewer>

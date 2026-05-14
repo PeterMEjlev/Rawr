@@ -6,7 +6,7 @@
         Width="1400" Height="1000"
         MinWidth="640" MinHeight="420"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgToolbarBrush}"
+        Background="{StaticResource BgBrush}"
         Foreground="#FFE6E6E6"
         FontFamily="Segoe UI"
         FontSize="12">
@@ -21,14 +21,10 @@
 
         <!-- Source -->
         <Border Grid.Row="0"
-                Background="{StaticResource BgControlBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="1"
-                Padding="10,8"
-                Margin="0,0,0,10"
-                CornerRadius="2">
+                Style="{StaticResource SectionCard}"
+                Padding="14,10">
             <StackPanel>
-                <TextBlock Text="SOURCE" FontSize="10" Foreground="{StaticResource TextDimBrush}" />
+                <TextBlock Text="SOURCE" Style="{StaticResource SectionCardHeader}" />
                 <TextBlock x:Name="SourceText" FontSize="13" Margin="0,2,0,0" />
             </StackPanel>
         </Border>
@@ -70,9 +66,10 @@
 
         <!-- File list (list + grid view; visibility toggled by ViewMode_Changed) -->
         <Border Grid.Column="0"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="1"
-                Background="{StaticResource BgControlBrush}">
+                Style="{StaticResource SectionCard}"
+                Padding="0"
+                Margin="0"
+                ClipToBounds="True">
             <Grid>
                 <ListView x:Name="FileList"
                           SelectionMode="Extended"
@@ -219,9 +216,9 @@
 
             <!-- Destination panel -->
             <Border Grid.Column="2"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1"
-                    Background="{StaticResource BgControlBrush}">
+                    Style="{StaticResource SectionCard}"
+                    Padding="0"
+                    Margin="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" /> <!-- Header -->
@@ -233,9 +230,8 @@
 
                     <TextBlock Grid.Row="0"
                                Text="DESTINATION"
-                               FontSize="10"
-                               Foreground="{StaticResource TextDimBrush}"
-                               Margin="10,8,10,4" />
+                               Style="{StaticResource SectionCardHeader}"
+                               Margin="14,12,14,4" />
 
                     <Grid Grid.Row="1" Margin="10,0,10,8">
                         <Grid.ColumnDefinitions>
