@@ -24,8 +24,7 @@
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />                              <!-- Toolbar -->
-            <RowDefinition Height="*" />                                 <!-- Main split: preview + metadata -->
-            <RowDefinition Height="Auto" />                              <!-- Preview action bar -->
+            <RowDefinition Height="*" />                                 <!-- Main split (preview + metadata) + action bar -->
             <RowDefinition Height="4" />                                 <!-- Filmstrip splitter -->
             <RowDefinition Height="148" MinHeight="80" MaxHeight="400"/> <!-- Filmstrip -->
             <RowDefinition Height="Auto" />                              <!-- Status bar -->
@@ -1361,8 +1360,17 @@
             </DockPanel>
         </Border>
 
-        <!-- ================ MAIN SPLIT (sidebar + grid panel + preview + metadata) ================ -->
-        <Grid x:Name="MainContentRow" Grid.Row="1">
+        <!-- ================ MAIN SPLIT (sidebar + grid panel + preview + metadata) + action bar ================ -->
+        <!-- Wrapper so the filmstrip splitter sits directly between the preview
+             region and the filmstrip; the action bar rides at the bottom of the
+             preview region instead of being a sibling row the splitter resizes. -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />     <!-- Preview + metadata -->
+                <RowDefinition Height="Auto" />  <!-- Preview action bar -->
+            </Grid.RowDefinitions>
+
+        <Grid x:Name="MainContentRow" Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="220" MinWidth="160" MaxWidth="400" />  <!-- Sidebar -->
                 <ColumnDefinition Width="4" />                                    <!-- Splitter -->
@@ -2616,7 +2624,7 @@
         </Grid>
         </Grid>
         <!-- ================ PREVIEW ACTION BAR ================ -->
-        <Border Grid.Row="2"
+        <Border x:Name="PreviewActionBar" Grid.Row="1"
                 Background="{StaticResource BgToolbarBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
@@ -2640,17 +2648,20 @@
                 </ToggleButton>
             </StackPanel>
         </Border>
+        </Grid>
 
         <!-- ================ FILMSTRIP SPLITTER ================ -->
-        <GridSplitter Grid.Row="3"
+        <GridSplitter Grid.Row="2"
                       Height="4"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"
+                      ResizeDirection="Rows"
+                      ResizeBehavior="PreviousAndNext"
                       Background="{StaticResource BorderBrush}"
                       Cursor="SizeNS" />
 
         <!-- ================ FILMSTRIP ================ -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="3"
                 Background="{StaticResource BgFilmstripBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,1">
@@ -2902,7 +2913,7 @@
         </Border>
 
         <!-- ================ STATUS BAR ================ -->
-        <Border Grid.Row="5"
+        <Border Grid.Row="4"
                 Background="{StaticResource BgToolbarBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
@@ -2918,7 +2929,7 @@
 
         <Grid x:Name="PhotoFullscreenTransitionOverlay"
               Grid.Row="0"
-              Grid.RowSpan="6"
+              Grid.RowSpan="5"
               Panel.ZIndex="1000"
               Background="#FF0E0E0E"
               IsHitTestVisible="False"

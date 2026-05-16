@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -108,6 +110,16 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     public IRelayCommand<HistogramMode> SetHistogramModeCommand { get; }
     public IRelayCommand<SidePanelView> SetSidePanelViewCommand { get; }
 
+    public IRelayCommand ToggleFullscreenCommand { get; }
+
+    /// <summary>When true the burst viewer opens in the same chrome-free
+    /// fullscreen mode the main window was in, so toggling fullscreen then
+    /// diving into a burst stays fullscreen.</summary>
+    public bool StartFullscreen { get; init; }
+
+    private bool _isFullscreen;
+    private WindowStyle _preFullscreenStyle;
+
     /// <summary>Optional initial peek anchor + zoom carried over from the
     /// caller so opening a burst doesn't lose the inspection point.</summary>
     public PixelPeekController.State? InitialPeekState { get; init; }
@@ -132,6 +144,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         SetColorLabelCommand = new RelayCommand<ColorLabel>(l => MutateCurrent(p => p.ColorLabel = p.ColorLabel == l ? ColorLabel.None : l));
         SetHistogramModeCommand = new RelayCommand<HistogramMode>(mode => HistogramMode = mode);
         SetSidePanelViewCommand = new RelayCommand<SidePanelView>(view => SidePanelView = view);
+        ToggleFullscreenCommand = new RelayCommand(() => ApplyFullscreen(!_isFullscreen));
 
         InitializeComponent();
         DataContext = this;
@@ -156,6 +169,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         {
             _peek?.AttachView(PhotoInfoPanelControl.PixelPeekView);
             if (InitialPeekState is { HasAnchor: true } s) _peek?.RestoreState(s);
+            if (StartFullscreen) ApplyFullscreen(true);
             MoveTo(Math.Clamp(startIndex, 0, _photos.Count - 1));
         };
         Closed += (_, _) =>
@@ -265,6 +279,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         ["ToggleReject"]     = ToggleRejectCommand,
         ["Unflag"]           = UnflagCommand,
         ["SetAsThumbnail"]   = SetAsThumbnailCommand,
+        ["ViewPhotoFullscreen"] = ToggleFullscreenCommand,
         ["NextPhoto"]        = NextCommand,
         ["NextPhotoAlt"]     = NextCommand,
         ["PreviousPhoto"]    = PrevCommand,
@@ -312,6 +327,115 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             FlagText.Text = photo.Flag == CullFlag.Pick ? "PICK" : "REJECT";
         }
         Title = $"Burst — {photo.FileName}  ({_currentIndex + 1}/{_photos.Count})";
+    }
+
+    // Chrome-free view mirroring the main window's "F" fullscreen: drop the
+    // header and the metadata/histogram panel so the frame fills the window,
+    // but keep the filmstrip since it's how bursts are navigated visually.
+    // The owner window is itself fullscreen over the taskbar, so we must cover
+    // the full monitor too — otherwise its filmstrip peeks out under ours.
+    private void ApplyFullscreen(bool fullscreen)
+    {
+        if (fullscreen == _isFullscreen) return;
+        _isFullscreen = fullscreen;
+
+        var hwnd = new WindowInteropHelper(this).Handle;
+
+        if (fullscreen)
+        {
+            _preFullscreenStyle = WindowStyle;
+            HeaderBar.Visibility = Visibility.Collapsed;
+            PhotoInfoPanelControl.Visibility = Visibility.Collapsed;
+            if (WindowStyle != WindowStyle.None) WindowStyle = WindowStyle.None;
+            // The WM_GETMINMAXINFO hook (gated by _isFullscreen) now reports the
+            // full monitor; force the OS to recompute the frame immediately.
+            if (TryGetNearestMonitorInfo(hwnd, out var info))
+                SetWindowToRect(hwnd, info.rcMonitor);
+        }
+        else
+        {
+            HeaderBar.Visibility = Visibility.Visible;
+            PhotoInfoPanelControl.Visibility = Visibility.Visible;
+            if (WindowStyle != _preFullscreenStyle) WindowStyle = _preFullscreenStyle;
+            // Hook now defers to normal bounds — contract back off the taskbar.
+            if (TryGetNearestMonitorInfo(hwnd, out var info))
+                SetWindowToRect(hwnd, info.rcWork);
+        }
+    }
+
+    // ── Fullscreen monitor-bounds interop (mirrors MainWindow) ──
+
+    private const int WM_GETMINMAXINFO = 0x0024;
+    private const int MONITOR_DEFAULTTONEAREST = 2;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_FRAMECHANGED = 0x0020;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MINMAXINFO
+    {
+        public POINT ptReserved, ptMaxSize, ptMaxPosition, ptMinTrackSize, ptMaxTrackSize;
+    }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MONITORINFO { public int cbSize; public RECT rcMonitor, rcWork; public int dwFlags; }
+
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int dwFlags);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr hwndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        var hwnd = new WindowInteropHelper(this).Handle;
+        HwndSource.FromHwnd(hwnd)?.AddHook(FullscreenWndProc);
+    }
+
+    // While fullscreen, report the full monitor as the maximized bounds so we
+    // cover the taskbar like the owner does. Otherwise leave the message alone.
+    private IntPtr FullscreenWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != WM_GETMINMAXINFO || !_isFullscreen) return IntPtr.Zero;
+        if (!TryGetNearestMonitorInfo(hwnd, out var info)) return IntPtr.Zero;
+
+        var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+        var r = info.rcMonitor;
+        mmi.ptMaxPosition.X = 0;
+        mmi.ptMaxPosition.Y = 0;
+        mmi.ptMaxSize.X = r.Right - r.Left;
+        mmi.ptMaxSize.Y = r.Bottom - r.Top;
+        Marshal.StructureToPtr(mmi, lParam, true);
+        handled = true;
+        return IntPtr.Zero;
+    }
+
+    private static bool TryGetNearestMonitorInfo(IntPtr hwnd, out MONITORINFO info)
+    {
+        info = default;
+        if (hwnd == IntPtr.Zero) return false;
+
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero) return false;
+
+        info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        return GetMonitorInfo(monitor, ref info);
+    }
+
+    private static void SetWindowToRect(IntPtr hwnd, RECT rect)
+    {
+        if (hwnd == IntPtr.Zero) return;
+
+        SetWindowPos(
+            hwnd,
+            IntPtr.Zero,
+            rect.Left,
+            rect.Top,
+            rect.Right - rect.Left,
+            rect.Bottom - rect.Top,
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     }
 
     private async Task LoadPreviewAsync(PhotoItem photo)

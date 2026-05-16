@@ -114,6 +114,7 @@ public partial class MainWindow : Window
     private GridLength[]? _preFullscreenMainCols;
     private GridLength[]? _preFullscreenSplitCols;
     private Visibility _preFullscreenExposureBarVisibility;
+    private Visibility _preFullscreenActionBarVisibility;
     private bool _isPhotoFullscreen;
     private long _fullscreenTransitionVersion;
     private PhotoItem? _prevSelectedPhoto;
@@ -359,7 +360,7 @@ public partial class MainWindow : Window
                 vm.GridColumnCount = Math.Clamp(layout.GridColumnCount, 1, 8);
                 vm.ExpandedGridColumnCount = Math.Clamp(layout.ExpandedGridColumnCount, 1, 16);
                 _savedFilmstripHeight = new GridLength(Math.Clamp(layout.FilmstripRowHeight, 80, 400));
-                RootGrid.RowDefinitions[4].Height = _savedFilmstripHeight;
+                RootGrid.RowDefinitions[3].Height = _savedFilmstripHeight;
                 vm.ShowGrid = layout.ShowGrid;
                 vm.ShowFilmstrip = layout.ShowFilmstrip;
                 vm.IsGridExpanded = layout.IsGridExpanded;
@@ -394,7 +395,7 @@ public partial class MainWindow : Window
             if (DataContext is not MainViewModel vm) return;
             Directory.CreateDirectory(SettingsDir);
             var height = vm.ShowFilmstrip
-                ? RootGrid.RowDefinitions[4].ActualHeight
+                ? RootGrid.RowDefinitions[3].ActualHeight
                 : _savedFilmstripHeight.Value;
 
             // Carry forward the second-monitor bounds so the next session restores
@@ -583,6 +584,7 @@ public partial class MainWindow : Window
             _preFullscreenMainCols = mainCols.Select(c => c.Width).ToArray();
             _preFullscreenSplitCols = splitCols.Select(c => c.Width).ToArray();
             _preFullscreenExposureBarVisibility = ExposureCompensationBar.Visibility;
+            _preFullscreenActionBarVisibility = PreviewActionBar.Visibility;
 
             // Collapse every RootGrid row except row 1 (the preview-bearing main split).
             // WPF batches all of these into a single layout pass at Render priority.
@@ -604,6 +606,7 @@ public partial class MainWindow : Window
             // Hide the exposure-compensation bar; keep the video-controls bar in the
             // same row visible (it's bound to VideoSourceUri so it only shows for videos).
             ExposureCompensationBar.Visibility = Visibility.Collapsed;
+            PreviewActionBar.Visibility = Visibility.Collapsed;
 
             // The WM_GETMINMAXINFO hook (gated by _isPhotoFullscreen) now reports the
             // full monitor as the maximized bounds, so we no longer need the visible
@@ -645,6 +648,7 @@ public partial class MainWindow : Window
             }
 
             ExposureCompensationBar.Visibility = _preFullscreenExposureBarVisibility;
+            PreviewActionBar.Visibility = _preFullscreenActionBarVisibility;
 
             // _isPhotoFullscreen is already false above, so the hook now reports
             // workarea bounds — restore chrome and re-trigger a maximize/restore so the
@@ -794,18 +798,18 @@ public partial class MainWindow : Window
         var rows = RootGrid.RowDefinitions;
         if (show)
         {
-            rows[3].Height = new GridLength(4);
-            rows[4].MinHeight = 80;
-            rows[4].Height = _savedFilmstripHeight;
+            rows[2].Height = new GridLength(4);
+            rows[3].MinHeight = 80;
+            rows[3].Height = _savedFilmstripHeight;
         }
         else
         {
-            var current = rows[4].ActualHeight;
+            var current = rows[3].ActualHeight;
             if (current > 0)
                 _savedFilmstripHeight = new GridLength(current);
+            rows[2].Height = new GridLength(0);
+            rows[3].MinHeight = 0;
             rows[3].Height = new GridLength(0);
-            rows[4].MinHeight = 0;
-            rows[4].Height = new GridLength(0);
         }
     }
 
@@ -1594,6 +1598,8 @@ public partial class MainWindow : Window
             // inspecting the same composition pixel — comparing focus across
             // burst frames is the whole point of the loupe here.
             InitialPeekState = _peek?.CaptureState(),
+            // If the user dived into a burst from fullscreen, keep them there.
+            StartFullscreen = vm.IsPhotoFullscreen,
         };
         win.ShowDialog();
         // Bring any anchor / zoom changes from the burst viewer back so the
