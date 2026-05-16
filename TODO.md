@@ -3,6 +3,17 @@
 - ## Update the SHORTCUTS panel with new shortcuts
 
 
+
+- be able to change timeline size in full screen
+
+- be able to remove timeline in full screen view
+
+- make burst icon indicator more visible in fullscreen (easy to miss and scroll over burst groups without inspecting them)
+
+- missing RAW or JPG(LARGE) indicator for fullscreen view
+
+- when opening burst groups in fullscreen mode, the opened burst group should also be in fullscreen. i.e no histogram etc
+
 - ## Folders that are open in RAWR dont disappear when ejected
 
 ## OPUS:

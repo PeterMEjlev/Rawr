@@ -890,7 +890,37 @@ public partial class MainWindow : Window
     private void Filmstrip_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (sender is not ListBox lb || lb.SelectedItem is null) return;
-        lb.ScrollIntoView(lb.SelectedItem);
+        CenterFilmstripSelection(lb);
+    }
+
+    // Shift the filmstrip so the selected photo stays in the middle of the
+    // viewport instead of drifting to the edge (as plain ScrollIntoView does).
+    // Items are a uniform width, so the per-item slot is ExtentWidth / count;
+    // the target offset is clamped so the strip stops at the first/last item
+    // rather than scrolling past the ends.
+    private static void CenterFilmstripSelection(ListBox lb)
+    {
+        if (lb.SelectedIndex < 0) return;
+
+        bool TryCenter()
+        {
+            var sv = FindScrollViewer(lb);
+            if (sv == null) return false;
+
+            int count = lb.Items.Count;
+            if (count == 0 || sv.ExtentWidth <= 0 || sv.ViewportWidth <= 0) return false;
+
+            double slot = sv.ExtentWidth / count;
+            double target = (lb.SelectedIndex + 0.5) * slot - sv.ViewportWidth / 2.0;
+            target = Math.Clamp(target, 0, sv.ScrollableWidth);
+            sv.ScrollToHorizontalOffset(target);
+            return true;
+        }
+
+        // The ScrollViewer may not be measured yet right after a folder load;
+        // defer once at Loaded priority so extent/viewport are valid.
+        if (!TryCenter())
+            lb.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => TryCenter()));
     }
 
     private void VerticalScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

@@ -175,7 +175,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         _currentIndex = index;
         CurrentPhoto = _photos[index];
         Strip.SelectedIndex = index;
-        Strip.ScrollIntoView(_photos[index]);
+        CenterStripSelection();
         HistogramData = null;
         if (!keepZoom)
             ResetZoom();
@@ -633,6 +633,33 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         if (sv == null) return;
         ScrollSpeed.ScrollHorizontal(sv, e);
         e.Handled = true;
+    }
+
+    // Shift the strip so the selected photo stays centered in the viewport
+    // rather than drifting to the edge. Items are a uniform width, so the
+    // per-item slot is ExtentWidth / count; the target is clamped so the
+    // strip stops at the first/last item instead of scrolling past the ends.
+    private void CenterStripSelection()
+    {
+        if (Strip.SelectedIndex < 0) return;
+
+        bool TryCenter()
+        {
+            var sv = FindScrollViewer(Strip);
+            if (sv == null) return false;
+
+            int count = Strip.Items.Count;
+            if (count == 0 || sv.ExtentWidth <= 0 || sv.ViewportWidth <= 0) return false;
+
+            double slot = sv.ExtentWidth / count;
+            double target = (Strip.SelectedIndex + 0.5) * slot - sv.ViewportWidth / 2.0;
+            target = Math.Clamp(target, 0, sv.ScrollableWidth);
+            sv.ScrollToHorizontalOffset(target);
+            return true;
+        }
+
+        if (!TryCenter())
+            Strip.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => TryCenter()));
     }
 
     private static ScrollViewer? FindScrollViewer(System.Windows.DependencyObject root)
