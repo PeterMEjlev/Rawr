@@ -84,6 +84,17 @@ public sealed class AppSettings
     // back to the JPEG path (less accurate at the extremes).
     public bool UseEmbeddedJpegOnly { get; set; } = false;
 
+    // Per-folder disk budget (MB) for the linear-RAW cache (.rawr/cache/*_linearraw.bin).
+    // Each buffer is uncompressed 16-bit RGB at ~2400px — roughly the size of the
+    // source cRAW itself — so a fully-cached folder's .bin set ≈ the total RAW
+    // size. Without a cap below that, the cache necessarily rivals the originals.
+    // When the total exceeds this, least-recently-used .bin files are evicted
+    // (tiny JPEG thumb/preview files are always kept); evicted photos re-decode
+    // (~1-3s) the next time they're visited. 0 disables pruning entirely.
+    // 2 GB ≈ ~90 hot photos retained on a 45MP body — tune up for snappier
+    // revisits at the cost of disk, down to keep the cache well under the RAWs.
+    public int LinearRawCacheBudgetMb { get; set; } = 2048;
+
     // Step size for the Shift+Left/Right video seek shortcuts.
     public int VideoSeekStepSeconds { get; set; } = 5;
 
@@ -172,6 +183,7 @@ public sealed class AppSettings
         ScrollSpeedPercent = ScrollSpeedPercent,
         ReverseFilmstripScroll = ReverseFilmstripScroll,
         UseEmbeddedJpegOnly = UseEmbeddedJpegOnly,
+        LinearRawCacheBudgetMb = LinearRawCacheBudgetMb,
         VideoSeekStepSeconds = VideoSeekStepSeconds,
         AutoPlayVideo = AutoPlayVideo,
         LastImportDestination = LastImportDestination,

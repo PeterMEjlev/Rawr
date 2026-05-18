@@ -63,6 +63,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return _contexts.TryGetValue(folder, out var ctx) ? ctx.Cache : _cache!;
     }
 
+    // Counts linear-RAW saves so the on-demand decode path can prune only every
+    // Nth write instead of enumerating the cache dir on every navigation.
+    private int _linearRawSavesSincePrune;
+
+    // Configured linear-RAW disk budget in bytes. 0 (or negative) disables
+    // pruning — PreviewCache.PruneLinearRaw treats that as a no-op.
+    private static long LinearRawCacheBudgetBytes()
+    {
+        long mb = AppSettings.Current.LinearRawCacheBudgetMb;
+        return mb <= 0 ? 0 : mb * 1024L * 1024L;
+    }
+
+    // Evict least-recently-used *_linearraw.bin across every open folder cache so
+    // the on-disk total stays within budget. One directory enumeration per cache,
+    // best-effort. Snapshots the context map because folder opens mutate it.
+    private void PruneLinearRawCaches()
+    {
+        long budget = LinearRawCacheBudgetBytes();
+        if (budget <= 0) return;
+
+        var seen = new HashSet<PreviewCache>();
+        if (_cache != null && seen.Add(_cache))
+            _cache.PruneLinearRaw(budget);
+        foreach (var ctx in _contexts.Values.ToArray())
+            if (seen.Add(ctx.Cache))
+                ctx.Cache.PruneLinearRaw(budget);
+    }
+
     /// <summary>
     /// Persist every photo to its owning subfolder's CullingDatabase, grouped so
     /// each subfolder DB sees a single transaction (matches the speed profile of
@@ -1079,6 +1107,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             var cache = new PreviewCache(folderPath);
+            // Reclaim obsolete-version .bin first (e.g. ~2x-oversized pre-Downsample-
+            // fix v2 buffers) — unconditional, independent of the budget — then
+            // bound cross-session growth to the configured budget, all before the
+            // cache gets used (and grown) again this session.
+            cache.PruneStaleLinearRaw();
+            cache.PruneLinearRaw(LinearRawCacheBudgetBytes());
             var savedState = db.LoadAll();
             var tags = db.LoadGroups();
             var photoTags = db.LoadAllPhotoGroups();
@@ -2380,10 +2414,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Disk-cache-aware linear RAW load. The decode itself is the slow part
-    /// (~1-3s for cRAW unpack + dcraw_process); the downsampled buffer is ~50MB
-    /// at LinearRawPreviewWidth and reads back from disk in ~30ms. So once a
-    /// photo has been visited once, subsequent loads (re-selecting, app restart,
-    /// neighbour prefetch) skip LibRaw entirely.
+    /// (~1-3s for cRAW unpack + dcraw_process); the downsampled buffer is ~20MB
+    /// at LinearRawPreviewWidth (2400px-wide, 16-bit RGB) and reads back from
+    /// disk in ~30ms. So once a photo has been visited once, subsequent loads
+    /// (re-selecting, app restart, neighbour prefetch) skip LibRaw entirely.
+    /// PreviewCache.PruneLinearRaw keeps the on-disk total within budget.
     /// </summary>
     private LinearRawImage? LoadOrDecodeLinearRaw(PhotoItem photo, CancellationToken ct)
     {
@@ -2408,7 +2443,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Persist for future loads. Failures are silently ignored — losing the
         // cache means the next visit re-decodes, not that anything is broken.
-        try { cache?.SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels); }
+        try
+        {
+            cache?.SaveLinearRaw(photo.FileName, photo.FilePath, down.Width, down.Height, down.Pixels);
+            // Throttled so a normal browse doesn't enumerate the cache dir every
+            // photo. ~every 16 new writes keeps a long session bounded between
+            // folder opens. keepFileName guards the buffer we're about to return.
+            if (cache != null &&
+                Interlocked.Increment(ref _linearRawSavesSincePrune) % 16 == 0)
+                cache.PruneLinearRaw(LinearRawCacheBudgetBytes(), photo.FileName);
+        }
         catch { }
         return down;
     }
@@ -3327,6 +3371,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 : $"Cached {CacheAllProgress} RAW previews.";
             _cacheAllCts?.Dispose();
             _cacheAllCts = null;
+            // Bulk caching can blow far past the budget — evict back down now
+            // that the parallel writers have stopped.
+            PruneLinearRawCaches();
         }
     }
 
