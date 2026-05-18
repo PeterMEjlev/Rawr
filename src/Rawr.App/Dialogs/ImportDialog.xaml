@@ -16,6 +16,7 @@
             <RowDefinition Height="Auto" /> <!-- Select-all toolbar -->
             <RowDefinition Height="*" />    <!-- Files (left) + Destination panel (right) -->
             <RowDefinition Height="Auto" /> <!-- Status / progress -->
+            <RowDefinition Height="Auto" /> <!-- Organize by type -->
             <RowDefinition Height="Auto" /> <!-- Options + buttons -->
         </Grid.RowDefinitions>
 
@@ -95,7 +96,8 @@
                             <GridViewColumn Width="36">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding IsImportable}" />
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
@@ -149,9 +151,13 @@
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Setter Property="BorderBrush" Value="Transparent" />
+                                        <Setter Property="Opacity" Value="1" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                 <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsExcluded}" Value="True">
+                                                <Setter Property="Opacity" Value="0.35" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -344,8 +350,106 @@
                          Visibility="Collapsed" />
         </Grid>
 
+        <!-- Organize by file type -->
+        <Border Grid.Row="4"
+                x:Name="OrganizeCard"
+                Style="{StaticResource SectionCard}"
+                Padding="14,10"
+                Margin="0,8,0,0">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="ORGANIZE" Style="{StaticResource SectionCardHeader}" />
+                    <TextBlock Grid.Column="1"
+                               Text="By default everything imports flat into the destination."
+                               Foreground="{StaticResource TextDimBrush}"
+                               FontSize="11"
+                               VerticalAlignment="Center" />
+                </Grid>
+
+                <Grid Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="1"
+                               Text="Destination"
+                               Foreground="{StaticResource TextDimBrush}"
+                               FontSize="10"
+                               Margin="0,0,0,2" />
+                    <TextBlock Grid.Row="0" Grid.Column="2"
+                               Text="Subfolder name"
+                               Foreground="{StaticResource TextDimBrush}"
+                               FontSize="10"
+                               Margin="8,0,0,2" />
+
+                    <!-- RAW -->
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="RAW"
+                               VerticalAlignment="Center" />
+                    <ComboBox x:Name="RawModeCombo"
+                              Grid.Row="1" Grid.Column="1"
+                              Margin="0,2"
+                              SelectionChanged="RuleCombo_SelectionChanged">
+                        <ComboBoxItem Content="Main folder" />
+                        <ComboBoxItem Content="Subfolder" />
+                        <ComboBoxItem Content="Skip (don't import)" />
+                    </ComboBox>
+                    <TextBox x:Name="RawSubfolderBox"
+                             Grid.Row="1" Grid.Column="2"
+                             Margin="8,2,0,2"
+                             VerticalAlignment="Center" />
+
+                    <!-- JPEG -->
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="JPEG"
+                               VerticalAlignment="Center" />
+                    <ComboBox x:Name="JpegModeCombo"
+                              Grid.Row="2" Grid.Column="1"
+                              Margin="0,2"
+                              SelectionChanged="RuleCombo_SelectionChanged">
+                        <ComboBoxItem Content="Main folder" />
+                        <ComboBoxItem Content="Subfolder" />
+                        <ComboBoxItem Content="Skip (don't import)" />
+                    </ComboBox>
+                    <TextBox x:Name="JpegSubfolderBox"
+                             Grid.Row="2" Grid.Column="2"
+                             Margin="8,2,0,2"
+                             VerticalAlignment="Center" />
+
+                    <!-- Video -->
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="Video"
+                               VerticalAlignment="Center" />
+                    <ComboBox x:Name="VideoModeCombo"
+                              Grid.Row="3" Grid.Column="1"
+                              Margin="0,2"
+                              SelectionChanged="RuleCombo_SelectionChanged">
+                        <ComboBoxItem Content="Main folder" />
+                        <ComboBoxItem Content="Subfolder" />
+                        <ComboBoxItem Content="Skip (don't import)" />
+                    </ComboBox>
+                    <TextBox x:Name="VideoSubfolderBox"
+                             Grid.Row="3" Grid.Column="2"
+                             Margin="8,2,0,2"
+                             VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <!-- Options + buttons -->
-        <DockPanel Grid.Row="4" Margin="0,12,0,0" LastChildFill="False">
+        <DockPanel Grid.Row="5" Margin="0,12,0,0" LastChildFill="False">
             <CheckBox x:Name="EjectAfterCheck"
                       DockPanel.Dock="Left"
                       Content="Eject card after import"

@@ -10,6 +10,20 @@ public enum BurstThumbnailMode { HighestRated, FirstChronological }
 
 public enum ClippingMode { Highlights, Shadows, Both }
 
+// How a single media category (RAW / JPEG / Video) is handled on card import.
+// MainFolder keeps the original flat behaviour (file goes straight into the
+// chosen destination). Subfolder routes it into a named subfolder under the
+// destination. Skip excludes the whole category from the import.
+public enum ImportRouteMode { MainFolder, Subfolder, Skip }
+
+public sealed class ImportTypeRule
+{
+    public ImportRouteMode Mode { get; set; } = ImportRouteMode.MainFolder;
+    public string Subfolder { get; set; } = "";
+
+    public ImportTypeRule Clone() => new() { Mode = Mode, Subfolder = Subfolder };
+}
+
 public sealed class AppSettings
 {
     public static AppSettings Current { get; set; } = new();
@@ -110,6 +124,15 @@ public sealed class AppSettings
     // the user trigger import manually via the toolbar button.
     public bool AutoImportOnCardInsert { get; set; } = true;
 
+    // Optional per-type import routing. Default Mode is MainFolder for all, so
+    // out of the box every file still lands flat in the chosen destination —
+    // the rules only matter once the user opts a category into a subfolder or
+    // chooses to skip it. The dialog edits these and they persist on a
+    // successful import (same commit point as LastImportDestination).
+    public ImportTypeRule ImportRawRule { get; set; } = new() { Subfolder = "RAW" };
+    public ImportTypeRule ImportJpegRule { get; set; } = new() { Subfolder = "JPEG" };
+    public ImportTypeRule ImportVideoRule { get; set; } = new() { Subfolder = "Video" };
+
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
     public Dictionary<string, string> KeyBindings { get; set; } = new();
@@ -188,6 +211,9 @@ public sealed class AppSettings
         AutoPlayVideo = AutoPlayVideo,
         LastImportDestination = LastImportDestination,
         AutoImportOnCardInsert = AutoImportOnCardInsert,
+        ImportRawRule = ImportRawRule.Clone(),
+        ImportJpegRule = ImportJpegRule.Clone(),
+        ImportVideoRule = ImportVideoRule.Clone(),
         KeyBindings = new Dictionary<string, string>(KeyBindings),
         LogProfileOverrides = LogProfileOverrides.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         Macros = Macros.Select(m => new KeyboardMacro
