@@ -12,7 +12,6 @@
 
 - missing RAW or JPG(LARGE) indicator for fullscreen view
 
-- when opening burst groups in fullscreen mode, the opened burst group should also be in fullscreen. i.e no histogram etc
 
 - ## Folders that are open in RAWR dont disappear when ejected
 

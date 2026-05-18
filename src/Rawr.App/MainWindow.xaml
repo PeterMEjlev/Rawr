@@ -18,6 +18,11 @@
         <vm:MainViewModel />
     </Window.DataContext>
 
+    <Window.Resources>
+        <!-- Single knob for the fullscreen burst-group badge size — bump this to taste -->
+        <sys:Double x:Key="BurstBadgeFontSize">22</sys:Double>
+    </Window.Resources>
+
     <!-- Window.InputBindings are populated programmatically in MainWindow.xaml.cs
          via Rawr.App.Shortcuts.ShortcutBinder so they can be customised in Settings. -->
 
@@ -2420,15 +2425,26 @@
                                    Foreground="White"
                                    FontSize="12" />
                     </Border>
+                    <!-- RAW / JPG file-kind indicator. Hidden for video. -->
+                    <Border Background="#80000000"
+                            Padding="8,4"
+                            CornerRadius="3"
+                            Margin="0,0,0,4"
+                            ToolTip="{Binding SelectedPhoto.Extension}"
+                            Visibility="{Binding SelectedPhoto.FileTypeBadge, Converter={StaticResource NullToVisibility}}">
+                        <TextBlock Text="{Binding SelectedPhoto.FileTypeBadge}"
+                                   Foreground="White"
+                                   FontSize="12"
+                                   FontWeight="Bold" />
+                    </Border>
                 </StackPanel>
 
-                <!-- Burst-group indicator (top-left of preview) — large stack-of-cards
-                     icon + total photo count, shown whenever the selected photo is
-                     part of a burst group. -->
+                <!-- Burst-group indicator (top-left of preview) — stack-of-cards
+                     icon, "BURST" label and total photo count. -->
                 <Border HorizontalAlignment="Left"
                         VerticalAlignment="Top"
                         Background="#80000000"
-                        Padding="10,4"
+                        Padding="10,5"
                         CornerRadius="3"
                         Margin="16,16,0,0"
                         IsHitTestVisible="False"
@@ -2437,12 +2453,18 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#x29C9;"
                                    Foreground="White"
-                                   FontSize="28"
+                                   FontSize="{StaticResource BurstBadgeFontSize}"
                                    FontWeight="Bold"
                                    VerticalAlignment="Center" />
+                        <TextBlock Text="BURST"
+                                   Foreground="White"
+                                   FontSize="{StaticResource BurstBadgeFontSize}"
+                                   FontWeight="Bold"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0" />
                         <TextBlock Text="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource BurstBadgeToTotal}}"
                                    Foreground="White"
-                                   FontSize="20"
+                                   FontSize="{StaticResource BurstBadgeFontSize}"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center"
                                    Margin="6,0,0,0" />
