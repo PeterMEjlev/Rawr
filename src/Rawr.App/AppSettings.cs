@@ -10,6 +10,20 @@ public enum BurstThumbnailMode { HighestRated, FirstChronological }
 
 public enum ClippingMode { Highlights, Shadows, Both }
 
+// How a single media category (RAW / JPEG / Video) is handled on card import.
+// MainFolder keeps the original flat behaviour (file goes straight into the
+// chosen destination). Subfolder routes it into a named subfolder under the
+// destination. Skip excludes the whole category from the import.
+public enum ImportRouteMode { MainFolder, Subfolder, Skip }
+
+public sealed class ImportTypeRule
+{
+    public ImportRouteMode Mode { get; set; } = ImportRouteMode.MainFolder;
+    public string Subfolder { get; set; } = "";
+
+    public ImportTypeRule Clone() => new() { Mode = Mode, Subfolder = Subfolder };
+}
+
 public sealed class AppSettings
 {
     public static AppSettings Current { get; set; } = new();
@@ -84,6 +98,17 @@ public sealed class AppSettings
     // back to the JPEG path (less accurate at the extremes).
     public bool UseEmbeddedJpegOnly { get; set; } = false;
 
+    // Per-folder disk budget (MB) for the linear-RAW cache (.rawr/cache/*_linearraw.bin).
+    // Each buffer is uncompressed 16-bit RGB at ~2400px — roughly the size of the
+    // source cRAW itself — so a fully-cached folder's .bin set ≈ the total RAW
+    // size. Without a cap below that, the cache necessarily rivals the originals.
+    // When the total exceeds this, least-recently-used .bin files are evicted
+    // (tiny JPEG thumb/preview files are always kept); evicted photos re-decode
+    // (~1-3s) the next time they're visited. 0 disables pruning entirely.
+    // 2 GB ≈ ~90 hot photos retained on a 45MP body — tune up for snappier
+    // revisits at the cost of disk, down to keep the cache well under the RAWs.
+    public int LinearRawCacheBudgetMb { get; set; } = 2048;
+
     // Step size for the Shift+Left/Right video seek shortcuts.
     public int VideoSeekStepSeconds { get; set; } = 5;
 
@@ -98,6 +123,15 @@ public sealed class AppSettings
     // Auto-open the import dialog when a camera card is plugged in. Off lets
     // the user trigger import manually via the toolbar button.
     public bool AutoImportOnCardInsert { get; set; } = true;
+
+    // Optional per-type import routing. Default Mode is MainFolder for all, so
+    // out of the box every file still lands flat in the chosen destination —
+    // the rules only matter once the user opts a category into a subfolder or
+    // chooses to skip it. The dialog edits these and they persist on a
+    // successful import (same commit point as LastImportDestination).
+    public ImportTypeRule ImportRawRule { get; set; } = new() { Subfolder = "RAW" };
+    public ImportTypeRule ImportJpegRule { get; set; } = new() { Subfolder = "JPEG" };
+    public ImportTypeRule ImportVideoRule { get; set; } = new() { Subfolder = "Video" };
 
     // Keys are ShortcutAction.Id. Value is a serialized KeySpec ("Ctrl+Shift+X"),
     // or empty string to mean "explicitly unbound". Missing entries fall back to the default.
@@ -172,10 +206,14 @@ public sealed class AppSettings
         ScrollSpeedPercent = ScrollSpeedPercent,
         ReverseFilmstripScroll = ReverseFilmstripScroll,
         UseEmbeddedJpegOnly = UseEmbeddedJpegOnly,
+        LinearRawCacheBudgetMb = LinearRawCacheBudgetMb,
         VideoSeekStepSeconds = VideoSeekStepSeconds,
         AutoPlayVideo = AutoPlayVideo,
         LastImportDestination = LastImportDestination,
         AutoImportOnCardInsert = AutoImportOnCardInsert,
+        ImportRawRule = ImportRawRule.Clone(),
+        ImportJpegRule = ImportJpegRule.Clone(),
+        ImportVideoRule = ImportVideoRule.Clone(),
         KeyBindings = new Dictionary<string, string>(KeyBindings),
         LogProfileOverrides = LogProfileOverrides.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         Macros = Macros.Select(m => new KeyboardMacro

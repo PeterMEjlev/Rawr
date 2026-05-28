@@ -23,9 +23,16 @@ public sealed record ImportResult(
 /// </summary>
 public static class ImportService
 {
+    /// <param name="targetFolderResolver">
+    /// Maps a source path to the absolute folder it should be copied into. Lets
+    /// the caller route categories (RAW / JPEG / Video) into subfolders. When
+    /// null, every file goes straight into <paramref name="destinationFolder"/>
+    /// (the original flat behaviour).
+    /// </param>
     public static async Task<ImportResult> CopyAsync(
         IReadOnlyList<string> sources,
         string destinationFolder,
+        Func<string, string>? targetFolderResolver,
         IProgress<ImportProgress>? progress,
         CancellationToken ct)
     {
@@ -48,7 +55,9 @@ public static class ImportService
             ct.ThrowIfCancellationRequested();
             var src = sources[i];
             var name = Path.GetFileName(src);
-            var dst = Path.Combine(destinationFolder, name);
+            var targetFolder = targetFolderResolver?.Invoke(src) ?? destinationFolder;
+            Directory.CreateDirectory(targetFolder);
+            var dst = Path.Combine(targetFolder, name);
 
             long size = 0;
             try { size = new FileInfo(src).Length; } catch { }
@@ -67,11 +76,11 @@ public static class ImportService
                         continue;
                     }
                     // Same name, different size → don't overwrite; pick a unique name.
-                    dst = NextAvailableName(destinationFolder, name);
+                    dst = NextAvailableName(targetFolder, name);
                 }
 
                 await CopyFileAsync(src, dst, ct);
-                CopySidecars(src, destinationFolder);
+                CopySidecars(src, targetFolder);
                 copied++;
                 copiedPaths.Add(dst);
                 bytesDone += size;

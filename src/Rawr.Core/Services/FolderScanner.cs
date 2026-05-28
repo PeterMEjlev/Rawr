@@ -223,4 +223,7 @@ public static class FolderScanner
 
     public static bool IsVideo(string filePath) =>
         VideoExtensions.Contains(Path.GetExtension(filePath));
+
+    public static bool IsRaw(string filePath) =>
+        RawExtensions.Contains(Path.GetExtension(filePath));
 }

@@ -14,6 +14,9 @@ public sealed partial class PhotoItem : ObservableObject
     public bool IsVideo => Extension is ".MP4" or ".MOV";
     public bool IsRaw => !IsVideo && Extension is not ".JPG" and not ".JPEG";
 
+    // Short file-kind tag for the fullscreen overlay: "RAW" / "JPG" / "" (video).
+    public string FileTypeBadge => IsVideo ? "" : IsRaw ? "RAW" : "JPG";
+
     [ObservableProperty] private int _rating; // 0-5
     [ObservableProperty] private CullFlag _flag;
     [ObservableProperty] private ColorLabel _colorLabel;

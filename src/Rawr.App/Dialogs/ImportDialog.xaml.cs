@@ -15,6 +15,8 @@ namespace Rawr.App.Dialogs;
 
 public partial class ImportDialog : Window
 {
+    public enum MediaCategory { Raw, Jpeg, Video }
+
     public sealed class ImportFile : INotifyPropertyChanged
     {
         public string FullPath { get; }
@@ -24,6 +26,7 @@ public partial class ImportDialog : Window
         public DateTime Modified { get; }
         public string Kind { get; }
         public bool IsVideo { get; }
+        public MediaCategory Category { get; }
         public string SizeText => FormatSize(Size);
         public string ModifiedText => Modified.ToString("yyyy-MM-dd HH:mm");
 
@@ -39,6 +42,22 @@ public partial class ImportDialog : Window
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
             }
         }
+
+        // Set when the file's category is routed to "Skip". Forces it out of the
+        // selection and disables/dims it so the user can see what won't import.
+        private bool _isExcluded;
+        public bool IsExcluded
+        {
+            get => _isExcluded;
+            set
+            {
+                if (_isExcluded == value) return;
+                _isExcluded = value;
+                OnChanged();
+                OnChanged(nameof(IsImportable));
+            }
+        }
+        public bool IsImportable => !_isExcluded;
 
         private BitmapSource? _thumbnail;
         public BitmapSource? Thumbnail
@@ -71,6 +90,9 @@ public partial class ImportDialog : Window
             }
             catch { Size = 0; Modified = DateTime.MinValue; }
             IsVideo = FolderScanner.IsVideo(fullPath);
+            Category = IsVideo ? MediaCategory.Video
+                     : FolderScanner.IsRaw(fullPath) ? MediaCategory.Raw
+                     : MediaCategory.Jpeg;
             Kind = IsVideo ? "Video" : "Photo";
         }
 
@@ -96,6 +118,7 @@ public partial class ImportDialog : Window
 
     private string _root;
     private bool _suppressSelectAllSync;
+    private bool _suppressRuleSync;
     private CancellationTokenSource? _cts;
     private CancellationTokenSource? _thumbnailCts;
     private int _anchorIndex = -1;
@@ -146,6 +169,7 @@ public partial class ImportDialog : Window
         _suppressSelectAllSync = false;
 
         BuildDestinationTree(treeRootFolder);
+        InitRuleControls();
 
         Loaded += async (_, _) => await PopulateAsync();
         Closing += (_, e) =>
@@ -176,7 +200,7 @@ public partial class ImportDialog : Window
             item.SelectionChanged += (_, _) => UpdateSummary();
             Files.Add(item);
         }
-        UpdateSummary();
+        ApplyExclusions();
         StatusText.Text = "";
 
         StartThumbnailLoader();
@@ -272,13 +296,18 @@ public partial class ImportDialog : Window
     {
         if (_suppressSelectAllSync) return;
         var target = SelectAllCheck.IsChecked == true;
-        foreach (var f in Files) f.IsSelected = target;
+        foreach (var f in Files)
+        {
+            if (f.IsExcluded) continue;
+            f.IsSelected = target;
+        }
         UpdateSummary();
     }
 
     private void Tile_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not System.Windows.FrameworkElement el || el.DataContext is not ImportFile f) return;
+        if (f.IsExcluded) { e.Handled = true; return; }
         var clickedIndex = Files.IndexOf(f);
         if (clickedIndex < 0) return;
 
@@ -289,7 +318,10 @@ public partial class ImportDialog : Window
             // Matches the main grid's shift-click semantics.
             int lo = Math.Min(_anchorIndex, clickedIndex);
             int hi = Math.Max(_anchorIndex, clickedIndex);
-            for (int i = lo; i <= hi; i++) Files[i].IsSelected = true;
+            for (int i = lo; i <= hi; i++)
+            {
+                if (!Files[i].IsExcluded) Files[i].IsSelected = true;
+            }
         }
         else
         {
@@ -347,6 +379,136 @@ public partial class ImportDialog : Window
         _thumbnailCts?.Cancel();
         Files.Clear();
         await PopulateAsync();
+    }
+
+    // ── Per-type organize rules ──
+
+    private static int ModeToIndex(ImportRouteMode m) => m switch
+    {
+        ImportRouteMode.Subfolder => 1,
+        ImportRouteMode.Skip => 2,
+        _ => 0,
+    };
+
+    private static ImportRouteMode IndexToMode(int i) => i switch
+    {
+        1 => ImportRouteMode.Subfolder,
+        2 => ImportRouteMode.Skip,
+        _ => ImportRouteMode.MainFolder,
+    };
+
+    private void InitRuleControls()
+    {
+        _suppressRuleSync = true;
+        try
+        {
+            var s = AppSettings.Current;
+            var raw = s.ImportRawRule ?? new ImportTypeRule { Subfolder = "RAW" };
+            var jpg = s.ImportJpegRule ?? new ImportTypeRule { Subfolder = "JPEG" };
+            var vid = s.ImportVideoRule ?? new ImportTypeRule { Subfolder = "Video" };
+
+            RawModeCombo.SelectedIndex = ModeToIndex(raw.Mode);
+            JpegModeCombo.SelectedIndex = ModeToIndex(jpg.Mode);
+            VideoModeCombo.SelectedIndex = ModeToIndex(vid.Mode);
+
+            RawSubfolderBox.Text = string.IsNullOrWhiteSpace(raw.Subfolder) ? "RAW" : raw.Subfolder;
+            JpegSubfolderBox.Text = string.IsNullOrWhiteSpace(jpg.Subfolder) ? "JPEG" : jpg.Subfolder;
+            VideoSubfolderBox.Text = string.IsNullOrWhiteSpace(vid.Subfolder) ? "Video" : vid.Subfolder;
+        }
+        finally { _suppressRuleSync = false; }
+        UpdateSubfolderEnabled();
+    }
+
+    private void RuleCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressRuleSync) return;
+        if (RawModeCombo == null) return; // fired during XAML parse
+        UpdateSubfolderEnabled();
+        ApplyExclusions();
+    }
+
+    private void UpdateSubfolderEnabled()
+    {
+        if (RawSubfolderBox == null) return;
+        RawSubfolderBox.IsEnabled = RawModeCombo.SelectedIndex == 1;
+        JpegSubfolderBox.IsEnabled = JpegModeCombo.SelectedIndex == 1;
+        VideoSubfolderBox.IsEnabled = VideoModeCombo.SelectedIndex == 1;
+    }
+
+    private (ImportRouteMode mode, string subfolder) RuleFor(MediaCategory cat) => cat switch
+    {
+        MediaCategory.Raw => (IndexToMode(RawModeCombo.SelectedIndex), RawSubfolderBox.Text),
+        MediaCategory.Jpeg => (IndexToMode(JpegModeCombo.SelectedIndex), JpegSubfolderBox.Text),
+        _ => (IndexToMode(VideoModeCombo.SelectedIndex), VideoSubfolderBox.Text),
+    };
+
+    // Marks files whose category is set to "Skip" as excluded (and clears their
+    // selection so they can't be imported). Other files keep their selection.
+    private void ApplyExclusions()
+    {
+        foreach (var f in Files)
+        {
+            var (mode, _) = RuleFor(f.Category);
+            bool excluded = mode == ImportRouteMode.Skip;
+            f.IsExcluded = excluded;
+            if (excluded) f.IsSelected = false;
+        }
+        UpdateSummary();
+    }
+
+    private static string SanitizeSegment(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "";
+        foreach (var c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c.ToString(), "");
+        return name.Trim().TrimEnd('.', ' ');
+    }
+
+    // Snapshots the current rules into a thread-safe closure so routing stays
+    // consistent for the whole batch even though the copy runs off the UI
+    // thread. Skip is handled by exclusion earlier, so it falls back to the
+    // main folder here.
+    private Func<string, string> BuildTargetResolver(string dest)
+    {
+        var rawMode = IndexToMode(RawModeCombo.SelectedIndex);
+        var rawSub = SanitizeSegment(RawSubfolderBox.Text);
+        var jpgMode = IndexToMode(JpegModeCombo.SelectedIndex);
+        var jpgSub = SanitizeSegment(JpegSubfolderBox.Text);
+        var vidMode = IndexToMode(VideoModeCombo.SelectedIndex);
+        var vidSub = SanitizeSegment(VideoSubfolderBox.Text);
+
+        return src =>
+        {
+            ImportRouteMode mode;
+            string sub;
+            if (FolderScanner.IsVideo(src)) { mode = vidMode; sub = vidSub; }
+            else if (FolderScanner.IsRaw(src)) { mode = rawMode; sub = rawSub; }
+            else { mode = jpgMode; sub = jpgSub; }
+
+            if (mode == ImportRouteMode.Subfolder && sub.Length > 0)
+                return Path.Combine(dest, sub);
+            return dest;
+        };
+    }
+
+    private void CommitRulesToSettings()
+    {
+        var s = AppSettings.Current;
+        s.ImportRawRule = new ImportTypeRule
+        {
+            Mode = IndexToMode(RawModeCombo.SelectedIndex),
+            Subfolder = SanitizeSegment(RawSubfolderBox.Text),
+        };
+        s.ImportJpegRule = new ImportTypeRule
+        {
+            Mode = IndexToMode(JpegModeCombo.SelectedIndex),
+            Subfolder = SanitizeSegment(JpegSubfolderBox.Text),
+        };
+        s.ImportVideoRule = new ImportTypeRule
+        {
+            Mode = IndexToMode(VideoModeCombo.SelectedIndex),
+            Subfolder = SanitizeSegment(VideoSubfolderBox.Text),
+        };
     }
 
     // ── Destination folder tree ──
@@ -482,7 +644,7 @@ public partial class ImportDialog : Window
             return;
         }
 
-        var selected = Files.Where(f => f.IsSelected).Select(f => f.FullPath).ToList();
+        var selected = Files.Where(f => f.IsSelected && !f.IsExcluded).Select(f => f.FullPath).ToList();
         if (selected.Count == 0) return;
 
         ImportButton.IsEnabled = false;
@@ -490,6 +652,7 @@ public partial class ImportDialog : Window
         SelectAllCheck.IsEnabled = false;
         EjectAfterCheck.IsEnabled = false;
         FileList.IsEnabled = false;
+        OrganizeCard.IsEnabled = false;
         ProgressBar.Visibility = Visibility.Visible;
         CancelButton.Content = "Stop";
 
@@ -504,7 +667,10 @@ public partial class ImportDialog : Window
 
         try
         {
-            Result = await ImportService.CopyAsync(selected, dest, progress, _cts.Token);
+            var resolver = BuildTargetResolver(dest);
+            Result = await ImportService.CopyAsync(
+                selected, dest, resolver, progress, _cts.Token);
+            CommitRulesToSettings();
             ImportSucceeded = true;
             DialogResult = true;
         }
@@ -516,6 +682,7 @@ public partial class ImportDialog : Window
             SelectAllCheck.IsEnabled = true;
             EjectAfterCheck.IsEnabled = true;
             FileList.IsEnabled = true;
+            OrganizeCard.IsEnabled = true;
             CancelButton.Content = "Cancel";
             ProgressBar.Visibility = Visibility.Collapsed;
         }
@@ -527,6 +694,7 @@ public partial class ImportDialog : Window
             SelectAllCheck.IsEnabled = true;
             EjectAfterCheck.IsEnabled = true;
             FileList.IsEnabled = true;
+            OrganizeCard.IsEnabled = true;
             CancelButton.Content = "Cancel";
             ProgressBar.Visibility = Visibility.Collapsed;
         }
