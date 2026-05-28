@@ -183,6 +183,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _videoProxyProgressText = "Preparing smooth preview…";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedPhotoCaptureDateFormatted))]
+    [NotifyPropertyChangedFor(nameof(FullscreenPreviewSourceLabel))]
     private PhotoItem? _selectedPhoto;
     [ObservableProperty] private int _selectedIndex = -1;
     [ObservableProperty] private bool _isLoading;
@@ -268,10 +269,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private BitmapSource? _clippingOverlay;
     [ObservableProperty] private double _exposureCompensation = 0.0;
     [ObservableProperty] private bool _isLinearRawReady;
-    [ObservableProperty] private string _exposureSourceLabel = "EV";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FullscreenPreviewSourceLabel))]
+    private string _exposureSourceLabel = "EV";
 
     public double ExposureSelectionStart => Math.Min(0.0, ExposureCompensation);
     public double ExposureSelectionEnd   => Math.Max(0.0, ExposureCompensation);
+    public string FullscreenPreviewSourceLabel
+    {
+        get
+        {
+            if (SelectedPhoto == null || SelectedPhoto.IsVideo) return "";
+
+            var label = ExposureSourceLabel.ToUpperInvariant();
+            var source = label switch
+            {
+                var s when s.Contains("JPG LARGE") => "JPG (LARGE)",
+                var s when s.Contains("JPG SMALL") => "JPG (SMALL)",
+                var s when s.Contains("JPG THUMB") => "JPG (THUMB)",
+                var s when s.Contains("RAW") => "RAW",
+                _ => "",
+            };
+
+            if (source.Length == 0) return "";
+            if (label.Contains("RAW UNAVAILABLE")) return source + " - RAW UNAVAILABLE";
+            if (label.Contains("RAW DECODE FAILED")) return source + " - RAW DECODE FAILED";
+            return source;
+        }
+    }
 
     private BitmapSource? _basePreviewImage;
     private LinearRawImage? _baseRawImage;
@@ -2174,7 +2199,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ViewPhotoFullscreen()
     {
         if (SelectedPhoto == null) return;
-        IsPhotoFullscreen = !IsPhotoFullscreen;
+        var enteringFullscreen = !IsPhotoFullscreen;
+        IsPhotoFullscreen = enteringFullscreen;
+        if (enteringFullscreen) _ = LoadHighResPreviewAsync();
     }
 
     private void EnableFocusPeaking()

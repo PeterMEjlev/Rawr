@@ -2449,6 +2449,82 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Fullscreen-only preview badges. These sit above the normal
+                     overlays so burst groups and preview source are obvious while
+                     all the surrounding chrome is hidden. -->
+                <StackPanel HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Margin="16,16,0,0"
+                            IsHitTestVisible="False">
+                    <Border Background="#F5FFC83D"
+                            BorderBrush="#FFFFFFFF"
+                            BorderThickness="2"
+                            Padding="16,8"
+                            CornerRadius="4"
+                            ToolTip="Part of a burst group">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsPhotoFullscreen}" Value="True" />
+                                            <Condition Binding="{Binding SelectedPhoto.GroupId, Converter={StaticResource NullToVisibility}}" Value="Visible" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="BURST"
+                                       Foreground="#FF111318"
+                                       FontSize="14"
+                                       FontWeight="Black"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <TextBlock Text="&#x29C9;"
+                                       Foreground="#FF111318"
+                                       FontSize="34"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource BurstBadgeToTotal}}"
+                                       Foreground="#FF111318"
+                                       FontSize="24"
+                                       FontWeight="Black"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="#E6000000"
+                            BorderBrush="#66FFFFFF"
+                            BorderThickness="1"
+                            Padding="10,4"
+                            CornerRadius="3"
+                            Margin="0,6,0,0"
+                            ToolTip="Current fullscreen preview source">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsPhotoFullscreen}" Value="True" />
+                                            <Condition Binding="{Binding FullscreenPreviewSourceLabel, Converter={StaticResource NullToVisibility}}" Value="Visible" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding FullscreenPreviewSourceLabel}"
+                                   Foreground="White"
+                                   FontSize="13"
+                                   FontWeight="Bold" />
+                    </Border>
+                </StackPanel>
+
                 <!-- Focus peaking indicator (bottom-left) -->
                 <Border Grid.Row="0"
                         Background="#CC1E40AF"

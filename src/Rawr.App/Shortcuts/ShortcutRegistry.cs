@@ -57,6 +57,14 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("Rating4", "Set rating 4", CatRate, Key.D4, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 4),
             new("Rating5", "Set rating 5", CatRate, Key.D5, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 5),
 
+            // Numpad aliases for ratings 0..5
+            new("Rating0Numpad", "Set rating 0 (numpad)", CatRate, Key.NumPad0, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 0),
+            new("Rating1Numpad", "Set rating 1 (numpad)", CatRate, Key.NumPad1, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 1),
+            new("Rating2Numpad", "Set rating 2 (numpad)", CatRate, Key.NumPad2, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 2),
+            new("Rating3Numpad", "Set rating 3 (numpad)", CatRate, Key.NumPad3, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 3),
+            new("Rating4Numpad", "Set rating 4 (numpad)", CatRate, Key.NumPad4, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 4),
+            new("Rating5Numpad", "Set rating 5 (numpad)", CatRate, Key.NumPad5, ModifierKeys.None, Vm(vm => vm.SetRatingCommand), 5),
+
             // Color labels (Lightroom style 6..9)
             new("ColorRed",    "Color: Red",    CatColor, Key.D6, ModifierKeys.None, Vm(vm => vm.SetColorLabelCommand), ColorLabel.Red),
             new("ColorYellow", "Color: Yellow", CatColor, Key.D7, ModifierKeys.None, Vm(vm => vm.SetColorLabelCommand), ColorLabel.Yellow),
