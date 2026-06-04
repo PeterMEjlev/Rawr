@@ -169,8 +169,12 @@ public partial class MapWindow : Window
         }
 
         var rect = RectLatLng.FromLTRB(minLon, maxLat, maxLon, minLat);
-        // 1.2x margin so dots aren't right at the canvas edge.
-        rect.Inflate(latSpan * 0.1, lonSpan * 0.1);
+        // 1.2x margin so dots aren't right at the canvas edge. Inflate takes
+        // (lng, lat) — i.e. (width, height) — so the lng inflation has to come
+        // from lonSpan, not latSpan. Reversing them inflates the wrong axis and
+        // produces a lopsided fit (way too much vertical padding on wide-aspect
+        // shoots, none on tall ones).
+        rect.Inflate(lonSpan * 0.1, latSpan * 0.1);
         Map.SetZoomToFitRect(rect);
     }
 

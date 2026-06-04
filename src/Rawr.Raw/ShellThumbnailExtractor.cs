@@ -317,9 +317,15 @@ public sealed class ShellThumbnailExtractor : IPreviewExtractor
         try
         {
             if (store.GetValue(ref key, ref pv) != 0 || pv.vt == 0) return false;
+            // PSTF_LOCAL hands back a FILETIME whose ticks already encode the
+            // local wall-clock (the property store converts UTC → local for us).
+            // DateTime.FromFileTime would then *also* apply UTC → local, shifting
+            // the result by another TZ offset — so use FromFileTimeUtc to take
+            // the ticks verbatim, matching how ExifHelper.ParseExifDate treats
+            // EXIF DateTimeOriginal as a wall-clock without TZ conversion.
             if (PropVariantToFileTime(ref pv, PSTIME_FLAGS.PSTF_LOCAL, out var ft) != 0) return false;
             long ticks = ((long)ft.dwHighDateTime << 32) | (uint)ft.dwLowDateTime;
-            value = DateTime.FromFileTime(ticks);
+            value = DateTime.FromFileTimeUtc(ticks);
             return true;
         }
         finally { PropVariantClear(ref pv); }
