@@ -21,7 +21,7 @@
 
 - ## add more classifiers - architecture, animal, bird, dog, cat, nature, mountain, plane. investigate what other "things" the model can clasisfy
 
-- ## Create setting allowing user to decide if photo classification should run auto on folder open, manually with button click, or be off. same with closed eyes. create this setting under both of them allowing the user to set different behaviour for each.
+
 
 
 - ## Phase 2 of recursive folder view: tag editing across subfolders (translate synthetic display IDs to per-subfolder DB IDs), restore HDR/Panorama auto-tag DB sync per subfolder, recursive Cache-All, ExecuteMacro tag part, XMP keyword auto-create

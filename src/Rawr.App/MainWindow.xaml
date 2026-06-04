@@ -1333,14 +1333,30 @@
                         Margin="0,0,4,0"
                         ToolTip="Pre-decode every RAW in this folder so navigation is instant. Runs in the background; click again to cancel." />
 
-                <!-- Closed-eye detection: walks every photo's cached preview JPEG,
-                     runs face detection + eye-state classification, persists the
-                     result. Skips photos already analysed. Click again to cancel. -->
+                <!-- Combined classification menu: one toolbar button opens a
+                     dropdown to run closed-eye detection and/or subject
+                     classification on demand. Each entry hides when its feature
+                     is set to Off in Settings, and the whole button hides when
+                     both are Off. While a pass runs, its entry doubles as the
+                     cancel affordance. -->
                 <Button DockPanel.Dock="Right"
-                        Content="{Binding AnalyzeFacesButtonLabel}"
-                        Command="{Binding AnalyzeFacesCommand}"
+                        x:Name="AnalyzeMenuButton"
+                        Content="{Binding AnalyzeMenuButtonLabel}"
+                        Click="AnalyzeMenu_Click"
+                        Visibility="{Binding ShowAnalyzeMenu, Converter={StaticResource BoolToVisibility}}"
                         Margin="0,0,4,0"
-                        ToolTip="Detect closed eyes in faces across this folder. Skips photos already analysed; click again to cancel. Threshold in Settings → Faces." />
+                        ToolTip="Run classification on this folder. Set Auto / Manual / Off per feature in Settings → Classification.">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="{Binding AnalyzeFacesButtonLabel}"
+                                      Command="{Binding AnalyzeFacesCommand}"
+                                      Visibility="{Binding IsClosedEyeDetectionEnabled, Converter={StaticResource BoolToVisibility}}" />
+                            <MenuItem Header="{Binding ClassifySubjectsButtonLabel}"
+                                      Command="{Binding ClassifySubjectsCommand}"
+                                      Visibility="{Binding IsSubjectClassificationEnabled, Converter={StaticResource BoolToVisibility}}" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
 
                 <!-- Extractor indicator -->
                 <Border DockPanel.Dock="Right"

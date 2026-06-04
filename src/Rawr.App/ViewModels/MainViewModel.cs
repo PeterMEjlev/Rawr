@@ -1688,16 +1688,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             QueueVideoProxyPrefetch(SelectedIndex);
 
         // Subject classifier — low-priority background pass after thumbnails
-        // exist (the classifier reads them). Folder switch cancels the same
-        // _indexCts so the loop unwinds promptly.
-        if (!ct.IsCancellationRequested)
+        // exist (the classifier reads them). Only auto-runs when the user left
+        // the mode on Auto; Manual/Off wait for the toolbar Analyze menu.
+        // Folder switch cancels the same _indexCts so the loop unwinds promptly.
+        if (!ct.IsCancellationRequested
+            && AppSettings.Current.SubjectClassificationMode == ClassificationRunMode.Auto)
         {
             // Fire-and-forget: classification can outlive this method without
             // blocking the "ready" status. The token still gates it, and the
             // next LoadFolderAsync awaits _activeClassifyTask before disposing
             // DB contexts so the classifier's final persistence step doesn't
             // hit a closed connection.
-            _activeClassifyTask = RunSubjectClassificationAsync(ct);
+            _activeClassifyTask = StartSubjectClassificationAsync(ct);
+        }
+
+        // Closed-eye detector — same Auto-only gate. Fire-and-forget; the run is
+        // linked to this folder's token (RunFaceAnalysisAsync) so switching
+        // folders cancels it.
+        if (!ct.IsCancellationRequested
+            && AppSettings.Current.ClosedEyeDetectionMode == ClassificationRunMode.Auto)
+        {
+            _ = RunFaceAnalysisAsync(ct, isManual: false);
         }
 
         if (!ct.IsCancellationRequested)
@@ -3518,16 +3529,42 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ? $"⏹ Cancel  ({AnalyzeFacesProgress}/{AnalyzeFacesTotal})"
         : "👁 Detect Closed Eyes";
 
-    partial void OnIsAnalyzingFacesChanged(bool value) => OnPropertyChanged(nameof(AnalyzeFacesButtonLabel));
+    partial void OnIsAnalyzingFacesChanged(bool value)
+    {
+        OnPropertyChanged(nameof(AnalyzeFacesButtonLabel));
+        OnPropertyChanged(nameof(AnalyzeMenuButtonLabel));
+    }
     partial void OnAnalyzeFacesProgressChanged(int value) => OnPropertyChanged(nameof(AnalyzeFacesButtonLabel));
     partial void OnAnalyzeFacesTotalChanged(int value) => OnPropertyChanged(nameof(AnalyzeFacesButtonLabel));
 
+    // ── Combined "Analyze" toolbar menu (closed eyes + subjects) ──
+
+    // The single toolbar button's label. Reflects any in-progress pass so the
+    // user sees activity without opening the dropdown; per-item labels carry
+    // the detailed progress / cancel affordance.
+    public string AnalyzeMenuButtonLabel =>
+        (IsAnalyzingFaces || IsClassifyingSubjects) ? "⏳ Analyzing…  ▾" : "🧠 Analyze  ▾";
+
+    // Per-feature enablement drives menu-item / button visibility. A feature
+    // set to Off hides its menu item; when both are Off the whole button hides.
+    public bool IsClosedEyeDetectionEnabled =>
+        AppSettings.Current.ClosedEyeDetectionMode != ClassificationRunMode.Off;
+    public bool IsSubjectClassificationEnabled =>
+        AppSettings.Current.SubjectClassificationMode != ClassificationRunMode.Off;
+    public bool ShowAnalyzeMenu => IsClosedEyeDetectionEnabled || IsSubjectClassificationEnabled;
+
+    // Called by MainWindow after the Settings dialog applies new run modes so
+    // the toolbar button / menu items show or hide without a folder reload.
+    public void NotifyClassificationModesChanged()
+    {
+        OnPropertyChanged(nameof(IsClosedEyeDetectionEnabled));
+        OnPropertyChanged(nameof(IsSubjectClassificationEnabled));
+        OnPropertyChanged(nameof(ShowAnalyzeMenu));
+    }
+
     /// <summary>
-    /// User-triggered: walk every photo without prior face/eye analysis and run
-    /// the ONNX face detector + eye-state classifier on its cached preview JPEG.
-    /// Click again to cancel. Already-analysed photos are skipped (clear the
-    /// SQLite columns to force re-analysis). The pipeline reads the same
-    /// _preview.jpg the main viewer uses, so this never re-decodes RAWs.
+    /// User-triggered (toolbar Analyze menu): run the face detector + eye-state
+    /// classifier on every not-yet-analysed photo. Click again to cancel.
     /// </summary>
     [RelayCommand]
     private async Task AnalyzeFacesAsync()
@@ -3537,27 +3574,41 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _analyzeFacesCts?.Cancel();
             return;
         }
+        if (AppSettings.Current.ClosedEyeDetectionMode == ClassificationRunMode.Off) return;
+        await RunFaceAnalysisAsync(CancellationToken.None, isManual: true);
+    }
 
+    /// <summary>
+    /// Core face/closed-eye pass. <paramref name="externalToken"/> links the run
+    /// to a folder load so a folder switch cancels it (auto path); pass
+    /// <see cref="CancellationToken.None"/> for the manual button. Already-
+    /// analysed photos (FaceCount != null) are skipped — clear the SQLite
+    /// columns to force re-analysis. Reads the same cached _preview.jpg the main
+    /// viewer uses, so RAWs are never re-decoded.
+    /// </summary>
+    private async Task RunFaceAnalysisAsync(CancellationToken externalToken, bool isManual)
+    {
         if (_cache == null || AllPhotos.Count == 0) return;
+        if (IsAnalyzingFaces) return;
 
         _faceAnalyzer ??= new FaceAnalyzer();
         _faceAnalyzer.Initialize();
         if (!_faceAnalyzer.IsAvailable)
         {
-            StatusText = $"Face analysis unavailable: {_faceAnalyzer.UnavailableReason}";
+            if (isManual) StatusText = $"Face analysis unavailable: {_faceAnalyzer.UnavailableReason}";
             return;
         }
 
-        // Skip-already-done: only analyse photos with a missing FaceCount. Clear
-        // the SQLite columns to force re-analysis from scratch.
         var todo = AllPhotos.Where(p => !p.IsVideo && p.FaceCount == null).ToList();
         if (todo.Count == 0)
         {
-            StatusText = "All photos already analysed.";
+            if (isManual) StatusText = "All photos already analysed.";
             return;
         }
 
-        _analyzeFacesCts = new CancellationTokenSource();
+        _analyzeFacesCts = externalToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(externalToken)
+            : new CancellationTokenSource();
         var ct = _analyzeFacesCts.Token;
         IsAnalyzingFaces = true;
         AnalyzeFacesTotal = todo.Count;
@@ -3652,6 +3703,73 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private SubjectClassifier? _subjectClassifier;
     [ObservableProperty] private int _classifySubjectsProgress;
     [ObservableProperty] private int _classifySubjectsTotal;
+    [ObservableProperty] private bool _isClassifyingSubjects;
+    private CancellationTokenSource? _classifySubjectsCts;
+
+    public string ClassifySubjectsButtonLabel => IsClassifyingSubjects
+        ? $"⏹ Cancel  ({ClassifySubjectsProgress}/{ClassifySubjectsTotal})"
+        : "🏷 Classify Subjects";
+
+    partial void OnIsClassifyingSubjectsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ClassifySubjectsButtonLabel));
+        OnPropertyChanged(nameof(AnalyzeMenuButtonLabel));
+    }
+    partial void OnClassifySubjectsProgressChanged(int value) => OnPropertyChanged(nameof(ClassifySubjectsButtonLabel));
+    partial void OnClassifySubjectsTotalChanged(int value) => OnPropertyChanged(nameof(ClassifySubjectsButtonLabel));
+
+    /// <summary>
+    /// User-triggered (toolbar Analyze menu): classify every not-yet-classified
+    /// photo. Click again to cancel — the same dropdown entry doubles as the
+    /// cancel affordance while a pass is running.
+    /// </summary>
+    [RelayCommand]
+    private async Task ClassifySubjectsAsync()
+    {
+        if (IsClassifyingSubjects)
+        {
+            _classifySubjectsCts?.Cancel();
+            return;
+        }
+        if (AppSettings.Current.SubjectClassificationMode == ClassificationRunMode.Off) return;
+        if (_cache == null || AllPhotos.Count == 0) return;
+
+        _subjectClassifier ??= new SubjectClassifier();
+        _subjectClassifier.Initialize();
+        if (!_subjectClassifier.IsAvailable)
+        {
+            StatusText = $"Subject classification unavailable: {_subjectClassifier.UnavailableReason}";
+            return;
+        }
+
+        if (AllPhotos.All(p => p.IsVideo || p.SubjectTags != null))
+        {
+            StatusText = "All photos already classified.";
+            return;
+        }
+
+        await StartSubjectClassificationAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Shared entry for the subject pass. Links the run to
+    /// <paramref name="folderToken"/> (so a folder switch cancels the auto run)
+    /// or, for the manual button, runs under a standalone token. Stores the CTS
+    /// so the toolbar entry can cancel either kind of run.
+    /// </summary>
+    private Task StartSubjectClassificationAsync(CancellationToken folderToken)
+    {
+        // Cancel any in-flight pass so two don't run at once (e.g. a Settings
+        // re-run landing on top of the folder-open pass). We deliberately don't
+        // Dispose the old source — a still-unwinding run may hold its token; the
+        // linked registration is released when the folder token cancels, and the
+        // standalone case is just garbage-collected.
+        _classifySubjectsCts?.Cancel();
+        _classifySubjectsCts = folderToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(folderToken)
+            : new CancellationTokenSource();
+        return RunSubjectClassificationAsync(_classifySubjectsCts.Token);
+    }
 
     /// <summary>
     /// Wipe every photo's face/eye result (memory + DB) and re-run
@@ -3664,6 +3782,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (_cache == null || AllPhotos.Count == 0) return;
         if (IsAnalyzingFaces) return;
+        // Off means the user disabled the feature — don't wipe existing results.
+        if (AppSettings.Current.ClosedEyeDetectionMode == ClassificationRunMode.Off) return;
 
         foreach (var p in AllPhotos)
         {
@@ -3675,7 +3795,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         catch { /* persistence is best-effort; the re-run will refill the rows */ }
 
         RefreshFilterBuckets();
-        await AnalyzeFacesAsync();
+        await RunFaceAnalysisAsync(CancellationToken.None, isManual: true);
     }
 
     /// <summary>
@@ -3687,23 +3807,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public Task RerunSubjectClassificationAsync()
     {
         if (_cache == null || AllPhotos.Count == 0) return Task.CompletedTask;
+        // Off means the user disabled the feature — don't wipe existing tags.
+        if (AppSettings.Current.SubjectClassificationMode == ClassificationRunMode.Off) return Task.CompletedTask;
 
         foreach (var p in AllPhotos) p.SubjectTags = null;
         RefreshFilterBuckets();
 
         // Persist the cleared values first so a folder switch mid-rerun doesn't
-        // leave stale tags in the DB. Use _indexCts so a folder switch cancels
-        // the classifier mid-pass — matches the post-load trigger.
+        // leave stale tags in the DB. Link to _indexCts so a folder switch
+        // cancels the classifier mid-pass — matches the post-load trigger.
         var ct = _indexCts?.Token ?? CancellationToken.None;
         var saveTask = Task.Run(() => SaveAllPhotosPerOwningDb(AllPhotos));
-        _activeClassifyTask = saveTask.ContinueWith(_ => RunSubjectClassificationAsync(ct),
+        _activeClassifyTask = saveTask.ContinueWith(_ => StartSubjectClassificationAsync(ct),
             TaskScheduler.Default).Unwrap();
         return _activeClassifyTask;
     }
 
     private async Task RunSubjectClassificationAsync(CancellationToken ct)
     {
-        if (!AppSettings.Current.SubjectClassificationEnabled) return;
+        if (AppSettings.Current.SubjectClassificationMode == ClassificationRunMode.Off) return;
         if (_cache == null || AllPhotos.Count == 0) return;
 
         _subjectClassifier ??= new SubjectClassifier();
@@ -3724,6 +3846,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         ClassifySubjectsTotal = todo.Count;
         ClassifySubjectsProgress = 0;
+        IsClassifyingSubjects = true;
         SetBackgroundActivity("subjects", $"Classifying subjects 0/{todo.Count}");
 
         float threshold = AppSettings.Current.SubjectTagThreshold / 100f;
@@ -3791,6 +3914,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 ClassifySubjectsProgress = 0;
                 ClassifySubjectsTotal = 0;
+                IsClassifyingSubjects = false;
                 SetBackgroundActivity("subjects", null);
                 RefreshFilterBuckets();
                 if (IsSubjectFilterActive) ApplyFilter();

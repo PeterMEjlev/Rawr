@@ -40,6 +40,12 @@ public partial class SettingsWindow : Window
     /// </summary>
     public bool RequestRerunSubjectClassification { get; private set; }
 
+    // The settings the dialog opened with. Save_Click starts from a clone of
+    // this so fields the dialog doesn't expose (import routing, last import
+    // destination, linear-RAW cache budget, the subfolder toggle) survive a
+    // save instead of silently resetting to their defaults.
+    private readonly AppSettings _original;
+
     // Per-action working copy of the override map.
     //   key missing  → use default
     //   value ""     → explicitly unbound
@@ -64,6 +70,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         WindowHelper.ApplyDarkTitleBar(this);
 
+        _original = current;
         _editedBindings = new Dictionary<string, string>(current.KeyBindings);
         _editedMacros = current.Macros.Select(m => new KeyboardMacro
         {
@@ -87,7 +94,8 @@ public partial class SettingsWindow : Window
         ClippingThresholdSlider.Value = Math.Clamp(current.ClippingThreshold, (byte)90, (byte)100);
         ClippedAreaThresholdSlider.Value = Math.Clamp(current.ClippedAreaThreshold, (byte)1, (byte)50);
         ClosedEyeThresholdSlider.Value = Math.Clamp(current.ClosedEyeThreshold, (byte)10, (byte)90);
-        SubjectClassificationEnabledCheck.IsChecked = current.SubjectClassificationEnabled;
+        SetClosedEyeMode(current.ClosedEyeDetectionMode);
+        SetSubjectMode(current.SubjectClassificationMode);
         SubjectTagThresholdSlider.Value = Math.Clamp(current.SubjectTagThreshold, (byte)5, (byte)50);
         ClippingModeHighlights.IsChecked = current.ClippingMode == ClippingMode.Highlights;
         ClippingModeShadows.IsChecked = current.ClippingMode == ClippingMode.Shadows;
@@ -353,55 +361,62 @@ public partial class SettingsWindow : Window
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var sortIdx = Math.Max(0, SortFieldBox.SelectedIndex);
-        Result = new AppSettings
-        {
-            BurstMaxGapSeconds  = (int)GapSlider.Value,
-            BurstSimilarityStrictness = (int)SimilaritySlider.Value,
-            BurstThumbnailMode  = ThumbFirstChronological.IsChecked == true
+
+        // Start from a clone of the settings we opened with so anything the
+        // dialog doesn't surface (import routing, last destination, cache
+        // budget, subfolder toggle, …) is preserved; then overwrite only the
+        // fields this dialog actually edits.
+        var s = _original.Clone();
+
+        s.BurstMaxGapSeconds  = (int)GapSlider.Value;
+        s.BurstSimilarityStrictness = (int)SimilaritySlider.Value;
+        s.BurstThumbnailMode  = ThumbFirstChronological.IsChecked == true
                                     ? BurstThumbnailMode.FirstChronological
-                                    : BurstThumbnailMode.HighestRated,
-            DateFormat          = string.IsNullOrWhiteSpace(DateFormatBox.Text)
+                                    : BurstThumbnailMode.HighestRated;
+        s.DateFormat          = string.IsNullOrWhiteSpace(DateFormatBox.Text)
                                     ? "dd-MM-yyyy  HH:mm:ss"
-                                    : DateFormatBox.Text,
-            CollapseBurstsOnOpen = CollapseOnOpen.IsChecked == true,
-            DefaultSortField    = SortOptions[sortIdx].Value,
-            FocusPeakingThreshold = (byte)FocusPeakingStrictnessSlider.Value,
-            ClippingMode        = ClippingModeShadows.IsChecked == true ? ClippingMode.Shadows
-                                : ClippingModeBoth.IsChecked    == true ? ClippingMode.Both
-                                : ClippingMode.Highlights,
-            ClippingThreshold   = (byte)ClippingThresholdSlider.Value,
-            ClippedAreaThreshold = (byte)ClippedAreaThresholdSlider.Value,
-            ClosedEyeThreshold = (byte)ClosedEyeThresholdSlider.Value,
-            SubjectClassificationEnabled = SubjectClassificationEnabledCheck.IsChecked == true,
-            SubjectTagThreshold = (byte)SubjectTagThresholdSlider.Value,
-            DoubleClickZoom     = DoubleClickZoomSlider.Value,
-            ScrollSpeedPercent  = (int)ScrollSpeedSlider.Value,
-            ReverseFilmstripScroll = ReverseFilmstripScrollCheck.IsChecked == true,
-            VideoSeekStepSeconds = (int)VideoSeekStepSlider.Value,
-            AutoPlayVideo       = AutoPlayVideoCheck.IsChecked == true,
-            UseEmbeddedJpegOnly = UseEmbeddedJpegOnlyCheck.IsChecked == true,
-            HdrDetectionEnabled = HdrEnabledCheck.IsChecked == true,
-            HdrMinBracketSize   = (int)HdrMinBracketSizeSlider.Value,
-            HdrMinExposureSpread = (float)HdrExposureSpreadSlider.Value,
-            PanoramaDetectionEnabled = PanoEnabledCheck.IsChecked == true,
-            PanoramaMinChainSize = (int)PanoMinChainSlider.Value,
-            PanoramaMaxGapSeconds = (int)PanoGapSlider.Value,
-            PanoramaMinOverlapPct = (int)PanoMinOverlapSlider.Value,
-            PanoramaMaxOverlapPct = (int)PanoMaxOverlapSlider.Value,
-            PanoramaDirectionToleranceDeg = (int)PanoDirectionSlider.Value,
-            KeyBindings         = new Dictionary<string, string>(_editedBindings),
-            LogProfileOverrides = BuildLogProfileOverrides(),
-            Macros              = _editedMacros.Select(m => new KeyboardMacro
-            {
-                Id = m.Id,
-                Name = m.Name,
-                KeyBinding = m.KeyBinding,
-                SetFlag = m.SetFlag,
-                SetRating = m.SetRating,
-                SetColorLabel = m.SetColorLabel,
-                TagName = m.TagName,
-            }).ToList(),
-        };
+                                    : DateFormatBox.Text;
+        s.CollapseBurstsOnOpen = CollapseOnOpen.IsChecked == true;
+        s.DefaultSortField    = SortOptions[sortIdx].Value;
+        s.FocusPeakingThreshold = (byte)FocusPeakingStrictnessSlider.Value;
+        s.ClippingMode        = ClippingModeShadows.IsChecked == true ? ClippingMode.Shadows
+                              : ClippingModeBoth.IsChecked    == true ? ClippingMode.Both
+                              : ClippingMode.Highlights;
+        s.ClippingThreshold   = (byte)ClippingThresholdSlider.Value;
+        s.ClippedAreaThreshold = (byte)ClippedAreaThresholdSlider.Value;
+        s.ClosedEyeThreshold = (byte)ClosedEyeThresholdSlider.Value;
+        s.ClosedEyeDetectionMode = ReadClosedEyeMode();
+        s.SubjectClassificationMode = ReadSubjectMode();
+        s.SubjectTagThreshold = (byte)SubjectTagThresholdSlider.Value;
+        s.DoubleClickZoom     = DoubleClickZoomSlider.Value;
+        s.ScrollSpeedPercent  = (int)ScrollSpeedSlider.Value;
+        s.ReverseFilmstripScroll = ReverseFilmstripScrollCheck.IsChecked == true;
+        s.VideoSeekStepSeconds = (int)VideoSeekStepSlider.Value;
+        s.AutoPlayVideo       = AutoPlayVideoCheck.IsChecked == true;
+        s.UseEmbeddedJpegOnly = UseEmbeddedJpegOnlyCheck.IsChecked == true;
+        s.HdrDetectionEnabled = HdrEnabledCheck.IsChecked == true;
+        s.HdrMinBracketSize   = (int)HdrMinBracketSizeSlider.Value;
+        s.HdrMinExposureSpread = (float)HdrExposureSpreadSlider.Value;
+        s.PanoramaDetectionEnabled = PanoEnabledCheck.IsChecked == true;
+        s.PanoramaMinChainSize = (int)PanoMinChainSlider.Value;
+        s.PanoramaMaxGapSeconds = (int)PanoGapSlider.Value;
+        s.PanoramaMinOverlapPct = (int)PanoMinOverlapSlider.Value;
+        s.PanoramaMaxOverlapPct = (int)PanoMaxOverlapSlider.Value;
+        s.PanoramaDirectionToleranceDeg = (int)PanoDirectionSlider.Value;
+        s.KeyBindings         = new Dictionary<string, string>(_editedBindings);
+        s.LogProfileOverrides = BuildLogProfileOverrides();
+        s.Macros              = _editedMacros.Select(m => new KeyboardMacro
+        {
+            Id = m.Id,
+            Name = m.Name,
+            KeyBinding = m.KeyBinding,
+            SetFlag = m.SetFlag,
+            SetRating = m.SetRating,
+            SetColorLabel = m.SetColorLabel,
+            TagName = m.TagName,
+        }).ToList();
+
+        Result = s;
         DialogResult = true;
     }
 
@@ -463,8 +478,9 @@ public partial class SettingsWindow : Window
             case "ClippedAreaThreshold":     ClippedAreaThresholdSlider.Value = d.ClippedAreaThreshold; break;
             // Classification — faces
             case "ClosedEyeThreshold":       ClosedEyeThresholdSlider.Value = d.ClosedEyeThreshold; break;
+            case "ClosedEyeDetectionMode":   SetClosedEyeMode(d.ClosedEyeDetectionMode); break;
             // Classification — subjects
-            case "SubjectClassificationEnabled": SubjectClassificationEnabledCheck.IsChecked = d.SubjectClassificationEnabled; break;
+            case "SubjectClassificationMode": SetSubjectMode(d.SubjectClassificationMode); break;
             case "SubjectTagThreshold":          SubjectTagThresholdSlider.Value = d.SubjectTagThreshold; break;
             // Focus peaking
             case "FocusPeakingThreshold":    FocusPeakingStrictnessSlider.Value = d.FocusPeakingThreshold; break;
@@ -473,6 +489,32 @@ public partial class SettingsWindow : Window
             case "AutoPlayVideo":            AutoPlayVideoCheck.IsChecked = d.AutoPlayVideo; break;
         }
     }
+
+    // ── Classification run-mode radio groups ──
+
+    private void SetSubjectMode(ClassificationRunMode mode)
+    {
+        SubjectModeAuto.IsChecked   = mode == ClassificationRunMode.Auto;
+        SubjectModeManual.IsChecked = mode == ClassificationRunMode.Manual;
+        SubjectModeOff.IsChecked    = mode == ClassificationRunMode.Off;
+    }
+
+    private ClassificationRunMode ReadSubjectMode() =>
+        SubjectModeManual.IsChecked == true ? ClassificationRunMode.Manual
+      : SubjectModeOff.IsChecked == true    ? ClassificationRunMode.Off
+      : ClassificationRunMode.Auto;
+
+    private void SetClosedEyeMode(ClassificationRunMode mode)
+    {
+        ClosedEyeModeAuto.IsChecked   = mode == ClassificationRunMode.Auto;
+        ClosedEyeModeManual.IsChecked = mode == ClassificationRunMode.Manual;
+        ClosedEyeModeOff.IsChecked    = mode == ClassificationRunMode.Off;
+    }
+
+    private ClassificationRunMode ReadClosedEyeMode() =>
+        ClosedEyeModeManual.IsChecked == true ? ClassificationRunMode.Manual
+      : ClosedEyeModeOff.IsChecked == true    ? ClassificationRunMode.Off
+      : ClassificationRunMode.Auto;
 
     // The two re-run buttons reuse Save_Click so the latest threshold (and
     // any other settings edits in the dialog) get persisted before the

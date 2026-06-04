@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 using Rawr.Core.Services;
@@ -9,6 +10,12 @@ namespace Rawr.App;
 public enum BurstThumbnailMode { HighestRated, FirstChronological }
 
 public enum ClippingMode { Highlights, Shadows, Both }
+
+// When an ML classification pass runs. Auto = automatically after a folder
+// loads; Manual = only when the user picks it from the toolbar Analyze menu;
+// Off = never (and the toolbar entry is hidden). Applies independently to the
+// subject classifier and the closed-eye detector.
+public enum ClassificationRunMode { Auto, Manual, Off }
 
 // How a single media category (RAW / JPEG / Video) is handled on card import.
 // MainFolder keeps the original flat behaviour (file goes straight into the
@@ -88,11 +95,26 @@ public sealed class AppSettings
     public byte ClosedEyeThreshold { get; set; } = 50;
 
     // ── Subject classifier (zero-shot CLIP) ──
-    // Auto-run a tiny image-encoder ONNX over each photo after folder open
-    // and apply coarse SubjectTag flags (person / landscape / food / animal).
-    // Off = the background pass is skipped entirely; previously-classified
-    // photos still keep their tags so the filter chips remain usable.
-    public bool SubjectClassificationEnabled { get; set; } = true;
+    // Controls when the tiny image-encoder ONNX runs over each photo to apply
+    // coarse SubjectTag flags (person / landscape / food / animal). Auto runs
+    // the pass automatically after folder open; Manual waits for the toolbar
+    // Analyze menu; Off skips it entirely (previously-classified photos keep
+    // their tags so the filter chips stay usable).
+    public ClassificationRunMode SubjectClassificationMode { get; set; } = ClassificationRunMode.Auto;
+
+    // Legacy pre-3-mode flag, kept only so settings.json written by older
+    // builds migrates cleanly in Load() (true → Auto, false → Off). Null in
+    // current files; never written back out (see JsonIgnore below).
+    [JsonInclude]
+    [JsonPropertyName("SubjectClassificationEnabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacySubjectClassificationEnabled { get; set; }
+
+    // ── Closed-eye detector (YuNet faces + eye-state CNN) ──
+    // Controls when the face/closed-eye analysis runs. Auto runs it
+    // automatically after folder open; Manual waits for the toolbar Analyze
+    // menu; Off skips it (and hides the menu entry).
+    public ClassificationRunMode ClosedEyeDetectionMode { get; set; } = ClassificationRunMode.Auto;
 
     // Score gate (cosine similarity, scaled 0..100). CLIP cosine sim is
     // usually quite low — typical positives land around 0.20–0.30. 22 is a
@@ -176,7 +198,19 @@ public sealed class AppSettings
         {
             if (!File.Exists(FilePath)) return new();
             var json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new();
+            var s = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new();
+
+            // Migrate the legacy on/off subject flag to the 3-mode setting. Only
+            // applies when an older file actually carried the bool; new files
+            // leave it null and keep whatever SubjectClassificationMode they saved.
+            if (s.LegacySubjectClassificationEnabled is bool enabled)
+            {
+                s.SubjectClassificationMode = enabled
+                    ? ClassificationRunMode.Auto
+                    : ClassificationRunMode.Off;
+                s.LegacySubjectClassificationEnabled = null;
+            }
+            return s;
         }
         catch { return new(); }
     }
@@ -214,7 +248,8 @@ public sealed class AppSettings
         ClippingThreshold = ClippingThreshold,
         ClippedAreaThreshold = ClippedAreaThreshold,
         ClosedEyeThreshold = ClosedEyeThreshold,
-        SubjectClassificationEnabled = SubjectClassificationEnabled,
+        SubjectClassificationMode = SubjectClassificationMode,
+        ClosedEyeDetectionMode = ClosedEyeDetectionMode,
         SubjectTagThreshold = SubjectTagThreshold,
         DoubleClickZoom = DoubleClickZoom,
         ScrollSpeedPercent = ScrollSpeedPercent,

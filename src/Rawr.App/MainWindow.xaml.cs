@@ -1608,6 +1608,21 @@ public partial class MainWindow : Window
         vm.ApplyFilter();
     }
 
+    // ── Classification menu ──
+
+    // The toolbar's single "Analyze" button opens its dropdown on click. The
+    // ContextMenu lives in a detached popup tree, so we hand it the button's
+    // DataContext (the MainViewModel) for its Header / Command bindings and
+    // anchor it under the button.
+    private void AnalyzeMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.ContextMenu is not { } cm) return;
+        cm.DataContext = btn.DataContext;
+        cm.PlacementTarget = btn;
+        cm.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        cm.IsOpen = true;
+    }
+
     // ── Settings ──
 
     private void Settings_Click(object sender, RoutedEventArgs e)
@@ -1629,6 +1644,8 @@ public partial class MainWindow : Window
 
         vm.NotifyDateFormatChanged();
         vm.NotifyShortcutDisplayChanged();
+        // Refresh the Analyze button / dropdown visibility for any mode changes.
+        vm.NotifyClassificationModesChanged();
 
         bool burstSettingsChanged =
             prev.BurstMaxGapSeconds != AppSettings.Current.BurstMaxGapSeconds ||

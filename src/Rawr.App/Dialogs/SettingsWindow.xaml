@@ -578,6 +578,22 @@
                         <Border Style="{StaticResource SectionCard}">
                         <StackPanel>
                         <TextBlock Text="FACES / EYES" Style="{StaticResource SectionCardHeader}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="When to run" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ResetButton}" Tag="ClosedEyeDetectionMode" />
+                        </StackPanel>
+                        <RadioButton x:Name="ClosedEyeModeAuto"
+                                     Content="Automatically on folder open"
+                                     GroupName="ClosedEyeMode"
+                                     Margin="0,0,0,4" />
+                        <RadioButton x:Name="ClosedEyeModeManual"
+                                     Content="Manually (from the Analyze menu)"
+                                     GroupName="ClosedEyeMode"
+                                     Margin="0,0,0,4" />
+                        <RadioButton x:Name="ClosedEyeModeOff"
+                                     Content="Off"
+                                     GroupName="ClosedEyeMode"
+                                     Margin="0,0,0,12" />
                         <TextBlock Text="Closed-eye sensitivity (%)" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <TextBlock Text="Looser"
@@ -601,7 +617,7 @@
                             <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
                             <Button Style="{StaticResource ResetButton}" Tag="ClosedEyeThreshold" />
                         </StackPanel>
-                        <TextBlock Text="An eye counts as closed when the classifier's open-eye confidence falls below this threshold. Higher values are stricter (fewer photos flagged). Run the analysis with the toolbar 👁 button after opening a folder."
+                        <TextBlock Text="An eye counts as closed when the classifier's open-eye confidence falls below this threshold. Higher values are stricter (fewer photos flagged). Auto runs on folder open; Manual runs from the toolbar Analyze menu."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"
@@ -618,12 +634,22 @@
                         <Border Style="{StaticResource SectionCard}">
                         <StackPanel>
                         <TextBlock Text="SUBJECTS (ZERO-SHOT CLIP)" Style="{StaticResource SectionCardHeader}" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <CheckBox x:Name="SubjectClassificationEnabledCheck"
-                                      Content="Auto-classify after folder load"
-                                      VerticalAlignment="Center" />
-                            <Button Style="{StaticResource ResetButton}" Tag="SubjectClassificationEnabled" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="When to run" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectClassificationMode" />
                         </StackPanel>
+                        <RadioButton x:Name="SubjectModeAuto"
+                                     Content="Automatically on folder open"
+                                     GroupName="SubjectMode"
+                                     Margin="0,0,0,4" />
+                        <RadioButton x:Name="SubjectModeManual"
+                                     Content="Manually (from the Analyze menu)"
+                                     GroupName="SubjectMode"
+                                     Margin="0,0,0,4" />
+                        <RadioButton x:Name="SubjectModeOff"
+                                     Content="Off"
+                                     GroupName="SubjectMode"
+                                     Margin="0,0,0,12" />
                         <TextBlock Text="Subject-match sensitivity (0–100)" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <TextBlock Text="Looser"
