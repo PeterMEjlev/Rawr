@@ -13,6 +13,83 @@
         FontFamily="Segoe UI"
         FontSize="12">
 
+    <Window.Resources>
+        <!-- Editable value display next to a slider. The Text binding is set
+             per-instance (different slider names / formats); this style only
+             carries the shared chrome + the Enter-key handler that commits
+             the binding without waiting for LostFocus. The Slider clamps the
+             value to its Minimum/Maximum once the binding propagates back. -->
+        <Style x:Key="SliderValueBox" TargetType="TextBox">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Right" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="10,0,2,0" />
+            <!-- Look like a plain label: no chrome, transparent background.
+                 The user still gets caret + selection + typing on focus. -->
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextBrush}" />
+            <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Background="{TemplateBinding Background}"
+                                      Padding="{TemplateBinding Padding}"
+                                      Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <EventSetter Event="PreviewKeyDown" Handler="SliderValueBox_PreviewKeyDown" />
+        </Style>
+
+        <!-- Per-setting "revert to default" button. Tag carries the AppSettings
+             property name (or a synthetic key for radio groups); Reset_Click
+             dispatches on it. Same minimal chrome as SliderValueBox so it sits
+             inline with each row without dominating. -->
+        <Style x:Key="ResetButton" TargetType="Button">
+            <Setter Property="Content" Value="↺" />
+            <Setter Property="ToolTip" Value="Revert to default" />
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3"
+                                Padding="0">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <EventSetter Event="Click" Handler="Reset_Click" />
+        </Style>
+    </Window.Resources>
+
     <Grid Background="{StaticResource BgBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
@@ -44,6 +121,7 @@
                                     <Button Content="dd-MM-yyyy" Tag="dd-MM-yyyy  HH:mm:ss" Click="Preset_Click" Margin="0,0,4,0" Padding="6,3" />
                                     <Button Content="MM/dd/yyyy" Tag="MM/dd/yyyy  HH:mm:ss" Click="Preset_Click" Margin="0,0,4,0" Padding="6,3" />
                                     <Button Content="yyyy-MM-dd" Tag="yyyy-MM-dd  HH:mm:ss" Click="Preset_Click" Padding="6,3" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="DateFormat" />
                                 </StackPanel>
                                 <TextBlock Text="Uses .NET date format strings (e.g. dd-MM-yyyy HH:mm:ss)."
                                            Foreground="{StaticResource TextDimBrush}"
@@ -65,10 +143,10 @@
                                             TickFrequency="0.5" IsSnapToTickEnabled="True"
                                             Width="280"
                                             VerticalAlignment="Center" />
-                                    <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                        <Run Text="{Binding ElementName=DoubleClickZoomSlider, Path=Value, StringFormat={}{0:F1}}" />
-                                        <Run Text="×" Foreground="{StaticResource TextDimBrush}" />
-                                    </TextBlock>
+                                    <TextBox Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=DoubleClickZoomSlider, Path=Value, StringFormat={}{0:F1}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Text="×" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="DoubleClickZoom" />
                                 </StackPanel>
                                 <TextBlock Text="Zoom level applied when double-clicking a photo in the preview."
                                            Foreground="{StaticResource TextDimBrush}"
@@ -92,19 +170,22 @@
                                             Width="220"
                                             VerticalAlignment="Center" />
                                     <TextBlock Text="Faster" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                    <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                        <Run Text="{Binding ElementName=ScrollSpeedSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                        <Run Text="%" Foreground="{StaticResource TextDimBrush}" />
-                                    </TextBlock>
+                                    <TextBox Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=ScrollSpeedSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="ScrollSpeedPercent" />
                                 </StackPanel>
                                 <TextBlock Text="Affects wheel scrolling in the grid, filmstrips, and settings panels."
                                            Foreground="{StaticResource TextDimBrush}"
                                            FontSize="10"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,10" />
-                                <CheckBox x:Name="ReverseFilmstripScrollCheck"
-                                          Content="Reverse filmstrip scroll direction"
-                                          Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <CheckBox x:Name="ReverseFilmstripScrollCheck"
+                                              Content="Reverse filmstrip scroll direction"
+                                              VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="ReverseFilmstripScroll" />
+                                </StackPanel>
                                 <TextBlock Text="Swaps the scroll direction when using the mouse wheel in the filmstrip."
                                            Foreground="{StaticResource TextDimBrush}"
                                            FontSize="10"
@@ -117,9 +198,12 @@
                         <Border Style="{StaticResource SectionCard}">
                             <StackPanel>
                                 <TextBlock Text="PREVIEW" Style="{StaticResource SectionCardHeader}" />
-                                <CheckBox x:Name="UseEmbeddedJpegOnlyCheck"
-                                          Content="Use embedded JPEG only (skip RAW decoding)"
-                                          Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <CheckBox x:Name="UseEmbeddedJpegOnlyCheck"
+                                              Content="Use embedded JPEG only (skip RAW decoding)"
+                                              VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="UseEmbeddedJpegOnly" />
+                                </StackPanel>
                                 <TextBlock Text="Stays on the camera's embedded JPEG instead of decoding the linear RAW. Avoids the colour noise visible when zooming in. Disables clipping detection and falls back to JPEG-based exposure adjustment."
                                            Foreground="{StaticResource TextDimBrush}"
                                            FontSize="10"
@@ -133,7 +217,10 @@
                             <StackPanel>
                                 <TextBlock Text="SORTING" Style="{StaticResource SectionCardHeader}" />
                                 <TextBlock Text="Default sort when opening a folder" Margin="0,0,0,6" />
-                                <ComboBox x:Name="SortFieldBox" HorizontalAlignment="Left" MinWidth="160" Margin="0,0,0,0" />
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="SortFieldBox" MinWidth="160" VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="DefaultSortField" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
@@ -160,10 +247,10 @@
                                     TickFrequency="1" IsSnapToTickEnabled="True"
                                     Width="280"
                                     VerticalAlignment="Center" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=GapSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text=" s" Foreground="{StaticResource TextDimBrush}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=GapSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="s" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="BurstMaxGapSeconds" />
                         </StackPanel>
                         <TextBlock Text="Photos taken within this interval on the same camera are grouped into a burst."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -181,9 +268,9 @@
                                     Width="220"
                                     VerticalAlignment="Center" />
                             <TextBlock Text="Stricter" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=SimilaritySlider, Path=Value, StringFormat={}{0:F0}}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=SimilaritySlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="BurstSimilarityStrictness" />
                         </StackPanel>
                         <TextBlock Text="How visually similar two shots must be to join the same burst. Lower groups looser scenes; higher only groups near-identical frames."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -191,7 +278,10 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14" />
 
-                        <TextBlock Text="Group thumbnail" Margin="0,0,0,6" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="Group thumbnail" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ResetButton}" Tag="BurstThumbnailMode" />
+                        </StackPanel>
                         <RadioButton x:Name="ThumbHighestRated"
                                      Content="Highest rated  (falls back to first chronological)"
                                      GroupName="BurstThumb"
@@ -201,9 +291,12 @@
                                      GroupName="BurstThumb"
                                      Margin="0,0,0,14" />
 
-                        <CheckBox x:Name="CollapseOnOpen"
-                                  Content="Collapse bursts when opening a folder"
-                                  Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <CheckBox x:Name="CollapseOnOpen"
+                                      Content="Collapse bursts when opening a folder"
+                                      VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ResetButton}" Tag="CollapseBurstsOnOpen" />
+                        </StackPanel>
                         <TextBlock Text="When enabled, each burst shows as a single stacked tile on folder load."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
@@ -217,9 +310,12 @@
                         <StackPanel>
                         <TextBlock Text="HDR / AUTO-BRACKET" Style="{StaticResource SectionCardHeader}" />
 
-                        <CheckBox x:Name="HdrEnabledCheck"
-                                  Content="Detect HDR / auto-bracket sequences"
-                                  Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <CheckBox x:Name="HdrEnabledCheck"
+                                      Content="Detect HDR / auto-bracket sequences"
+                                      VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ResetButton}" Tag="HdrDetectionEnabled" />
+                        </StackPanel>
                         <TextBlock Text="Tags brackets shot of the same scene at different exposures with the system HDR tag and groups them like a burst."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
@@ -234,10 +330,10 @@
                                     TickFrequency="1" IsSnapToTickEnabled="True"
                                     Width="220"
                                     VerticalAlignment="Center" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=HdrMinBracketSizeSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text=" frames" Foreground="{StaticResource TextDimBrush}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=HdrMinBracketSizeSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="frames" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="HdrMinBracketSize" />
                         </StackPanel>
                         <TextBlock Text="Most cameras shoot 3-, 5-, or 7-frame brackets. Higher values reject short brackets."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -255,10 +351,10 @@
                                     Width="220"
                                     VerticalAlignment="Center" />
                             <TextBlock Text="Stricter" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=HdrExposureSpreadSlider, Path=Value, StringFormat={}{0:F1}}" />
-                                <Run Text=" EV" Foreground="{StaticResource TextDimBrush}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=HdrExposureSpreadSlider, Path=Value, StringFormat={}{0:F1}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="EV" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="HdrMinExposureSpread" />
                         </StackPanel>
                         <TextBlock Text="Total exposure range that must span the bracket. Lower catches subtle ±⅓ EV brackets; higher only flags wide ±2 EV sweeps."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -273,9 +369,12 @@
                         <StackPanel>
                         <TextBlock Text="PANORAMA" Style="{StaticResource SectionCardHeader}" />
 
-                        <CheckBox x:Name="PanoEnabledCheck"
-                                  Content="Detect panorama sweeps"
-                                  Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <CheckBox x:Name="PanoEnabledCheck"
+                                      Content="Detect panorama sweeps"
+                                      VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ResetButton}" Tag="PanoramaDetectionEnabled" />
+                        </StackPanel>
                         <TextBlock Text="Chains adjacent shots whose camera-pan shift is consistent in direction. Detected sequences get the system Panorama tag and stack as a burst."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
@@ -290,10 +389,10 @@
                                     TickFrequency="1" IsSnapToTickEnabled="True"
                                     Width="220"
                                     VerticalAlignment="Center" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=PanoMinChainSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text=" frames" Foreground="{StaticResource TextDimBrush}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=PanoMinChainSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="frames" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="PanoramaMinChainSize" />
                         </StackPanel>
                         <TextBlock Text="Reject sequences shorter than this. 3 catches most panoramas; 5+ avoids stray two-frame matches."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -309,10 +408,10 @@
                                     TickFrequency="1" IsSnapToTickEnabled="True"
                                     Width="280"
                                     VerticalAlignment="Center" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=PanoGapSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text=" s" Foreground="{StaticResource TextDimBrush}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=PanoGapSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="s" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="PanoramaMaxGapSeconds" />
                         </StackPanel>
                         <TextBlock Text="Photographers often pace panoramas slowly. Raise this if your panos take longer between frames; lower it to avoid chaining unrelated shots."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -329,10 +428,10 @@
                                     TickFrequency="1" IsSnapToTickEnabled="True"
                                     Width="220"
                                     VerticalAlignment="Center" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=PanoMinOverlapSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text="%" Foreground="{StaticResource TextDimBrush}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=PanoMinOverlapSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="PanoramaMinOverlapPct" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <TextBlock Text="Max" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
@@ -342,10 +441,10 @@
                                     TickFrequency="1" IsSnapToTickEnabled="True"
                                     Width="220"
                                     VerticalAlignment="Center" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=PanoMaxOverlapSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text="%" Foreground="{StaticResource TextDimBrush}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=PanoMaxOverlapSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="PanoramaMaxOverlapPct" />
                         </StackPanel>
                         <TextBlock Text="Frames must overlap within this range. Above max = treated as a regular burst; below min = unrelated shots."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -363,10 +462,10 @@
                                     Width="220"
                                     VerticalAlignment="Center" />
                             <TextBlock Text="Looser" Foreground="{StaticResource TextDimBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=PanoDirectionSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text="°" Foreground="{StaticResource TextDimBrush}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=PanoDirectionSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="°" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="PanoramaDirectionToleranceDeg" />
                         </StackPanel>
                         <TextBlock Text="Allowed direction change between consecutive panorama frames. Lower forces a near-perfect sweep; higher tolerates handheld drift."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -389,7 +488,10 @@
                         <Border Style="{StaticResource SectionCard}">
                         <StackPanel>
                         <TextBlock Text="CLIPPING DETECTION" Style="{StaticResource SectionCardHeader}" />
-                        <TextBlock Text="What to flag" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="What to flag" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ResetButton}" Tag="ClippingMode" />
+                        </StackPanel>
                         <RadioButton x:Name="ClippingModeHighlights"
                                      Content="Clipped highlights only"
                                      GroupName="ClippingMode"
@@ -421,10 +523,10 @@
                                        FontSize="10"
                                        VerticalAlignment="Center"
                                        Margin="6,0,0,0" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=ClippingThresholdSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text="%" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=ClippingThresholdSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="ClippingThreshold" />
                         </StackPanel>
                         <TextBlock Text="Highlights are flagged when any channel reaches this percentage of sensor max. Shadows are flagged when every channel is within (100 − threshold)% of sensor black. Lower values are more permissive."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -450,10 +552,10 @@
                                        FontSize="10"
                                        VerticalAlignment="Center"
                                        Margin="6,0,0,0" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=ClippedAreaThresholdSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text="%" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=ClippedAreaThresholdSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="ClippedAreaThreshold" />
                         </StackPanel>
                         <TextBlock Text="Minimum share of pixels that must be clipped for a photo to appear in the sidebar's Clipped Highlights / Crushed Shadows buckets."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -467,8 +569,8 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- ── FACES / EYES TAB ── -->
-            <TabItem Header="Faces">
+            <!-- ── CLASSIFICATION TAB (faces + subjects) ── -->
+            <TabItem Header="Classification">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               PreviewMouseWheel="TabScroll_PreviewMouseWheel">
                     <StackPanel Margin="16,14">
@@ -494,16 +596,67 @@
                                        FontSize="10"
                                        VerticalAlignment="Center"
                                        Margin="6,0,0,0" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=ClosedEyeThresholdSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                <Run Text="%" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=ClosedEyeThresholdSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="ClosedEyeThreshold" />
                         </StackPanel>
                         <TextBlock Text="An eye counts as closed when the classifier's open-eye confidence falls below this threshold. Higher values are stricter (fewer photos flagged). Run the analysis with the toolbar 👁 button after opening a folder."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"
-                                   Margin="0,0,0,0" />
+                                   Margin="0,0,0,8" />
+                        <Button x:Name="RerunFaceAnalysisButton"
+                                Content="↻ Re-run face analysis on this folder"
+                                Click="RerunFaceAnalysis_Click"
+                                Padding="8,4"
+                                HorizontalAlignment="Left"
+                                ToolTip="Clear every photo's face/eye results and re-run with the current threshold. Saves and closes Settings before running." />
+                        </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionCard}">
+                        <StackPanel>
+                        <TextBlock Text="SUBJECTS (ZERO-SHOT CLIP)" Style="{StaticResource SectionCardHeader}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <CheckBox x:Name="SubjectClassificationEnabledCheck"
+                                      Content="Auto-classify after folder load"
+                                      VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectClassificationEnabled" />
+                        </StackPanel>
+                        <TextBlock Text="Subject-match sensitivity (0–100)" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Looser"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
+                            <Slider x:Name="SubjectTagThresholdSlider"
+                                    Minimum="5" Maximum="50"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="Stricter"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=SubjectTagThresholdSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectTagThreshold" />
+                        </StackPanel>
+                        <TextBlock Text="Cosine-similarity threshold × 100. The classifier emits a score per category; any score at or above this value applies the tag. Typical positives for ViT-B-16-class models land in the 15–30 range — lower is more permissive (more tags per photo). Requires subject_image_encoder.onnx + subject_tags.json in models/ (see models/README.md)."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8" />
+                        <Button x:Name="RerunSubjectClassificationButton"
+                                Content="↻ Re-run subject classification on this folder"
+                                Click="RerunSubjectClassification_Click"
+                                Padding="8,4"
+                                HorizontalAlignment="Left"
+                                ToolTip="Clear every photo's subject tags and re-classify with the current threshold. Saves and closes Settings before running." />
                         </StackPanel>
                         </Border>
 
@@ -538,9 +691,9 @@
                                        FontSize="10"
                                        VerticalAlignment="Center"
                                        Margin="6,0,0,0" />
-                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center">
-                                <Run Text="{Binding ElementName=FocusPeakingStrictnessSlider, Path=Value, StringFormat={}{0:F0}}" />
-                            </TextBlock>
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=FocusPeakingStrictnessSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="FocusPeakingThreshold" />
                         </StackPanel>
                         <TextBlock Text="Higher values highlight only very sharp in-focus edges. Lower values also include softer transitions."
                                    Foreground="{StaticResource TextDimBrush}"
@@ -564,9 +717,12 @@
                             <StackPanel>
                                 <TextBlock Text="PLAYBACK" Style="{StaticResource SectionCardHeader}" />
 
-                                <CheckBox x:Name="AutoPlayVideoCheck"
-                                          Content="Auto-play videos when selected"
-                                          Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <CheckBox x:Name="AutoPlayVideoCheck"
+                                              Content="Auto-play videos when selected"
+                                              VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="AutoPlayVideo" />
+                                </StackPanel>
                                 <TextBlock Text="When off, videos load with the first frame visible but stay paused — press Space to play."
                                            Foreground="{StaticResource TextDimBrush}"
                                            FontSize="10"
@@ -581,10 +737,10 @@
                                             TickFrequency="1" IsSnapToTickEnabled="True"
                                             Width="220"
                                             VerticalAlignment="Center" />
-                                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center">
-                                        <Run Text="{Binding ElementName=VideoSeekStepSlider, Path=Value, StringFormat={}{0:F0}}" />
-                                        <Run Text="s" />
-                                    </TextBlock>
+                                    <TextBox Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=VideoSeekStepSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Text="s" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="VideoSeekStepSeconds" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>

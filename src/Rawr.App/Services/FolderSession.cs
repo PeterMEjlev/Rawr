@@ -34,6 +34,7 @@ public sealed class FolderSession
     public List<int>? TagFilterExtraIds { get; set; }
     public List<ImageTypeFilterMode>? ImageTypeFilterExtraValues { get; set; }
     public List<string>? CameraFilters { get; set; }
+    public List<SubjectTag>? SubjectFilters { get; set; }
 
     public bool RatingFilterExclude { get; set; }
     public bool FlagFilterExclude { get; set; }
@@ -43,6 +44,7 @@ public sealed class FolderSession
     public bool ImageTypeFilterExclude { get; set; }
     public bool ExposureFilterExclude { get; set; }
     public bool FaceFilterExclude { get; set; }
+    public bool SubjectFilterExclude { get; set; }
 
     public int TimeOfDayStartMinutes { get; set; }
     public int TimeOfDayEndMinutes { get; set; } = 1440;

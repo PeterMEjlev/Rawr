@@ -1662,6 +1662,17 @@ public partial class MainWindow : Window
             _ = vm.RecomputeClippingStatsAsync();
         else if (prev.ClippedAreaThreshold != AppSettings.Current.ClippedAreaThreshold)
             vm.ApplyFilter();
+
+        // Classification thresholds are applied at inference time, so changing
+        // them invalidates existing per-photo results. Re-run automatically
+        // (same effect as the explicit "Re-run" buttons), and dedupe so a
+        // threshold change *plus* button click doesn't run twice.
+        bool rerunFaces    = dlg.RequestRerunFaceAnalysis
+                          || prev.ClosedEyeThreshold != AppSettings.Current.ClosedEyeThreshold;
+        bool rerunSubjects = dlg.RequestRerunSubjectClassification
+                          || prev.SubjectTagThreshold != AppSettings.Current.SubjectTagThreshold;
+        if (rerunFaces)    _ = vm.RerunFaceAnalysisAsync();
+        if (rerunSubjects) _ = vm.RerunSubjectClassificationAsync();
     }
 
     // ── Click handling: Ctrl/Shift modifiers build the multi-selection set ──

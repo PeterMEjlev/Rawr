@@ -103,6 +103,16 @@ public sealed class CullingDatabase : IDisposable
             alter.ExecuteNonQuery();
         }
 
+        // Subject-classifier bitmask. NULL means the classifier hasn't run on
+        // this photo yet; 0 means it ran and nothing scored above the
+        // threshold; >0 is a SubjectTag flag combination.
+        if (!ColumnExists("photos", "subject_tags"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN subject_tags INTEGER";
+            alter.ExecuteNonQuery();
+        }
+
         // System tags (e.g. auto-generated HDR) are owned by RAWR — they can't be
         // renamed or deleted from the UI and carry their own pill color.
         if (!ColumnExists("custom_groups", "is_system"))
@@ -141,7 +151,7 @@ public sealed class CullingDatabase : IDisposable
         var result = new Dictionary<string, PhotoState>(StringComparer.OrdinalIgnoreCase);
 
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score FROM photos";
+        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score, subject_tags FROM photos";
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -155,6 +165,7 @@ public sealed class CullingDatabase : IDisposable
             int? faceCount = reader.IsDBNull(9) ? null : reader.GetInt32(9);
             int? closedEyeCount = reader.IsDBNull(10) ? null : reader.GetInt32(10);
             float? minEyeOpenScore = reader.IsDBNull(11) ? null : (float)reader.GetDouble(11);
+            SubjectTag? subjectTags = reader.IsDBNull(12) ? null : (SubjectTag)reader.GetInt32(12);
 
             result[reader.GetString(0)] = new PhotoState
             {
@@ -169,6 +180,7 @@ public sealed class CullingDatabase : IDisposable
                 FaceCount = faceCount,
                 ClosedEyeCount = closedEyeCount,
                 MinEyeOpenScore = minEyeOpenScore,
+                SubjectTags = subjectTags,
             };
         }
 
@@ -179,8 +191,8 @@ public sealed class CullingDatabase : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score)
-            VALUES ($name, $rating, $flag, $color, $group, $best, $phash, $hi, $lo, $faces, $closedEyes, $minOpen)
+            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score, subject_tags)
+            VALUES ($name, $rating, $flag, $color, $group, $best, $phash, $hi, $lo, $faces, $closedEyes, $minOpen, $subject)
             ON CONFLICT(file_name) DO UPDATE SET
                 rating = $rating,
                 flag = $flag,
@@ -192,7 +204,8 @@ public sealed class CullingDatabase : IDisposable
                 shadow_clipped_pct = $lo,
                 face_count = $faces,
                 closed_eye_count = $closedEyes,
-                min_eye_open_score = $minOpen
+                min_eye_open_score = $minOpen,
+                subject_tags = $subject
             """;
         cmd.Parameters.AddWithValue("$name", photo.FileName);
         cmd.Parameters.AddWithValue("$rating", photo.Rating);
@@ -206,6 +219,7 @@ public sealed class CullingDatabase : IDisposable
         cmd.Parameters.AddWithValue("$faces", (object?)photo.FaceCount ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$closedEyes", (object?)photo.ClosedEyeCount ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$minOpen", (object?)photo.MinEyeOpenScore ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$subject", photo.SubjectTags.HasValue ? (object)(int)photo.SubjectTags.Value : DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
@@ -381,4 +395,5 @@ public record PhotoState
     public int? FaceCount { get; init; }
     public int? ClosedEyeCount { get; init; }
     public float? MinEyeOpenScore { get; init; }
+    public SubjectTag? SubjectTags { get; init; }
 }

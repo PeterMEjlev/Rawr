@@ -1708,6 +1708,80 @@
                             </controls:SidebarBucketButton>
                         </StackPanel>
 
+                        <!-- Subjects subsection — populated by the auto-running
+                             zero-shot CLIP classifier after folder open. Each
+                             chip is multi-select (clicking Person + Landscape
+                             ORs the categories). Unclassified photos stay out
+                             of both sides of the include/exclude split. -->
+                        <ToggleButton x:Name="SubjectsToggle" Content="Subjects" Style="{StaticResource SidebarSubsectionToggle}" IsChecked="True" />
+                        <StackPanel Margin="6,0,6,4"
+                                    Visibility="{Binding IsChecked, ElementName=SubjectsToggle, Converter={StaticResource BoolToVisibility}}">
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetSidebarSubjectCommand}"
+                                    CommandParameter="{x:Static models:SubjectTag.Person}"
+                                    IsActive="{Binding IsSubjectPersonActive}"
+                                    ToolTip="Photos the subject classifier tagged as containing a person">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="🧑" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Person" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SubjectPersonCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetSidebarSubjectCommand}"
+                                    CommandParameter="{x:Static models:SubjectTag.Landscape}"
+                                    IsActive="{Binding IsSubjectLandscapeActive}"
+                                    ToolTip="Photos the subject classifier tagged as landscape / outdoor scenery">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="🏞" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Landscape" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SubjectLandscapeCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetSidebarSubjectCommand}"
+                                    CommandParameter="{x:Static models:SubjectTag.Food}"
+                                    IsActive="{Binding IsSubjectFoodActive}"
+                                    ToolTip="Photos the subject classifier tagged as food / meals">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="🍽" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Food" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SubjectFoodCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </controls:SidebarBucketButton>
+                            <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
+                                    Command="{Binding SetSidebarSubjectCommand}"
+                                    CommandParameter="{x:Static models:SubjectTag.Animal}"
+                                    IsActive="{Binding IsSubjectAnimalActive}"
+                                    ToolTip="Photos the subject classifier tagged as containing an animal">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="🐾" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="Animal" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SubjectAnimalCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                </Grid>
+                            </controls:SidebarBucketButton>
+                        </StackPanel>
+
                         <!-- Faces subsection — populated by the toolbar 👁 button.
                              Threshold lives in Settings → Faces. Photos that
                              haven't been analysed yet don't appear in either side
@@ -2945,6 +3019,25 @@
                            Text="{Binding CurrentFolder}"
                            Foreground="{StaticResource TextDimBrush}"
                            TextTrimming="CharacterEllipsis" />
+                <!-- Background-activity ticker — sits between the status line and
+                     the folder path. Hidden when nothing is running so it doesn't
+                     reserve dead space. -->
+                <StackPanel DockPanel.Dock="Right"
+                            Orientation="Horizontal"
+                            Margin="0,0,12,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding IsBackgroundActive, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="⏳"
+                               Margin="0,0,4,0"
+                               FontSize="11"
+                               Foreground="{StaticResource AccentBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding BackgroundActivity}"
+                               Foreground="{StaticResource AccentBrush}"
+                               FontStyle="Italic"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                </StackPanel>
                 <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextBrush}" />
             </DockPanel>
         </Border>

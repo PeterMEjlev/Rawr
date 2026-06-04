@@ -27,6 +27,19 @@ public partial class SettingsWindow : Window
 
     public AppSettings? Result { get; private set; }
 
+    /// <summary>
+    /// True when the user clicked "Re-run face analysis" — the caller should
+    /// clear FaceCount/ClosedEyeCount/MinEyeOpenScore on every photo and
+    /// re-run the analyzer with the (possibly updated) threshold.
+    /// </summary>
+    public bool RequestRerunFaceAnalysis { get; private set; }
+
+    /// <summary>
+    /// True when the user clicked "Re-run subject classification" — the caller
+    /// should clear SubjectTags on every photo and re-run the classifier.
+    /// </summary>
+    public bool RequestRerunSubjectClassification { get; private set; }
+
     // Per-action working copy of the override map.
     //   key missing  → use default
     //   value ""     → explicitly unbound
@@ -74,6 +87,8 @@ public partial class SettingsWindow : Window
         ClippingThresholdSlider.Value = Math.Clamp(current.ClippingThreshold, (byte)90, (byte)100);
         ClippedAreaThresholdSlider.Value = Math.Clamp(current.ClippedAreaThreshold, (byte)1, (byte)50);
         ClosedEyeThresholdSlider.Value = Math.Clamp(current.ClosedEyeThreshold, (byte)10, (byte)90);
+        SubjectClassificationEnabledCheck.IsChecked = current.SubjectClassificationEnabled;
+        SubjectTagThresholdSlider.Value = Math.Clamp(current.SubjectTagThreshold, (byte)5, (byte)50);
         ClippingModeHighlights.IsChecked = current.ClippingMode == ClippingMode.Highlights;
         ClippingModeShadows.IsChecked = current.ClippingMode == ClippingMode.Shadows;
         ClippingModeBoth.IsChecked = current.ClippingMode == ClippingMode.Both;
@@ -357,6 +372,8 @@ public partial class SettingsWindow : Window
             ClippingThreshold   = (byte)ClippingThresholdSlider.Value,
             ClippedAreaThreshold = (byte)ClippedAreaThresholdSlider.Value,
             ClosedEyeThreshold = (byte)ClosedEyeThresholdSlider.Value,
+            SubjectClassificationEnabled = SubjectClassificationEnabledCheck.IsChecked == true,
+            SubjectTagThreshold = (byte)SubjectTagThresholdSlider.Value,
             DoubleClickZoom     = DoubleClickZoomSlider.Value,
             ScrollSpeedPercent  = (int)ScrollSpeedSlider.Value,
             ReverseFilmstripScroll = ReverseFilmstripScrollCheck.IsChecked == true,
@@ -389,6 +406,89 @@ public partial class SettingsWindow : Window
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+
+    /// <summary>
+    /// Per-setting "revert to default" dispatcher. The XAML reset buttons set
+    /// <c>Button.Tag</c> to a key identifying which control(s) to reset; this
+    /// switch pulls the factory default from a fresh <see cref="AppSettings"/>
+    /// instance and applies it. Keeps all per-setting reset logic in one
+    /// place — adding a new setting only means a new <c>case</c> here plus an
+    /// inline ↺ button in the XAML.
+    /// </summary>
+    private void Reset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string key) return;
+        var d = new AppSettings();
+        switch (key)
+        {
+            // Display
+            case "DateFormat":               DateFormatBox.Text = d.DateFormat; break;
+            // Zoom
+            case "DoubleClickZoom":          DoubleClickZoomSlider.Value = d.DoubleClickZoom; break;
+            // Scrolling
+            case "ScrollSpeedPercent":       ScrollSpeedSlider.Value = d.ScrollSpeedPercent; break;
+            case "ReverseFilmstripScroll":   ReverseFilmstripScrollCheck.IsChecked = d.ReverseFilmstripScroll; break;
+            // Preview
+            case "UseEmbeddedJpegOnly":      UseEmbeddedJpegOnlyCheck.IsChecked = d.UseEmbeddedJpegOnly; break;
+            // Sorting
+            case "DefaultSortField":
+                SortFieldBox.SelectedIndex = Math.Max(0, Array.FindIndex(SortOptions, o => o.Value == d.DefaultSortField));
+                break;
+            // Bursts
+            case "BurstMaxGapSeconds":          GapSlider.Value = d.BurstMaxGapSeconds; break;
+            case "BurstSimilarityStrictness":   SimilaritySlider.Value = d.BurstSimilarityStrictness; break;
+            case "BurstThumbnailMode":
+                ThumbHighestRated.IsChecked      = d.BurstThumbnailMode == BurstThumbnailMode.HighestRated;
+                ThumbFirstChronological.IsChecked = d.BurstThumbnailMode == BurstThumbnailMode.FirstChronological;
+                break;
+            case "CollapseBurstsOnOpen":     CollapseOnOpen.IsChecked = d.CollapseBurstsOnOpen; break;
+            // HDR
+            case "HdrDetectionEnabled":      HdrEnabledCheck.IsChecked = d.HdrDetectionEnabled; break;
+            case "HdrMinBracketSize":        HdrMinBracketSizeSlider.Value = d.HdrMinBracketSize; break;
+            case "HdrMinExposureSpread":     HdrExposureSpreadSlider.Value = d.HdrMinExposureSpread; break;
+            // Panorama
+            case "PanoramaDetectionEnabled":      PanoEnabledCheck.IsChecked = d.PanoramaDetectionEnabled; break;
+            case "PanoramaMinChainSize":          PanoMinChainSlider.Value = d.PanoramaMinChainSize; break;
+            case "PanoramaMaxGapSeconds":         PanoGapSlider.Value = d.PanoramaMaxGapSeconds; break;
+            case "PanoramaMinOverlapPct":         PanoMinOverlapSlider.Value = d.PanoramaMinOverlapPct; break;
+            case "PanoramaMaxOverlapPct":         PanoMaxOverlapSlider.Value = d.PanoramaMaxOverlapPct; break;
+            case "PanoramaDirectionToleranceDeg": PanoDirectionSlider.Value = d.PanoramaDirectionToleranceDeg; break;
+            // Clipping / exposure
+            case "ClippingMode":
+                ClippingModeHighlights.IsChecked = d.ClippingMode == ClippingMode.Highlights;
+                ClippingModeShadows.IsChecked    = d.ClippingMode == ClippingMode.Shadows;
+                ClippingModeBoth.IsChecked       = d.ClippingMode == ClippingMode.Both;
+                break;
+            case "ClippingThreshold":        ClippingThresholdSlider.Value = d.ClippingThreshold; break;
+            case "ClippedAreaThreshold":     ClippedAreaThresholdSlider.Value = d.ClippedAreaThreshold; break;
+            // Classification — faces
+            case "ClosedEyeThreshold":       ClosedEyeThresholdSlider.Value = d.ClosedEyeThreshold; break;
+            // Classification — subjects
+            case "SubjectClassificationEnabled": SubjectClassificationEnabledCheck.IsChecked = d.SubjectClassificationEnabled; break;
+            case "SubjectTagThreshold":          SubjectTagThresholdSlider.Value = d.SubjectTagThreshold; break;
+            // Focus peaking
+            case "FocusPeakingThreshold":    FocusPeakingStrictnessSlider.Value = d.FocusPeakingThreshold; break;
+            // Video
+            case "VideoSeekStepSeconds":     VideoSeekStepSlider.Value = d.VideoSeekStepSeconds; break;
+            case "AutoPlayVideo":            AutoPlayVideoCheck.IsChecked = d.AutoPlayVideo; break;
+        }
+    }
+
+    // The two re-run buttons reuse Save_Click so the latest threshold (and
+    // any other settings edits in the dialog) get persisted before the
+    // analyser fires — otherwise the user would have to Save first, then
+    // re-open Settings to re-run, which defeats the point of the button.
+    private void RerunFaceAnalysis_Click(object sender, RoutedEventArgs e)
+    {
+        RequestRerunFaceAnalysis = true;
+        Save_Click(sender, e);
+    }
+
+    private void RerunSubjectClassification_Click(object sender, RoutedEventArgs e)
+    {
+        RequestRerunSubjectClassification = true;
+        Save_Click(sender, e);
+    }
 
     // ── Macros ──
 
@@ -801,7 +901,7 @@ public partial class SettingsWindow : Window
         var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(lbl, 0);
@@ -820,20 +920,58 @@ public partial class SettingsWindow : Window
         Grid.SetColumn(slider, 1);
         grid.Children.Add(slider);
 
-        var valueText = new TextBlock
+        // Borderless, transparent — looks like a TextBlock until focused, but
+        // editable. The slider on the left clamps the value once we commit.
+        var valueBox = new TextBox
         {
             Text = initial.ToString("F2"),
             VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            HorizontalContentAlignment = HorizontalAlignment.Right,
             FontFamily = new FontFamily("Consolas"),
+            Padding = new Thickness(0),
+            Background = System.Windows.Media.Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = (Brush)Application.Current.FindResource("TextBrush"),
+            CaretBrush = (Brush)Application.Current.FindResource("TextBrush"),
         };
-        Grid.SetColumn(valueText, 2);
-        grid.Children.Add(valueText);
+        Grid.SetColumn(valueBox, 2);
+        grid.Children.Add(valueBox);
 
+        bool suppressTextSync = false;
         slider.ValueChanged += (_, e) =>
         {
-            valueText.Text = e.NewValue.ToString("F2");
+            if (!suppressTextSync)
+            {
+                suppressTextSync = true;
+                valueBox.Text = e.NewValue.ToString("F2");
+                suppressTextSync = false;
+            }
             onChange((float)e.NewValue);
+        };
+
+        // Commit typed value on LostFocus / Enter; revert on Escape.
+        void CommitTextToSlider()
+        {
+            if (suppressTextSync) return;
+            if (double.TryParse(valueBox.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out var v))
+            {
+                suppressTextSync = true;
+                slider.Value = Math.Clamp(v, min, max);
+                valueBox.Text = slider.Value.ToString("F2");
+                suppressTextSync = false;
+            }
+            else
+            {
+                // Bad input — snap back to the slider's current value.
+                valueBox.Text = slider.Value.ToString("F2");
+            }
+        }
+        valueBox.LostFocus += (_, _) => CommitTextToSlider();
+        valueBox.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter) { CommitTextToSlider(); e.Handled = true; }
+            else if (e.Key == Key.Escape) { valueBox.Text = slider.Value.ToString("F2"); e.Handled = true; }
         };
 
         return grid;
@@ -844,5 +982,26 @@ public partial class SettingsWindow : Window
         if (sender is not ScrollViewer sv) return;
         ScrollSpeed.ScrollVertical(sv, e);
         e.Handled = true;
+    }
+
+    // Enter commits the typed value to the slider immediately; otherwise the
+    // binding only updates on LostFocus and the user has to tab away to see
+    // the slider move. Escape reverts to the slider's current value.
+    private void SliderValueBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        var expr = tb.GetBindingExpression(TextBox.TextProperty);
+        if (expr == null) return;
+
+        if (e.Key == Key.Enter)
+        {
+            expr.UpdateSource();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            expr.UpdateTarget();
+            e.Handled = true;
+        }
     }
 }
