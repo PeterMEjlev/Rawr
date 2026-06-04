@@ -27,20 +27,20 @@ from pathlib import Path
 
 # Tag set + prompt variants. The runtime averages the text embeddings across
 # variants per tag, then L2-normalises — small but reliable boost over a
-# single prompt. Keep this in sync with SubjectTag in Rawr.Core.
+# single prompt. Keep the names in sync with SubjectTag in Rawr.Core (the names
+# must match the enum, case-insensitive) and the grouping with SubjectTaxonomy.
+#
+# Both group roots (Animal, Vehicle, Nature) and their leaves (Dog, Cat, ...)
+# get their own embedding and are scored independently; the runtime then rolls
+# any leaf hit up into its group (SubjectTaxonomy.ApplyGroupRollup), so a group
+# embedding only needs to catch members that don't match a specific leaf.
 TAG_PROMPTS = {
+    # ── Standalone categories ──
     "Person": [
         "a photo of a person",
         "a portrait of a person",
         "a photo of people",
         "a candid photo of someone",
-    ],
-    "Landscape": [
-        "a landscape photo",
-        "a photo of mountains",
-        "a photo of a forest",
-        "a wide outdoor scenery photo",
-        "a photo of a coastline",
     ],
     "Food": [
         "a photo of food",
@@ -48,11 +48,101 @@ TAG_PROMPTS = {
         "a close-up photo of a dish",
         "a photo of a restaurant meal",
     ],
+    "Architecture": [
+        "a photo of a building",
+        "a photo of architecture",
+        "a photo of a cityscape",
+        "a photo of a city street",
+        "a photo of the interior of a building",
+    ],
+
+    # ── Animal group + leaves ──
     "Animal": [
         "a photo of an animal",
         "a photo of a pet",
         "a wildlife photo",
-        "a close-up photo of a bird",
+        "a photo of a creature",
+    ],
+    "Dog": [
+        "a photo of a dog",
+        "a photo of a puppy",
+    ],
+    "Cat": [
+        "a photo of a cat",
+        "a photo of a kitten",
+    ],
+    "Bird": [
+        "a photo of a bird",
+        "a photo of a bird in flight",
+    ],
+    "Horse": [
+        "a photo of a horse",
+        "a photo of horses in a field",
+    ],
+    "Wildlife": [
+        "a wildlife photo",
+        "a photo of a wild animal",
+        "a photo of a deer",
+        "a photo of a fox",
+    ],
+
+    # ── Vehicle group + leaves ──
+    "Vehicle": [
+        "a photo of a vehicle",
+        "a photo of a motor vehicle",
+        "a photo of a mode of transport",
+    ],
+    "Car": [
+        "a photo of a car",
+        "a photo of an automobile",
+    ],
+    "Plane": [
+        "a photo of an airplane",
+        "a photo of a plane in the sky",
+    ],
+    "Bike": [
+        "a photo of a bicycle",
+        "a photo of a motorcycle",
+    ],
+    "Boat": [
+        "a photo of a boat",
+        "a photo of a ship",
+    ],
+    "Train": [
+        "a photo of a train",
+        "a photo of a train on the tracks",
+    ],
+
+    # ── Nature group (was Landscape) + leaves ──
+    "Nature": [
+        "a landscape photo",
+        "a photo of nature",
+        "a photo of natural scenery",
+        "a wide outdoor scenery photo",
+        "a photo of the outdoors",
+    ],
+    "Mountain": [
+        "a photo of a mountain",
+        "a photo of mountains",
+    ],
+    "Forest": [
+        "a photo of a forest",
+        "a photo of trees in a forest",
+    ],
+    "Water": [
+        "a photo of a lake",
+        "a photo of the sea",
+        "a photo of a river",
+        "a photo of the ocean",
+    ],
+    "Beach": [
+        "a photo of a beach",
+        "a photo of a sandy beach by the sea",
+    ],
+    "Sky": [
+        "a photo of the sky",
+        "a photo of a sunset",
+        "a photo of clouds in the sky",
     ],
 }
 

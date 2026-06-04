@@ -491,6 +491,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public IReadOnlyCollection<SubjectTag> SubjectFilters => _subjectFilters;
     public bool IsSubjectFilterActive => _subjectFilters.Count > 0;
 
+    // Sidebar Subjects subsection, built once from the static taxonomy. Each
+    // group's / leaf's Count + IsActive are refreshed by RefreshSubjectChips.
+    public ObservableCollection<SubjectGroupVm> SubjectGroups { get; } = SubjectChipCatalog.BuildGroups();
+
     // Cameras present in the currently-loaded photos. Repopulated from AllPhotos
     // whenever metadata changes; bound to the Filter popup.
     public ObservableCollection<string> AvailableCameras { get; } = new();
@@ -5531,7 +5535,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (_tagFilterExtraIds.Count > 0)          { _tagFilterExtraIds.Clear();          changed = true; OnPropertyChanged(nameof(TagFilterExtraIds));          OnPropertyChanged(nameof(TagFilterActiveIds)); }
         if (_imageTypeFilterExtraValues.Count > 0) { _imageTypeFilterExtraValues.Clear(); changed = true; OnPropertyChanged(nameof(ImageTypeFilterExtraValues)); OnPropertyChanged(nameof(ImageTypeFilterActiveValues)); }
         if (_cameraFilters.Count > 0)              { _cameraFilters.Clear();              changed = true; OnPropertyChanged(nameof(CameraFilters));              OnPropertyChanged(nameof(IsCameraFilterActive)); }
-        if (_subjectFilters.Count > 0)             { _subjectFilters.Clear();             changed = true; OnPropertyChanged(nameof(SubjectFilters));             OnPropertyChanged(nameof(IsSubjectFilterActive)); OnPropertyChanged(nameof(IsSubjectPersonActive)); OnPropertyChanged(nameof(IsSubjectLandscapeActive)); OnPropertyChanged(nameof(IsSubjectFoodActive)); OnPropertyChanged(nameof(IsSubjectAnimalActive)); }
+        if (_subjectFilters.Count > 0)             { _subjectFilters.Clear();             changed = true; OnPropertyChanged(nameof(SubjectFilters));             OnPropertyChanged(nameof(IsSubjectFilterActive)); RefreshSubjectChips(); }
         if (changed) OnPropertyChanged(nameof(HasActiveFilters));
     }
 
@@ -6323,10 +6327,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             foreach (var t in s.SubjectFilters) if (t != SubjectTag.None) _subjectFilters.Add(t);
         OnPropertyChanged(nameof(SubjectFilters));
         OnPropertyChanged(nameof(IsSubjectFilterActive));
-        OnPropertyChanged(nameof(IsSubjectPersonActive));
-        OnPropertyChanged(nameof(IsSubjectLandscapeActive));
-        OnPropertyChanged(nameof(IsSubjectFoodActive));
-        OnPropertyChanged(nameof(IsSubjectAnimalActive));
+        RefreshSubjectChips();
         OnPropertyChanged(nameof(HasActiveFilters));
 
         RatingFilterExclude = s.RatingFilterExclude;
@@ -6829,20 +6830,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsFaceClosedEyesActive => FaceFilter == FaceFilterMode.ClosedEyes;
 
-    // Sidebar Subjects subsection. Each chip toggles a single tag in the
-    // multi-select set; clicking another tag adds to the union rather than
-    // replacing. Counts are over classified photos only — null SubjectTags is
-    // "not yet processed" and stays uncounted.
-    public bool IsSubjectPersonActive    => _subjectFilters.Contains(SubjectTag.Person);
-    public bool IsSubjectLandscapeActive => _subjectFilters.Contains(SubjectTag.Landscape);
-    public bool IsSubjectFoodActive      => _subjectFilters.Contains(SubjectTag.Food);
-    public bool IsSubjectAnimalActive    => _subjectFilters.Contains(SubjectTag.Animal);
-
-    public int SubjectPersonCount    => CountSubject(SubjectTag.Person);
-    public int SubjectLandscapeCount => CountSubject(SubjectTag.Landscape);
-    public int SubjectFoodCount      => CountSubject(SubjectTag.Food);
-    public int SubjectAnimalCount    => CountSubject(SubjectTag.Animal);
-
+    // Sidebar Subjects subsection. Each chip (group or leaf) toggles a single
+    // tag in the multi-select set; clicking another tag adds to the union rather
+    // than replacing. Counts are over classified photos only — null SubjectTags
+    // is "not yet processed" and stays uncounted.
     private int CountSubject(SubjectTag tag)
     {
         int n = 0;
@@ -6851,12 +6842,28 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return n;
     }
 
+    // Push current counts + selection state onto the bindable chips. Cheap —
+    // SubjectGroups is fixed-size — so it rides along with RefreshFilterBuckets.
+    private void RefreshSubjectChips()
+    {
+        foreach (var g in SubjectGroups)
+        {
+            g.Count = CountSubject(g.Tag);
+            g.IsActive = _subjectFilters.Contains(g.Tag);
+            foreach (var leaf in g.Leaves)
+            {
+                leaf.Count = CountSubject(leaf.Tag);
+                leaf.IsActive = _subjectFilters.Contains(leaf.Tag);
+            }
+        }
+    }
+
     [RelayCommand]
     private void SetSidebarSubject(SubjectTag tag)
     {
         if (tag == SubjectTag.None) return;
         // Toggle, multi-select. Unlike Rating/Color the subject chips don't
-        // wipe each other — selecting Person + Landscape ORs the categories.
+        // wipe each other — selecting Person + Animal ORs the categories.
         bool changed = _subjectFilters.Contains(tag)
             ? _subjectFilters.Remove(tag)
             : _subjectFilters.Add(tag);
@@ -6867,10 +6874,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SubjectFilters));
         OnPropertyChanged(nameof(IsSubjectFilterActive));
         OnPropertyChanged(nameof(HasActiveFilters));
-        OnPropertyChanged(nameof(IsSubjectPersonActive));
-        OnPropertyChanged(nameof(IsSubjectLandscapeActive));
-        OnPropertyChanged(nameof(IsSubjectFoodActive));
-        OnPropertyChanged(nameof(IsSubjectAnimalActive));
+        RefreshSubjectChips();
         ApplyFilter();
     }
 
@@ -7025,14 +7029,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsExposureClippedHighlightsActive));
         OnPropertyChanged(nameof(IsExposureCrushedShadowsActive));
         OnPropertyChanged(nameof(IsFaceClosedEyesActive));
-        OnPropertyChanged(nameof(SubjectPersonCount));
-        OnPropertyChanged(nameof(SubjectLandscapeCount));
-        OnPropertyChanged(nameof(SubjectFoodCount));
-        OnPropertyChanged(nameof(SubjectAnimalCount));
-        OnPropertyChanged(nameof(IsSubjectPersonActive));
-        OnPropertyChanged(nameof(IsSubjectLandscapeActive));
-        OnPropertyChanged(nameof(IsSubjectFoodActive));
-        OnPropertyChanged(nameof(IsSubjectAnimalActive));
+        RefreshSubjectChips();
 
         // Tag counts are stored on the PhotoTag itself so each row can bind directly.
         // Single pass over all photos beats Count(...) per tag when there are many of either.

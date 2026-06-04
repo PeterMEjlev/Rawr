@@ -62,10 +62,20 @@ UPDATE photos SET face_count = NULL, closed_eye_count = NULL, min_eye_open_score
 
 # Subject classifier (zero-shot CLIP)
 
-The sidebar **Subjects** subsection (person / landscape / food / animal) is
-populated by a small CLIP-style image encoder that runs as a low-priority
-background pass after folder open. Disable the pass entirely with
-**Settings → Subjects → Auto-classify** if you don't want it.
+The sidebar **Subjects** subsection is populated by a small CLIP-style image
+encoder that runs as a low-priority background pass after folder open. Disable
+the pass entirely with **Settings → Subjects → Auto-classify** if you don't want
+it.
+
+The tags form a shallow two-level taxonomy (see `SubjectTaxonomy` in
+`src/Rawr.Core/Models`): **group** roots — *Animal*, *Vehicle*, *Nature* — each
+own a handful of **leaf** categories (Dog/Cat/Bird/…, Car/Plane/Bike/…,
+Mountain/Forest/Water/…), alongside the standalone categories *Person*, *Food*
+and *Architecture*. Both group roots and leaves get their own text embedding and
+are scored independently; the runtime then rolls any leaf hit up into its group
+(`SubjectTaxonomy.ApplyGroupRollup`), so a group bit is always a superset of its
+leaves (no "Dog without Animal"). In the sidebar, group chips expand to reveal
+their leaves; a group's count is the union over its leaves.
 
 ## Required files
 
@@ -104,7 +114,16 @@ python tools/generate_subject_embeddings.py `
 
 Edit `TAG_PROMPTS` in the script to extend the prompt set or add new
 categories (after first adding them to the `SubjectTag` enum in
-`src/Rawr.Core/Models/SubjectTag.cs`).
+`src/Rawr.Core/Models/SubjectTag.cs`, and — for group roots — wiring the
+group→leaf relationship in `SubjectTaxonomy`). The names in `TAG_PROMPTS` must
+match the enum names case-insensitively; the script writes one embedding per
+name and the runtime silently skips any name it can't map.
+
+> **Note:** `datacomp_xl_s13b_b90k` was added to `open_clip_torch` around v2.20.
+> Older installs only expose `openai` / `laion400m` tags and will error with
+> "Pretrained weights … not found". Use a recent `open_clip_torch`, and make
+> sure it's the **same** checkpoint that produced `subject_image_encoder.onnx`
+> or the text and image embeddings won't share a vector space.
 
 ## Threshold
 

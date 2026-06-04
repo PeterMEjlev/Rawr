@@ -114,7 +114,10 @@ public sealed class SubjectClassifier : IDisposable
             float score = Dot(imageEmbed, tag.Embedding);
             if (score >= threshold) result |= tag.Flag;
         }
-        return result;
+        // Hybrid grouping: a leaf hit (e.g. Dog) implies its group (Animal) even
+        // when the group's own embedding didn't clear the threshold, so a group
+        // bit is always a superset of its leaves.
+        return SubjectTaxonomy.ApplyGroupRollup(result);
     }
 
     // ── Initialisation ──
