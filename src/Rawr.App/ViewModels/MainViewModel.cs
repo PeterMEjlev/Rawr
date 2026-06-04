@@ -2627,8 +2627,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var jpeg = photo.FullJpeg ?? photo.PreviewJpeg;
         if (jpeg == null) return;
-        var threshold = AppSettings.Current.FocusPeakingThreshold;
-        var overlay = await Task.Run(() => FocusPeakingComputer.Compute(jpeg, threshold), ct);
+        // Strictness comes from the simple slider; the rest of the adaptive
+        // pipeline is driven by the central FocusPeaking options object.
+        var strictness = AppSettings.Current.FocusPeakingThreshold;
+        var options = AppSettings.Current.FocusPeaking;
+        var overlay = await Task.Run(() => FocusPeakingComputer.Compute(jpeg, strictness, options), ct);
         if (!ct.IsCancellationRequested && SelectedPhoto == photo && FocusPeakingEnabled)
             FocusPeakingOverlay = overlay;
     }

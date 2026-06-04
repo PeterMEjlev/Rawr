@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Rawr.App.Services;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 
@@ -72,7 +73,15 @@ public sealed class AppSettings
     // restarts.
     public bool IncludeSubfolders { get; set; } = true;
 
+    // User-facing "strictness" (10–100), driven by the Settings slider. Maps
+    // onto the adaptive threshold multipliers in FocusPeakingOptions — higher
+    // shifts every confidence band up (fewer, sharper peaks).
     public byte FocusPeakingThreshold { get; set; } = 60;
+
+    // Advanced focus-peaking math knobs (operator, mode, multipliers, denoise,
+    // cleanup, overlay style). Persisted as a nested object; defaults are tuned
+    // and need no UI to be usable — edit settings.json or wire up controls later.
+    public FocusPeakingOptions FocusPeaking { get; set; } = new();
 
     public ClippingMode ClippingMode { get; set; } = ClippingMode.Highlights;
 
@@ -232,6 +241,7 @@ public sealed class AppSettings
         DefaultSortField = DefaultSortField,
         IncludeSubfolders = IncludeSubfolders,
         FocusPeakingThreshold = FocusPeakingThreshold,
+        FocusPeaking = FocusPeaking.Clone(),
         ClippingMode = ClippingMode,
         ClippingThreshold = ClippingThreshold,
         ClippedAreaThreshold = ClippedAreaThreshold,
