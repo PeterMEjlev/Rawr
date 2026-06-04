@@ -97,6 +97,36 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     private double _panStartTx;
     private double _panStartTy;
     private PixelPeekController? _peek;
+    private CancellationTokenSource? _overlayCts;
+    private CancellationTokenSource? _clippingCts;
+
+    private BitmapSource? _focusPeakingOverlay;
+    public BitmapSource? FocusPeakingOverlay
+    {
+        get => _focusPeakingOverlay;
+        private set { _focusPeakingOverlay = value; OnPropertyChanged(nameof(FocusPeakingOverlay)); }
+    }
+
+    private bool _focusPeakingEnabled;
+    public bool FocusPeakingEnabled
+    {
+        get => _focusPeakingEnabled;
+        private set { _focusPeakingEnabled = value; OnPropertyChanged(nameof(FocusPeakingEnabled)); }
+    }
+
+    private BitmapSource? _clippingOverlay;
+    public BitmapSource? ClippingOverlay
+    {
+        get => _clippingOverlay;
+        private set { _clippingOverlay = value; OnPropertyChanged(nameof(ClippingOverlay)); }
+    }
+
+    private bool _clippingEnabled;
+    public bool ClippingEnabled
+    {
+        get => _clippingEnabled;
+        private set { _clippingEnabled = value; OnPropertyChanged(nameof(ClippingEnabled)); }
+    }
 
     public IRelayCommand CloseCommand           { get; }
     public IRelayCommand NextCommand            { get; }
@@ -109,6 +139,9 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     public IRelayCommand<ColorLabel> SetColorLabelCommand { get; }
     public IRelayCommand<HistogramMode> SetHistogramModeCommand { get; }
     public IRelayCommand<SidePanelView> SetSidePanelViewCommand { get; }
+    public IRelayCommand ToggleFocusPeakingCommand { get; }
+    public IRelayCommand ToggleClippingCommand     { get; }
+    public IRelayCommand CycleOverlayCommand       { get; }
 
     public IRelayCommand ToggleFullscreenCommand { get; }
 
@@ -145,6 +178,9 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         SetHistogramModeCommand = new RelayCommand<HistogramMode>(mode => HistogramMode = mode);
         SetSidePanelViewCommand = new RelayCommand<SidePanelView>(view => SidePanelView = view);
         ToggleFullscreenCommand = new RelayCommand(() => ApplyFullscreen(!_isFullscreen));
+        ToggleFocusPeakingCommand = new RelayCommand(ToggleFocusPeaking);
+        ToggleClippingCommand     = new RelayCommand(ToggleClipping);
+        CycleOverlayCommand       = new RelayCommand(CycleOverlay);
 
         InitializeComponent();
         DataContext = this;
@@ -177,6 +213,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             _hiResZoomTimer.Stop();
             _previewCts?.Cancel();
             _prefetchCts?.Cancel();
+            _overlayCts?.Cancel();
+            _clippingCts?.Cancel();
             LastPeekState = _peek?.CaptureState();
             _peek?.Dispose();
             _peek = null;
@@ -191,6 +229,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         Strip.SelectedIndex = index;
         CenterStripSelection();
         HistogramData = null;
+        FocusPeakingOverlay = null;
+        ClippingOverlay = null;
         if (!keepZoom)
             ResetZoom();
         else
@@ -198,6 +238,8 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         UpdateOverlays();
         _ = ComputeHistogramAsync(_photos[index]);
         _ = LoadPreviewAsync(_photos[index]);
+        if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(_photos[index]);
+        if (ClippingEnabled)     _ = ComputeClippingAsync(_photos[index]);
         QueueHighResLoadIfNeeded();
         _ = PrefetchNeighborPreviewsAsync(index);
     }
@@ -280,6 +322,9 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         ["Unflag"]           = UnflagCommand,
         ["SetAsThumbnail"]   = SetAsThumbnailCommand,
         ["ViewPhotoFullscreen"] = ToggleFullscreenCommand,
+        ["ToggleFocusPeaking"] = ToggleFocusPeakingCommand,
+        ["ToggleClipping"]     = ToggleClippingCommand,
+        ["CycleOverlay"]       = CycleOverlayCommand,
         ["NextPhoto"]        = NextCommand,
         ["NextPhotoAlt"]     = NextCommand,
         ["PreviousPhoto"]    = PrevCommand,
@@ -738,6 +783,11 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             if (_currentIndex < 0 || _photos[_currentIndex] != photo) return;
 
             PreviewImageElement.Source = bs;
+            // Re-run focus peaking on the full-resolution JPEG so the overlay
+            // matches the hi-res decode (same as the main window's refresh path).
+            if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo);
+            // Clipping is keyed from the RAW decode, not the JPEG, so it doesn't
+            // need a refresh here — it was already triggered by ComputeClippingAsync.
         }
         catch (OperationCanceledException) { /* selection moved on */ }
         catch { _highResLoaded = false; /* let a later zoom retry */ }
@@ -796,6 +846,96 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             if (found != null) return found;
         }
         return null;
+    }
+
+    // ── Overlay toggles (focus peaking + clipping) ────────────────────────
+
+    private void ToggleFocusPeaking()
+    {
+        if (FocusPeakingEnabled) DisableOverlays();
+        else EnableFocusPeaking();
+    }
+
+    private void ToggleClipping()
+    {
+        if (ClippingEnabled) DisableOverlays();
+        else EnableClipping();
+    }
+
+    // Mirrors the main window's CycleOverlay: off → focus peaking → clipping → off.
+    private void CycleOverlay()
+    {
+        if (FocusPeakingEnabled) EnableClipping();
+        else if (ClippingEnabled) DisableOverlays();
+        else EnableFocusPeaking();
+    }
+
+    private void EnableFocusPeaking()
+    {
+        ClippingEnabled = false;
+        ClippingOverlay = null;
+        FocusPeakingEnabled = true;
+        if (_currentIndex >= 0 && _currentIndex < _photos.Count)
+            _ = ComputeFocusPeakingAsync(_photos[_currentIndex]);
+    }
+
+    private void EnableClipping()
+    {
+        FocusPeakingEnabled = false;
+        FocusPeakingOverlay = null;
+        ClippingEnabled = true;
+        if (_currentIndex >= 0 && _currentIndex < _photos.Count)
+            _ = ComputeClippingAsync(_photos[_currentIndex]);
+    }
+
+    private void DisableOverlays()
+    {
+        FocusPeakingEnabled = false;
+        FocusPeakingOverlay = null;
+        ClippingEnabled = false;
+        ClippingOverlay = null;
+    }
+
+    private async Task ComputeFocusPeakingAsync(PhotoItem photo)
+    {
+        var jpeg = photo.FullJpeg ?? photo.PreviewJpeg;
+        if (jpeg == null) return;
+
+        _overlayCts?.Cancel();
+        _overlayCts = new CancellationTokenSource();
+        var ct = _overlayCts.Token;
+
+        var strictness = AppSettings.Current.FocusPeakingThreshold;
+        var options = AppSettings.Current.FocusPeaking;
+        try
+        {
+            var overlay = await Task.Run(() => FocusPeakingComputer.Compute(jpeg, strictness, options), ct);
+            if (!ct.IsCancellationRequested && IsCurrentPhoto(photo, _currentIndex) && FocusPeakingEnabled)
+                FocusPeakingOverlay = overlay;
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task ComputeClippingAsync(PhotoItem photo)
+    {
+        _clippingCts?.Cancel();
+        _clippingCts = new CancellationTokenSource();
+        var ct = _clippingCts.Token;
+
+        try
+        {
+            var index = _currentIndex;
+            var raw = await _vm.LoadLinearRawForPhotoAsync(photo, ct);
+            if (ct.IsCancellationRequested || raw == null) return;
+            if (!IsCurrentPhoto(photo, index) || !ClippingEnabled) return;
+
+            var mode = AppSettings.Current.ClippingMode;
+            var threshold = AppSettings.Current.ClippingThreshold;
+            var overlay = await Task.Run(() => ClippingComputer.Compute(raw, mode, threshold), ct);
+            if (!ct.IsCancellationRequested && IsCurrentPhoto(photo, index) && ClippingEnabled)
+                ClippingOverlay = overlay;
+        }
+        catch (OperationCanceledException) { }
     }
 
     private void OnPropertyChanged(string propertyName) =>

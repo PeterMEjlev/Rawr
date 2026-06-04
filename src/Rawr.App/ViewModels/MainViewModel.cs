@@ -2954,6 +2954,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return processed;
     }
 
+    /// <summary>
+    /// Loads the downsampled linear-RAW buffer for <paramref name="photo"/> from
+    /// the disk cache, or runs a fresh LibRaw decode and caches the result.
+    /// Returns null for non-RAW files, videos, or when LibRaw is unavailable.
+    /// Called by <see cref="BurstFocusWindow"/> which has no RAW decode path of
+    /// its own but needs the same sensor data for the clipping overlay.
+    /// </summary>
+    public Task<LinearRawImage?> LoadLinearRawForPhotoAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (!photo.IsRaw || photo.IsVideo) return Task.FromResult<LinearRawImage?>(null);
+        if (_libRaw == null) return Task.FromResult<LinearRawImage?>(null);
+        if (AppSettings.Current.UseEmbeddedJpegOnly) return Task.FromResult<LinearRawImage?>(null);
+        return Task.Run(() => LoadOrDecodeLinearRaw(photo, ct), ct);
+    }
+
     public async Task<byte[]?> LoadFullJpegForPhotoAsync(PhotoItem photo, CancellationToken ct)
     {
         if (photo.IsVideo) return null;
