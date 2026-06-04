@@ -59,6 +59,19 @@ public sealed class FocusPeakingOptions
     // score = gradient * (1 + LaplacianBoost * normalisedLaplacian).
     public double LaplacianBoost { get; set; } = 1.0;
 
+    // ── Highlight (bokeh / specular) suppression ──
+    // A defocused bright blob has a high-contrast rim that clears the gradient
+    // floor even though it's out of focus. Raising the global floor would hurt
+    // darker scenes, so instead we key off brightness: when the brightest luma
+    // within HighlightRadius px of a pixel exceeds HighlightCutoff (1..255), its
+    // focus score is scaled toward HighlightSuppression (0 = drop entirely,
+    // 1 = no change), rolling off smoothly from the cutoff up to pure white.
+    // HighlightCutoff = 0 disables the test. Trade-off: also dampens genuinely
+    // sharp detail abutting a blown highlight (white text on black, sun glints).
+    public int HighlightCutoff { get; set; } = 150;             // 0 = off; try ~225
+    public double HighlightSuppression { get; set; } = 0.10;
+    public int HighlightRadius { get; set; } = 8;         // how far a rim "sees" into a blob
+
     public int MinBlobSize { get; set; } = 4;     // drop isolated speckle smaller than this
     public int DilationRadius { get; set; } = 1;   // 1–2 px so peaks are visible, not chunky
 
@@ -147,6 +160,13 @@ public static class FocusPeakingComputer
 
         // ── 3+4. Focus score (Tenengrad / Laplacian / Hybrid), in float ────
         float[] score = ComputeScore(luma, w, h, opt);
+
+        // ── 4b. Knock down peaks riding the rim of a bright defocused blob
+        // (bokeh / specular). These rims are high-contrast but out of focus;
+        // keying off nearby near-white luminance removes them without raising the
+        // global floor (which would over-suppress darker, in-focus scenes).
+        if (opt.HighlightCutoff > 0)
+            SuppressHighlights(score, luma, w, h, opt);
 
         // ── 5. Robust adaptive thresholds ──────────────────────────────────
         double center, spread;
@@ -273,6 +293,60 @@ public static class FocusPeakingComputer
                     acc += tmp[yy * w + x] * k[t + half];
                 }
                 dst[y * w + x] = acc * inv;
+            }
+        }
+        return dst;
+    }
+
+    // ── 4b. Highlight suppression ──────────────────────────────────────────
+    private static void SuppressHighlights(float[] score, float[] luma, int w, int h, FocusPeakingOptions opt)
+    {
+        int radius = Math.Max(1, opt.HighlightRadius);
+        int cutoff = opt.HighlightCutoff;
+        float floorFactor = (float)Math.Clamp(opt.HighlightSuppression, 0.0, 1.0);
+        float span = Math.Max(1f, 255f - cutoff);
+
+        // localMax lets a rim pixel "see" the bright blob it borders; the score is
+        // ramped from ×1 at the cutoff down to ×floorFactor at pure white.
+        float[] localMax = LocalMax(luma, w, h, radius);
+        for (int i = 0; i < score.Length; i++)
+        {
+            float lm = localMax[i];
+            if (lm <= cutoff) continue;
+            float t = (lm - cutoff) / span;               // 0 at cutoff, 1 at white
+            score[i] *= 1f - t * (1f - floorFactor);      // ×1 → ×floorFactor
+        }
+    }
+
+    // Separable window maximum (radius px), float in/out.
+    private static float[] LocalMax(float[] src, int w, int h, int radius)
+    {
+        float[] tmp = new float[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            int row = y * w;
+            for (int x = 0; x < w; x++)
+            {
+                int x0 = Math.Max(0, x - radius), x1 = Math.Min(w - 1, x + radius);
+                float m = 0f;
+                for (int xx = x0; xx <= x1; xx++)
+                    if (src[row + xx] > m) m = src[row + xx];
+                tmp[row + x] = m;
+            }
+        }
+        float[] dst = new float[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            int y0 = Math.Max(0, y - radius), y1 = Math.Min(h - 1, y + radius);
+            for (int x = 0; x < w; x++)
+            {
+                float m = 0f;
+                for (int yy = y0; yy <= y1; yy++)
+                {
+                    float v = tmp[yy * w + x];
+                    if (v > m) m = v;
+                }
+                dst[y * w + x] = m;
             }
         }
         return dst;
