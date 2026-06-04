@@ -8,16 +8,54 @@ namespace Rawr.Core.Models;
 /// </summary>
 public sealed partial class PhotoItem : ObservableObject
 {
-    public required string FilePath { get; init; }
-    public string FileName => Path.GetFileName(FilePath);
-    public string Extension => Path.GetExtension(FilePath).ToUpperInvariant();
-    public bool IsVideo => Extension is ".MP4" or ".MOV";
-    public bool IsRaw => !IsVideo && Extension is not ".JPG" and not ".JPEG";
+    // FilePath is set once via the init accessor; FileName / Extension / IsVideo /
+    // IsRaw are derived from it deterministically, so precomputing them here turns
+    // every later access into a field read instead of recomputing Path.GetExtension
+    // + ToUpperInvariant (and allocating two strings) per call. These getters are
+    // hit on every filter predicate, sort key, and per-photo loop over AllPhotos
+    // — adding up to thousands of redundant allocations on a 10k-photo folder.
+    // The init accessor runs before the object is published to any other thread,
+    // so the fields are safely visible without locking.
+    private string _filePath = "";
+    public required string FilePath
+    {
+        get => _filePath;
+        init
+        {
+            _filePath = value;
+            _fileName = Path.GetFileName(value);
+            _extension = Path.GetExtension(value).ToUpperInvariant();
+            _isVideo = _extension is ".MP4" or ".MOV";
+            _isRaw = !_isVideo && _extension is not ".JPG" and not ".JPEG";
+        }
+    }
+
+    private string _fileName = "";
+    public string FileName => _fileName;
+
+    private string _extension = "";
+    public string Extension => _extension;
+
+    private bool _isVideo;
+    public bool IsVideo => _isVideo;
+
+    private bool _isRaw;
+    public bool IsRaw => _isRaw;
 
     // Short file-kind tag for the fullscreen overlay: "RAW" / "JPG" / "" (video).
-    public string FileTypeBadge => IsVideo ? "" : IsRaw ? "RAW" : "JPG";
+    public string FileTypeBadge => _isVideo ? "" : _isRaw ? "RAW" : "JPG";
 
-    [ObservableProperty] private int _rating; // 0-5
+    // Rating is hand-rolled rather than [ObservableProperty] so the 0–5 clamp
+    // actually takes effect. The source generator's OnXxxChanging hook runs
+    // *before* the unconditional `_rating = value` it emits, so any field
+    // assignment we made from inside that hook would be overwritten — clamp via
+    // SetProperty here instead so out-of-range writes are coerced.
+    private int _rating;
+    public int Rating
+    {
+        get => _rating;
+        set => SetProperty(ref _rating, Math.Clamp(value, 0, 5));
+    }
     [ObservableProperty] private CullFlag _flag;
     [ObservableProperty] private ColorLabel _colorLabel;
     [ObservableProperty] private int _groupId; // 0 = ungrouped, > 0 = burst id assigned by BurstDetector
@@ -93,12 +131,4 @@ public sealed partial class PhotoItem : ObservableObject
     // pipeline produced. Transient — resets when the app restarts.
     public double UserRotationDegrees { get; set; }
 
-    /// <summary>
-    /// Clamp rating to 0-5 range.
-    /// </summary>
-    partial void OnRatingChanging(int value)
-    {
-        if (value < 0) _rating = 0;
-        else if (value > 5) _rating = 5;
-    }
 }

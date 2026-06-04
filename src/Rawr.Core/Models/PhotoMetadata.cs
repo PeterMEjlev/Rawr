@@ -66,18 +66,24 @@ public sealed class PhotoMetadata
     /// <summary>
     /// Make + Model with the brand prefix de-duplicated. Canon writes Make="Canon"
     /// and Model="EOS R5", but some cameras embed the brand in Model already.
+    /// Memoised because the camera-filter predicate and the available-cameras
+    /// rebuild both walk AllPhotos calling this every time — without the cache a
+    /// 10k-photo folder allocates a Trim'd substring (and frequently a brand-new
+    /// concatenation) per call. CameraMake/CameraModel are init-only so the
+    /// computed value is stable for the metadata's lifetime; a benign race during
+    /// first-write would just recompute the same string.
     /// </summary>
-    public string CameraFormatted
+    private string? _cameraFormatted;
+    public string CameraFormatted => _cameraFormatted ??= ComputeCameraFormatted();
+
+    private string ComputeCameraFormatted()
     {
-        get
-        {
-            var make  = CameraMake.Trim();
-            var model = CameraModel.Trim();
-            if (string.IsNullOrEmpty(make))  return model;
-            if (string.IsNullOrEmpty(model)) return make;
-            if (model.StartsWith(make, StringComparison.OrdinalIgnoreCase)) return model;
-            return $"{make} {model}";
-        }
+        var make  = CameraMake.Trim();
+        var model = CameraModel.Trim();
+        if (string.IsNullOrEmpty(make))  return model;
+        if (string.IsNullOrEmpty(model)) return make;
+        if (model.StartsWith(make, StringComparison.OrdinalIgnoreCase)) return model;
+        return $"{make} {model}";
     }
 
     public string DimensionsFormatted =>
