@@ -309,8 +309,6 @@ public partial class MainWindow : Window
                     OnVideoSourceChanged();
                 if (e.PropertyName == nameof(MainViewModel.IsPhotoFullscreen) && DataContext is MainViewModel vmFs)
                     ApplyPhotoFullscreen(vmFs.IsPhotoFullscreen);
-                if (e.PropertyName == nameof(MainViewModel.SelectedLogProfile) && DataContext is MainViewModel vmLp)
-                    ApplyLogProfile(vmLp.SelectedLogProfile);
             };
         }
 
@@ -1673,10 +1671,6 @@ public partial class MainWindow : Window
 
         if (DataContext is not MainViewModel vm) return;
 
-        // Re-apply LOG profile so any currently-playing video picks up the new
-        // contrast/saturation/gamma values without needing a video reselect.
-        ApplyLogProfile(vm.SelectedLogProfile);
-
         vm.NotifyDateFormatChanged();
         vm.NotifyShortcutDisplayChanged();
         // Refresh the Analyze button / dropdown visibility for any mode changes.
@@ -2065,17 +2059,6 @@ public partial class MainWindow : Window
         _player.OpenAsync(pathOrUrl);
     }
 
-    // Apply LOG → Rec.709-ish preset via FlyleafLib's video processor adjustments.
-    // Uses the same four parameters (Contrast, Saturation, Gamma, Brightness) as the
-    // legacy VLC adjust filter; mapping is approximate. TODO: hook into FlyleafLib's
-    // Renderer/VideoFilters once the basic playback path is verified.
-    private void ApplyLogProfile(LogProfile profile)
-    {
-        if (_player == null) return;
-        // Stubbed pending FlyleafLib filter wiring.
-        _ = profile;
-    }
-
     // Fires on a FlyleafLib background thread when Open() finishes (success or failure).
     private void Player_OpenCompleted(object? sender, OpenCompletedArgs e)
     {
@@ -2118,7 +2101,6 @@ public partial class MainWindow : Window
                 }
             }
 
-            ApplyLogProfile(vm.SelectedLogProfile);
             ApplyVideoRotation();
 
             if (!_videoIsPlaying)

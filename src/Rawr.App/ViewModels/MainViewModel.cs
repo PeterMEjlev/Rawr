@@ -294,16 +294,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _showSecondMonitor;
     [ObservableProperty] private bool _isPhotoFullscreen;
 
-    // LOG profile applied to the currently selected video. Defaults to None for
-    // smooth culling playback; users can opt into a profile from the dropdown when
-    // color correction is worth the extra video-filter cost.
-    [ObservableProperty] private LogProfile _selectedLogProfile = LogProfile.None;
-    public sealed record LogProfileItem(LogProfile Profile, string DisplayName)
-    {
-        public override string ToString() => DisplayName;
-    }
-    public IReadOnlyList<LogProfileItem> AvailableLogProfiles { get; } =
-        Enum.GetValues<LogProfile>().Select(p => new LogProfileItem(p, LogProfileDetector.DisplayName(p))).ToArray();
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveGridColumnCount))]
     [NotifyPropertyChangedFor(nameof(MaxGridColumnCount))]
@@ -2084,11 +2074,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _metadataSubscription = value;
         if (value != null)
             value.PropertyChanged += OnSelectedPhotoPropertyChanged;
-
-        // Reset LOG correction when switching videos. VLC's adjust filter is costly
-        // on high-FPS 10-bit 4:2:2 clips, so preview playback starts filter-free.
-        if (value?.IsVideo == true)
-            SelectedLogProfile = LogProfile.None;
 
         // Default path: any anchor change collapses the multi-selection back to just
         // the new anchor (plain click, arrow keys, undo/redo, filter restore). The

@@ -6,10 +6,6 @@
 
 - ## be able to remove timeline in full screen view
 
-- ## Remove LOG filter for video feature
-
-
-
 - ## Folders that are open in RAWR dont disappear when ejected
 
 ## OPUS:

@@ -2778,15 +2778,6 @@
                             <ComboBoxItem Content="3x" Tag="3" />
                             <ComboBoxItem Content="4x" Tag="4" />
                         </ComboBox>
-                        <ComboBox x:Name="VideoLogProfileBox"
-                                  DockPanel.Dock="Right"
-                                  Width="120"
-                                  Margin="8,0,0,0"
-                                  ItemsSource="{Binding AvailableLogProfiles}"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectedValuePath="Profile"
-                                  SelectedValue="{Binding SelectedLogProfile, Mode=TwoWay}"
-                                  ToolTip="LOG profile correction" />
                         <Slider x:Name="VideoSlider"
                                 Minimum="0"
                                 Maximum="1"

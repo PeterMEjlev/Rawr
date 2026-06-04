@@ -770,18 +770,6 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
-
-                        <Border Style="{StaticResource SectionCard}">
-                            <StackPanel>
-                                <TextBlock Text="LOG PROFILES" Style="{StaticResource SectionCardHeader}" />
-                                <TextBlock Text="Adjust how each camera's flat LOG footage is displayed. Higher contrast/saturation = more punchy, gamma below 1.0 brightens midtones."
-                                           Foreground="{StaticResource TextDimBrush}"
-                                           FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,12" />
-                                <StackPanel x:Name="LogProfilesHost" />
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
