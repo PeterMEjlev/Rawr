@@ -124,6 +124,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // line ~1238 and hit ObjectDisposedException on a sqlite3_stmt.
     private Task _activeLoadTask = Task.CompletedTask;
 
+    // Fire-and-forget background subject classifier started after each folder
+    // load. Tracked separately from _activeLoadTask because it intentionally
+    // outlives LoadFolderCoreAsync — but the next load still needs to await it
+    // before disposing the DB contexts the classifier persists into.
+    private Task _activeClassifyTask = Task.CompletedTask;
+
     // Per-folder "resume where I left off" — persisted to <folder>/.rawr/session.json.
     // Suppressed while a folder is being loaded so the reset/restore sequence doesn't
     // overwrite the file with transient null state.
@@ -159,6 +165,52 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] private string _currentFolder = "";
     [ObservableProperty] private string _statusText = "Open a folder to begin (Ctrl+O)";
+
+    // Background-activity ticker — separate from StatusText so a long-running
+    // pass (preview gen, RAW caching, face analysis, subject classification)
+    // can advertise itself without trampling the contextual status line.
+    // Multiple concurrent activities are joined with " • ".
+    [ObservableProperty] private string _backgroundActivity = "";
+    public bool IsBackgroundActive => _backgroundActivities.Count > 0;
+    private readonly Dictionary<string, string> _backgroundActivities = new();
+    private readonly object _backgroundActivitiesLock = new();
+    /// <summary>
+    /// Set/clear/update a labelled background activity. Pass null/empty label to
+    /// clear. Safe to call from any thread — marshals to the dispatcher.
+    /// </summary>
+    /// <summary>
+    /// Run a blocking call on the threadpool and abandon it if it doesn't
+    /// return within <paramref name="timeoutMs"/>. Used to wrap Windows Shell
+    /// calls (video thumbnails/metadata) that can hang indefinitely on broken
+    /// MP4s — the worker thread leaks but the Parallel.ForEach loop moves on
+    /// instead of stalling at "N-1/N" forever.
+    /// </summary>
+    private static T? RunWithTimeout<T>(Func<T?> action, int timeoutMs) where T : class
+    {
+        try
+        {
+            var task = Task.Run(action);
+            return task.Wait(timeoutMs) ? task.Result : null;
+        }
+        catch { return null; }
+    }
+
+    private void SetBackgroundActivity(string key, string? label)
+    {
+        void apply()
+        {
+            lock (_backgroundActivitiesLock)
+            {
+                if (string.IsNullOrEmpty(label)) _backgroundActivities.Remove(key);
+                else _backgroundActivities[key] = label!;
+                BackgroundActivity = string.Join(" • ", _backgroundActivities.Values);
+            }
+            OnPropertyChanged(nameof(IsBackgroundActive));
+        }
+        var disp = Application.Current?.Dispatcher;
+        if (disp == null || disp.CheckAccess()) apply();
+        else disp.BeginInvoke((Action)apply, DispatcherPriority.Background);
+    }
 
     // Sticky global toolbar toggle: when true, every folder open shows photos
     // from the whole subtree. The choice is persisted in AppSettings so it
@@ -441,6 +493,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public IReadOnlyCollection<string> CameraFilters => _cameraFilters;
     public bool IsCameraFilterActive => _cameraFilters.Count > 0;
 
+    // Subject-classifier filter set. Multi-select like cameras: a photo
+    // passes if its SubjectTags bitmask intersects any selected category.
+    // Unclassified photos (SubjectTags == null) are excluded from both sides
+    // of the include/exclude split, matching the Face/Exposure convention.
+    private readonly HashSet<SubjectTag> _subjectFilters = new();
+    public IReadOnlyCollection<SubjectTag> SubjectFilters => _subjectFilters;
+    public bool IsSubjectFilterActive => _subjectFilters.Count > 0;
+
     // Cameras present in the currently-loaded photos. Repopulated from AllPhotos
     // whenever metadata changes; bound to the Filter popup.
     public ObservableCollection<string> AvailableCameras { get; } = new();
@@ -581,6 +641,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _imageTypeFilterExclude;
     [ObservableProperty] private bool _exposureFilterExclude;
     [ObservableProperty] private bool _faceFilterExclude;
+    [ObservableProperty] private bool _subjectFilterExclude;
     [ObservableProperty] private bool _timeOfDayFilterExclude;
     [ObservableProperty] private bool _regionFilterExclude;
 
@@ -592,6 +653,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnImageTypeFilterExcludeChanged(bool value)  { if (ImageTypeFilter != ImageTypeFilterMode.Any) ApplyFilter(); }
     partial void OnExposureFilterExcludeChanged(bool value)   { if (ExposureFilter != ExposureFilterMode.Any) ApplyFilter(); }
     partial void OnFaceFilterExcludeChanged(bool value)       { if (FaceFilter != FaceFilterMode.Any)        ApplyFilter(); }
+    partial void OnSubjectFilterExcludeChanged(bool value)    { if (IsSubjectFilterActive)                   ApplyFilter(); }
     partial void OnTimeOfDayFilterExcludeChanged(bool value)  { if (IsTimeOfDayFilterActive)                 ApplyFilter(); }
     partial void OnRegionFilterExcludeChanged(bool value)     { if (IsRegionFilterActive)                    ApplyFilter(); }
 
@@ -605,7 +667,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnTimeOfDayEndMinutesChanged(int value)   { if (!IsTimeOfDaySliderDragging) ApplyFilter(); }
     partial void OnIsTimeOfDaySliderDraggingChanged(bool value) { if (!value) ApplyFilter(); }
 
-    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive || IsRegionFilterActive || IsCameraFilterActive;
+    public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive || IsRegionFilterActive || IsCameraFilterActive || IsSubjectFilterActive;
 
     [ObservableProperty] private int _burstCount;
 
@@ -1169,6 +1231,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         photo.FaceCount = state.FaceCount;
         photo.ClosedEyeCount = state.ClosedEyeCount;
         photo.MinEyeOpenScore = state.MinEyeOpenScore;
+        photo.SubjectTags = state.SubjectTags;
     }
 
     /// <summary>
@@ -1397,6 +1460,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         IsLoading = true;
         CurrentFolder = folderPath;
         StatusText = "Scanning folder...";
+        SetBackgroundActivity("scan", "Scanning folder");
 
         bool hadSubfolderMedia = await Task.Run(() => FolderScanner.HasMediaInSubfolders(folderPath), ct);
         if (ct.IsCancellationRequested) return;
@@ -1426,6 +1490,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _xmpWriter.Dispose();
             _xmpWriter = null;
         }
+        // Drain the previous folder's background classifier before we tear
+        // down DB contexts — its finally block persists results into _db /
+        // _contexts and would otherwise hit an ObjectDisposedException on a
+        // closed SQLite connection.
+        try { await _activeClassifyTask.ConfigureAwait(true); }
+        catch { /* errors belong to the classifier's own context */ }
+        _activeClassifyTask = Task.CompletedTask;
+
         // Dispose every subfolder context from the previous folder. _db points
         // into _contexts so the loop has already disposed it.
         foreach (var c in _contexts.Values) c.Db.Dispose();
@@ -1460,11 +1532,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             StatusText = IsRecursiveView
                 ? "No supported image files found in this folder tree."
                 : "No supported image files found in this folder.";
+            SetBackgroundActivity("scan", null);
             IsLoading = false;
             return;
         }
 
         StatusText = $"Found {files.Count} image files. Loading catalog...";
+        SetBackgroundActivity("scan", $"Loading catalog ({files.Count} files)");
 
         List<PhotoItem> catalogPhotos;
         List<PhotoTag> catalogTags;
@@ -1606,11 +1680,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _suppressSessionSave = false;
 
         StatusText = $"Loaded {files.Count} photos. Generating previews...";
+        SetBackgroundActivity("scan", null);
 
         // Background: generate thumbnails progressively
         await GeneratePreviewsAsync(ct);
         if (!ct.IsCancellationRequested && SelectedIndex >= 0)
             QueueVideoProxyPrefetch(SelectedIndex);
+
+        // Subject classifier — low-priority background pass after thumbnails
+        // exist (the classifier reads them). Folder switch cancels the same
+        // _indexCts so the loop unwinds promptly.
+        if (!ct.IsCancellationRequested)
+        {
+            // Fire-and-forget: classification can outlive this method without
+            // blocking the "ready" status. The token still gates it, and the
+            // next LoadFolderAsync awaits _activeClassifyTask before disposing
+            // DB contexts so the classifier's final persistence step doesn't
+            // hit a closed connection.
+            _activeClassifyTask = RunSubjectClassificationAsync(ct);
+        }
 
         if (!ct.IsCancellationRequested)
         {
@@ -1717,6 +1805,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         int total = photos.Count;
         int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2));
 
+        SetBackgroundActivity("previews", $"Generating previews 0/{total}");
+
         await Task.Run(() =>
         {
             var po = new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = ct };
@@ -1728,7 +1818,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     byte[]? thumbBytes = photoCache.LoadThumbnail(photo.FileName);
                     if (thumbBytes == null)
                     {
-                        var jpeg = ExtractorFor(photo).ExtractThumbnail(photo.FilePath);
+                        // Videos go through the Windows Shell, which can hang
+                        // indefinitely on broken/large MP4s — bound it. RAW/JPEG
+                        // paths are LibRaw/WIC and finish promptly, so no timeout.
+                        var jpeg = photo.IsVideo
+                            ? RunWithTimeout(() => ExtractorFor(photo).ExtractThumbnail(photo.FilePath), 8000)
+                            : ExtractorFor(photo).ExtractThumbnail(photo.FilePath);
                         if (jpeg != null)
                         {
                             var thumb = ProcessJpegForCache(jpeg, ThumbnailDecodeWidth) ?? jpeg;
@@ -1737,7 +1832,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                         }
                     }
 
-                    var metadata = ExtractorFor(photo).ExtractMetadata(photo.FilePath);
+                    var metadata = photo.IsVideo
+                        ? RunWithTimeout(() => ExtractorFor(photo).ExtractMetadata(photo.FilePath), 5000)
+                        : ExtractorFor(photo).ExtractMetadata(photo.FilePath);
                     if (thumbBytes != null || metadata != null)
                         QueuePreviewUpdate(new PreviewUpdate(photo, thumbBytes, metadata));
 
@@ -1774,7 +1871,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                             (Action)(() =>
                             {
                                 if (!ct.IsCancellationRequested)
-                                    StatusText = $"Generating previews... {snapshot}/{total}";
+                                    SetBackgroundActivity("previews", $"Generating previews {snapshot}/{total}");
                             }),
                             DispatcherPriority.Background);
                     }
@@ -1782,6 +1879,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (OperationCanceledException) { /* folder switched mid-scan */ }
         }, ct);
+
+        SetBackgroundActivity("previews", null);
 
         if (ct.IsCancellationRequested) return;
 
@@ -3346,6 +3445,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         CacheAllTotal = todo.Count;
         CacheAllProgress = 0;
         StatusText = $"Caching RAWs… 0/{todo.Count}";
+        SetBackgroundActivity("rawcache", $"Caching RAWs 0/{todo.Count}");
 
         // One less than ProcessorCount so the UI thread + on-demand decode stay
         // responsive while the bulk job runs.
@@ -3383,6 +3483,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                             {
                                 CacheAllProgress = n;
                                 StatusText = $"Caching RAWs… {n}/{todo.Count}";
+                                SetBackgroundActivity("rawcache", $"Caching RAWs {n}/{todo.Count}");
                             });
                         }
                     }
@@ -3396,6 +3497,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             StatusText = ct.IsCancellationRequested
                 ? $"Cache cancelled at {CacheAllProgress}/{CacheAllTotal}."
                 : $"Cached {CacheAllProgress} RAW previews.";
+            SetBackgroundActivity("rawcache", null);
             _cacheAllCts?.Dispose();
             _cacheAllCts = null;
             // Bulk caching can blow far past the budget — evict back down now
@@ -3461,6 +3563,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         AnalyzeFacesTotal = todo.Count;
         AnalyzeFacesProgress = 0;
         StatusText = $"Analysing faces… 0/{todo.Count}";
+        SetBackgroundActivity("faces", $"Analysing faces 0/{todo.Count}");
 
         // Convert the user-facing 0–100 threshold into a 0–1 probability in one
         // place; ONNX session is reentrant so we can fan out across cores.
@@ -3507,6 +3610,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                             {
                                 AnalyzeFacesProgress = n;
                                 StatusText = $"Analysing faces… {n}/{todo.Count}";
+                                SetBackgroundActivity("faces", $"Analysing faces {n}/{todo.Count}");
                             });
                         }
                     }
@@ -3527,6 +3631,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             StatusText = ct.IsCancellationRequested
                 ? $"Face analysis cancelled at {AnalyzeFacesProgress}/{AnalyzeFacesTotal}."
                 : $"Analysed {AnalyzeFacesProgress} photos.";
+            SetBackgroundActivity("faces", null);
             _analyzeFacesCts?.Dispose();
             _analyzeFacesCts = null;
 
@@ -3534,6 +3639,162 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             await Application.Current.Dispatcher.InvokeAsync(RefreshFilterBuckets);
             if (FaceFilter == FaceFilterMode.ClosedEyes)
                 await Application.Current.Dispatcher.InvokeAsync(ApplyFilter);
+        }
+    }
+
+    // ── Subject classifier (zero-shot CLIP) ──
+
+    // Runs automatically in the background after folder load. Unlike face
+    // analysis (user-triggered, blocking the UI status bar), this one is
+    // best-effort: it shares the folder-scoped _indexCts so a folder switch
+    // cancels it, and it doesn't display a busy state — results appear in
+    // the sidebar / filter chips as they're computed.
+    private SubjectClassifier? _subjectClassifier;
+    [ObservableProperty] private int _classifySubjectsProgress;
+    [ObservableProperty] private int _classifySubjectsTotal;
+
+    /// <summary>
+    /// Wipe every photo's face/eye result (memory + DB) and re-run
+    /// <see cref="AnalyzeFacesAsync"/>. Used by the Settings dialog when the
+    /// user adjusts the closed-eye threshold or clicks the "Re-run" button —
+    /// the threshold is applied inside <see cref="FaceAnalyzer.Analyze"/>, so
+    /// changing it means previous results are stale.
+    /// </summary>
+    public async Task RerunFaceAnalysisAsync()
+    {
+        if (_cache == null || AllPhotos.Count == 0) return;
+        if (IsAnalyzingFaces) return;
+
+        foreach (var p in AllPhotos)
+        {
+            p.FaceCount = null;
+            p.ClosedEyeCount = null;
+            p.MinEyeOpenScore = null;
+        }
+        try { await Task.Run(() => SaveAllPhotosPerOwningDb(AllPhotos)); }
+        catch { /* persistence is best-effort; the re-run will refill the rows */ }
+
+        RefreshFilterBuckets();
+        await AnalyzeFacesAsync();
+    }
+
+    /// <summary>
+    /// Wipe every photo's subject-classifier result (memory + DB) and re-run
+    /// the background pass. Same rationale as <see cref="RerunFaceAnalysisAsync"/>:
+    /// the threshold is applied at inference time, so existing tag bitmasks
+    /// don't reflect a changed threshold.
+    /// </summary>
+    public Task RerunSubjectClassificationAsync()
+    {
+        if (_cache == null || AllPhotos.Count == 0) return Task.CompletedTask;
+
+        foreach (var p in AllPhotos) p.SubjectTags = null;
+        RefreshFilterBuckets();
+
+        // Persist the cleared values first so a folder switch mid-rerun doesn't
+        // leave stale tags in the DB. Use _indexCts so a folder switch cancels
+        // the classifier mid-pass — matches the post-load trigger.
+        var ct = _indexCts?.Token ?? CancellationToken.None;
+        var saveTask = Task.Run(() => SaveAllPhotosPerOwningDb(AllPhotos));
+        _activeClassifyTask = saveTask.ContinueWith(_ => RunSubjectClassificationAsync(ct),
+            TaskScheduler.Default).Unwrap();
+        return _activeClassifyTask;
+    }
+
+    private async Task RunSubjectClassificationAsync(CancellationToken ct)
+    {
+        if (!AppSettings.Current.SubjectClassificationEnabled) return;
+        if (_cache == null || AllPhotos.Count == 0) return;
+
+        _subjectClassifier ??= new SubjectClassifier();
+        _subjectClassifier.Initialize();
+        if (!_subjectClassifier.IsAvailable)
+        {
+            // Stay silent unless the user explicitly opens Settings — folder
+            // open shouldn't nag about a missing optional model on every load.
+            return;
+        }
+
+        // Snapshot the candidate list so newly-arriving photos don't disturb
+        // the progress counter mid-run. SubjectTags == null is the
+        // "unclassified" sentinel; SubjectTag.None means we already ran and
+        // nothing met the threshold.
+        var todo = AllPhotos.Where(p => !p.IsVideo && p.SubjectTags == null).ToList();
+        if (todo.Count == 0) return;
+
+        ClassifySubjectsTotal = todo.Count;
+        ClassifySubjectsProgress = 0;
+        SetBackgroundActivity("subjects", $"Classifying subjects 0/{todo.Count}");
+
+        float threshold = AppSettings.Current.SubjectTagThreshold / 100f;
+        // Lower parallelism than face analysis — folder-open path is already
+        // hot, and this is a courtesy background pass, not a button press.
+        int parallelism = Math.Max(1, Math.Min(4, Environment.ProcessorCount / 2));
+
+        try
+        {
+            int done = 0;
+            int dirtySinceFlush = 0;
+            await Task.Run(() =>
+            {
+                var po = new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = parallelism };
+                Parallel.ForEach(todo, po, photo =>
+                {
+                    if (ct.IsCancellationRequested) return;
+                    try
+                    {
+                        var photoCache = CacheFor(photo);
+                        byte[]? jpeg = photoCache.LoadThumbnail(photo.FileName)
+                                    ?? photo.ThumbnailJpeg
+                                    ?? photoCache.LoadPreview(photo.FileName);
+                        if (jpeg == null) return;
+
+                        var result = _subjectClassifier.Classify(jpeg, threshold);
+                        if (result == null) return;
+
+                        Application.Current?.Dispatcher.Invoke(() =>
+                        {
+                            photo.SubjectTags = result;
+                        });
+                    }
+                    catch { /* one bad photo shouldn't stop the rest */ }
+                    finally
+                    {
+                        int n = Interlocked.Increment(ref done);
+                        // Throttle the dispatcher hop — the filter buckets
+                        // refresh is cheap but unnecessary on every photo.
+                        if (n % 16 == 0 || n == todo.Count)
+                        {
+                            Application.Current?.Dispatcher.InvokeAsync(() =>
+                            {
+                                ClassifySubjectsProgress = n;
+                                SetBackgroundActivity("subjects", $"Classifying subjects {n}/{todo.Count}");
+                                RefreshFilterBuckets();
+                                if (IsSubjectFilterActive) ApplyFilter();
+                            });
+                        }
+                        Interlocked.Increment(ref dirtySinceFlush);
+                    }
+                });
+            }, ct);
+        }
+        catch (OperationCanceledException) { /* folder switched */ }
+        finally
+        {
+            // Persist whatever we managed to classify, even on cancellation —
+            // the partial results are useful and we'd otherwise re-do work
+            // next time the user opens the folder.
+            try { await Task.Run(() => SaveAllPhotosPerOwningDb(AllPhotos), CancellationToken.None); }
+            catch { /* persistence is best-effort; results live in memory */ }
+
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                ClassifySubjectsProgress = 0;
+                ClassifySubjectsTotal = 0;
+                SetBackgroundActivity("subjects", null);
+                RefreshFilterBuckets();
+                if (IsSubjectFilterActive) ApplyFilter();
+            });
         }
     }
 
@@ -5037,6 +5298,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ImageTypeFilterExclude = false;
         ExposureFilterExclude = false;
         FaceFilterExclude = false;
+        SubjectFilterExclude = false;
         TimeOfDayFilterExclude = false;
         RegionFilterMinLat = null;
         RegionFilterMaxLat = null;
@@ -5056,6 +5318,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (_tagFilterExtraIds.Count > 0)          { _tagFilterExtraIds.Clear();          changed = true; OnPropertyChanged(nameof(TagFilterExtraIds));          OnPropertyChanged(nameof(TagFilterActiveIds)); }
         if (_imageTypeFilterExtraValues.Count > 0) { _imageTypeFilterExtraValues.Clear(); changed = true; OnPropertyChanged(nameof(ImageTypeFilterExtraValues)); OnPropertyChanged(nameof(ImageTypeFilterActiveValues)); }
         if (_cameraFilters.Count > 0)              { _cameraFilters.Clear();              changed = true; OnPropertyChanged(nameof(CameraFilters));              OnPropertyChanged(nameof(IsCameraFilterActive)); }
+        if (_subjectFilters.Count > 0)             { _subjectFilters.Clear();             changed = true; OnPropertyChanged(nameof(SubjectFilters));             OnPropertyChanged(nameof(IsSubjectFilterActive)); OnPropertyChanged(nameof(IsSubjectPersonActive)); OnPropertyChanged(nameof(IsSubjectLandscapeActive)); OnPropertyChanged(nameof(IsSubjectFoodActive)); OnPropertyChanged(nameof(IsSubjectAnimalActive)); }
         if (changed) OnPropertyChanged(nameof(HasActiveFilters));
     }
 
@@ -5589,6 +5852,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 : visible.Where(facePred);
         }
 
+        if (_subjectFilters.Count > 0)
+        {
+            // Union of selected categories: a photo passes if its mask
+            // intersects any of them. Unclassified photos are out either way.
+            SubjectTag union = SubjectTag.None;
+            foreach (var t in _subjectFilters) union |= t;
+            Func<PhotoItem, bool> classified = p => p.SubjectTags.HasValue;
+            Func<PhotoItem, bool> matchesAny = p => p.SubjectTags.HasValue && (p.SubjectTags.Value & union) != 0;
+            visible = SubjectFilterExclude
+                ? visible.Where(p => classified(p) && !matchesAny(p))
+                : visible.Where(matchesAny);
+        }
+
         if (IsTimeOfDayFilterActive)
         {
             int start = TimeOfDayStartMinutes;
@@ -5747,6 +6023,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         TagFilterExtraIds = _tagFilterExtraIds.Count > 0 ? _tagFilterExtraIds.ToList() : null,
         ImageTypeFilterExtraValues = _imageTypeFilterExtraValues.Count > 0 ? _imageTypeFilterExtraValues.ToList() : null,
         CameraFilters = _cameraFilters.Count > 0 ? _cameraFilters.ToList() : null,
+        SubjectFilters = _subjectFilters.Count > 0 ? _subjectFilters.ToList() : null,
         RatingFilterExclude = RatingFilterExclude,
         FlagFilterExclude = FlagFilterExclude,
         ColorLabelFilterExclude = ColorLabelFilterExclude,
@@ -5755,6 +6032,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ImageTypeFilterExclude = ImageTypeFilterExclude,
         ExposureFilterExclude = ExposureFilterExclude,
         FaceFilterExclude = FaceFilterExclude,
+        SubjectFilterExclude = SubjectFilterExclude,
         TimeOfDayStartMinutes = TimeOfDayStartMinutes,
         TimeOfDayEndMinutes = TimeOfDayEndMinutes,
         TimeOfDayFilterExclude = TimeOfDayFilterExclude,
@@ -5826,6 +6104,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             foreach (var c in s.CameraFilters) _cameraFilters.Add(c);
         OnPropertyChanged(nameof(CameraFilters));
         OnPropertyChanged(nameof(IsCameraFilterActive));
+
+        _subjectFilters.Clear();
+        if (s.SubjectFilters != null)
+            foreach (var t in s.SubjectFilters) if (t != SubjectTag.None) _subjectFilters.Add(t);
+        OnPropertyChanged(nameof(SubjectFilters));
+        OnPropertyChanged(nameof(IsSubjectFilterActive));
+        OnPropertyChanged(nameof(IsSubjectPersonActive));
+        OnPropertyChanged(nameof(IsSubjectLandscapeActive));
+        OnPropertyChanged(nameof(IsSubjectFoodActive));
+        OnPropertyChanged(nameof(IsSubjectAnimalActive));
         OnPropertyChanged(nameof(HasActiveFilters));
 
         RatingFilterExclude = s.RatingFilterExclude;
@@ -5836,6 +6124,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ImageTypeFilterExclude = s.ImageTypeFilterExclude;
         ExposureFilterExclude = s.ExposureFilterExclude;
         FaceFilterExclude = s.FaceFilterExclude;
+        SubjectFilterExclude = s.SubjectFilterExclude;
 
         TimeOfDayStartMinutes = Math.Clamp(s.TimeOfDayStartMinutes, 0, 1440);
         TimeOfDayEndMinutes = Math.Clamp(s.TimeOfDayEndMinutes <= 0 ? 1440 : s.TimeOfDayEndMinutes, 0, 1440);
@@ -6026,6 +6315,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (ExposureFilter == ExposureFilterMode.ClippedHighlights) parts.Add(Tag(ExposureFilterExclude, "Clipped highlights"));
         else if (ExposureFilter == ExposureFilterMode.CrushedShadows) parts.Add(Tag(ExposureFilterExclude, "Crushed shadows"));
         if (FaceFilter == FaceFilterMode.ClosedEyes) parts.Add(Tag(FaceFilterExclude, "Closed eyes"));
+        if (_subjectFilters.Count > 0)
+            parts.Add(Tag(SubjectFilterExclude, string.Join("+", _subjectFilters.Select(t => t.ToString()))));
         if (IsTimeOfDayFilterActive) parts.Add(Tag(TimeOfDayFilterExclude, $"{FormatMinutes(TimeOfDayStartMinutes)}–{FormatMinutes(TimeOfDayEndMinutes)}"));
 
         FilterDescription = parts.Count > 0 ? string.Join(", ", parts) : "All";
@@ -6325,6 +6616,51 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsFaceClosedEyesActive => FaceFilter == FaceFilterMode.ClosedEyes;
 
+    // Sidebar Subjects subsection. Each chip toggles a single tag in the
+    // multi-select set; clicking another tag adds to the union rather than
+    // replacing. Counts are over classified photos only — null SubjectTags is
+    // "not yet processed" and stays uncounted.
+    public bool IsSubjectPersonActive    => _subjectFilters.Contains(SubjectTag.Person);
+    public bool IsSubjectLandscapeActive => _subjectFilters.Contains(SubjectTag.Landscape);
+    public bool IsSubjectFoodActive      => _subjectFilters.Contains(SubjectTag.Food);
+    public bool IsSubjectAnimalActive    => _subjectFilters.Contains(SubjectTag.Animal);
+
+    public int SubjectPersonCount    => CountSubject(SubjectTag.Person);
+    public int SubjectLandscapeCount => CountSubject(SubjectTag.Landscape);
+    public int SubjectFoodCount      => CountSubject(SubjectTag.Food);
+    public int SubjectAnimalCount    => CountSubject(SubjectTag.Animal);
+
+    private int CountSubject(SubjectTag tag)
+    {
+        int n = 0;
+        foreach (var p in AllPhotos)
+            if (p.SubjectTags.HasValue && (p.SubjectTags.Value & tag) != 0) n++;
+        return n;
+    }
+
+    [RelayCommand]
+    private void SetSidebarSubject(SubjectTag tag)
+    {
+        if (tag == SubjectTag.None) return;
+        // Toggle, multi-select. Unlike Rating/Color the subject chips don't
+        // wipe each other — selecting Person + Landscape ORs the categories.
+        bool changed = _subjectFilters.Contains(tag)
+            ? _subjectFilters.Remove(tag)
+            : _subjectFilters.Add(tag);
+        if (!changed) return;
+
+        if (_subjectFilters.Count == 0) SubjectFilterExclude = false;
+
+        OnPropertyChanged(nameof(SubjectFilters));
+        OnPropertyChanged(nameof(IsSubjectFilterActive));
+        OnPropertyChanged(nameof(HasActiveFilters));
+        OnPropertyChanged(nameof(IsSubjectPersonActive));
+        OnPropertyChanged(nameof(IsSubjectLandscapeActive));
+        OnPropertyChanged(nameof(IsSubjectFoodActive));
+        OnPropertyChanged(nameof(IsSubjectAnimalActive));
+        ApplyFilter();
+    }
+
     [RelayCommand]
     private void SetRatingBucket(int rating)
     {
@@ -6476,6 +6812,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsExposureClippedHighlightsActive));
         OnPropertyChanged(nameof(IsExposureCrushedShadowsActive));
         OnPropertyChanged(nameof(IsFaceClosedEyesActive));
+        OnPropertyChanged(nameof(SubjectPersonCount));
+        OnPropertyChanged(nameof(SubjectLandscapeCount));
+        OnPropertyChanged(nameof(SubjectFoodCount));
+        OnPropertyChanged(nameof(SubjectAnimalCount));
+        OnPropertyChanged(nameof(IsSubjectPersonActive));
+        OnPropertyChanged(nameof(IsSubjectLandscapeActive));
+        OnPropertyChanged(nameof(IsSubjectFoodActive));
+        OnPropertyChanged(nameof(IsSubjectAnimalActive));
 
         // Tag counts are stored on the PhotoTag itself so each row can bind directly.
         // Single pass over all photos beats Count(...) per tag when there are many of either.
@@ -6542,6 +6886,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _analyzeFacesCts?.Cancel();
         _analyzeFacesCts?.Dispose();
         _faceAnalyzer?.Dispose();
+        // Drain the background classifier so its final persistence pass
+        // finishes (or unwinds cleanly via OperationCanceledException) before
+        // we let the SQLite contexts go away during shutdown.
+        try { _activeClassifyTask.Wait(TimeSpan.FromSeconds(2)); } catch { }
+        _subjectClassifier?.Dispose();
         // Drain any debounced XMP writes that haven't fired yet so an immediate
         // app exit doesn't lose recent rating/flag/label edits. Bounded so a
         // wedged disk can't keep the process alive.

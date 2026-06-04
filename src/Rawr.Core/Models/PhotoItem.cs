@@ -115,6 +115,12 @@ public sealed partial class PhotoItem : ObservableObject
     public int? ClosedEyeCount { get; set; }
     public float? MinEyeOpenScore { get; set; }
 
+    // Coarse subject categories from the zero-shot CLIP classifier. null means
+    // the classifier hasn't run on this photo yet; a value (possibly
+    // SubjectTag.None) means the run is complete. Bitmask so a photo can
+    // legitimately carry several tags. Persisted as an integer column.
+    public SubjectTag? SubjectTags { get; set; }
+
     // Full sensor-resolution JPEG bytes (~3-5 MB). Pre-extracted in the background
     // for the active selection so zoom-in is instant. Cleared by eviction when the
     // user navigates far enough away. Not observable — never bound to UI.

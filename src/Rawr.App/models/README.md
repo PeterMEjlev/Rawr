@@ -1,13 +1,13 @@
-# Face / closed-eye ONNX models
+# ONNX models
 
-The toolbar **👁 Detect Closed Eyes** button is wired but the two ONNX models
-it needs are not committed to the repo. Drop them in this directory and they
-get copied into the build output automatically (`*.onnx` is wildcarded in
-`Rawr.App.csproj`).
+The toolbar **👁 Detect Closed Eyes** button and the auto-running **subject
+classifier** both depend on ONNX models that aren't committed to the repo.
+Drop them in this directory and they get copied into the build output
+automatically (`*.onnx` and `*.json` are wildcarded in `Rawr.App.csproj`).
 
-If either file is missing the feature degrades gracefully — the button still
-appears, but clicking it sets a status message naming the missing file(s)
-instead of running.
+If any file is missing the affected feature degrades gracefully — the button /
+filter chips still appear, but the feature logs a status message naming the
+missing file(s) instead of running.
 
 ## Required files
 
@@ -56,4 +56,69 @@ The button skips photos already analysed in the current folder's
 
 ```sql
 UPDATE photos SET face_count = NULL, closed_eye_count = NULL, min_eye_open_score = NULL;
+```
+
+---
+
+# Subject classifier (zero-shot CLIP)
+
+The sidebar **Subjects** subsection (person / landscape / food / animal) is
+populated by a small CLIP-style image encoder that runs as a low-priority
+background pass after folder open. Disable the pass entirely with
+**Settings → Subjects → Auto-classify** if you don't want it.
+
+## Required files
+
+### 1. `subject_image_encoder.onnx`
+
+The CLIP **image encoder** half. Any export with NCHW float input and a
+single 1-D embedding output works — input dimensions are read from ONNX
+metadata, so 224×224 (standard CLIP) and other sizes are both fine.
+
+Recommended (small, fast, accurate):
+
+- **MobileCLIP-S0** — Apple's compact CLIP. ~55 MB image encoder.
+  <https://github.com/apple/ml-mobileclip>
+- **OpenCLIP ViT-B-16** — the bigger-but-better fallback (~340 MB image encoder).
+  <https://github.com/mlfoundations/open_clip>
+
+Export to ONNX with the model's own export script, then rename the resulting
+image-encoder file to `subject_image_encoder.onnx` and drop it in this folder.
+
+### 2. `subject_tags.json`
+
+Precomputed text embeddings for each category, generated with the **matching
+text encoder** of whichever CLIP variant produced the image encoder. RAWR
+ships only the image encoder so the text encoder + tokenizer aren't a runtime
+dependency — but the two halves must come from the same model.
+
+Generate with the helper script:
+
+```powershell
+pip install open_clip_torch torch
+python tools/generate_subject_embeddings.py `
+    --model ViT-B-16 `
+    --pretrained datacomp_xl_s13b_b90k `
+    --output src/Rawr.App/models/subject_tags.json
+```
+
+Edit `TAG_PROMPTS` in the script to extend the prompt set or add new
+categories (after first adding them to the `SubjectTag` enum in
+`src/Rawr.Core/Models/SubjectTag.cs`).
+
+## Threshold
+
+Sensitivity is configurable in **Settings → Subjects** (default 22). The
+classifier emits a cosine similarity per category; any score at or above
+`threshold / 100` applies the tag. CLIP cosine sim is typically in the
+0.15–0.30 range for positives — 22 is a sensible starting point for
+ViT-B-16-class models. Lower = more permissive (more tags per photo).
+
+## Re-running
+
+The background pass skips photos with a non-NULL `subject_tags` value. To
+force re-classification after tweaking the threshold or swapping models:
+
+```sql
+UPDATE photos SET subject_tags = NULL;
 ```

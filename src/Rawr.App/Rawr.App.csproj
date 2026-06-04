@@ -33,9 +33,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
 
-    <!-- ONNX models for face / closed-eye detection. Optional — feature degrades
-         gracefully if the files are absent. See models/README.md for sources. -->
+    <!-- ONNX models for face / closed-eye detection AND the zero-shot subject
+         classifier. Optional — both features degrade gracefully if the files
+         are absent. The *.json glob is for subject_tags.json (precomputed text
+         embeddings shipped alongside the image encoder). See models/README.md
+         for sources. -->
     <Content Include="models\*.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="models\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

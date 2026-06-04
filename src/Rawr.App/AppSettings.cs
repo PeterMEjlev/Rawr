@@ -87,6 +87,18 @@ public sealed class AppSettings
     // pass); 50 ≈ "the model thinks it's more likely closed than open".
     public byte ClosedEyeThreshold { get; set; } = 50;
 
+    // ── Subject classifier (zero-shot CLIP) ──
+    // Auto-run a tiny image-encoder ONNX over each photo after folder open
+    // and apply coarse SubjectTag flags (person / landscape / food / animal).
+    // Off = the background pass is skipped entirely; previously-classified
+    // photos still keep their tags so the filter chips remain usable.
+    public bool SubjectClassificationEnabled { get; set; } = true;
+
+    // Score gate (cosine similarity, scaled 0..100). CLIP cosine sim is
+    // usually quite low — typical positives land around 0.20–0.30. 22 is a
+    // sensible default for MobileCLIP-S0 / OpenCLIP exports; tune per-model.
+    public byte SubjectTagThreshold { get; set; } = 22;
+
     public double DoubleClickZoom { get; set; } = 3.0;
     public int ScrollSpeedPercent { get; set; } = Rawr.App.Controls.ScrollSpeed.DefaultPercent;
     public bool ReverseFilmstripScroll { get; set; } = false;
@@ -202,6 +214,8 @@ public sealed class AppSettings
         ClippingThreshold = ClippingThreshold,
         ClippedAreaThreshold = ClippedAreaThreshold,
         ClosedEyeThreshold = ClosedEyeThreshold,
+        SubjectClassificationEnabled = SubjectClassificationEnabled,
+        SubjectTagThreshold = SubjectTagThreshold,
         DoubleClickZoom = DoubleClickZoom,
         ScrollSpeedPercent = ScrollSpeedPercent,
         ReverseFilmstripScroll = ReverseFilmstripScroll,
