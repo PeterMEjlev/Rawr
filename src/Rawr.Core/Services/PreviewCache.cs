@@ -60,6 +60,32 @@ public sealed class PreviewCache
         File.WriteAllBytes(GetPreviewPath(fileName), jpegData);
     }
 
+    /// <summary>
+    /// Delete a photo's cached thumbnail + preview so the next pass re-extracts
+    /// them. Best-effort; never throws. Used by the one-time JPEG blur-fix
+    /// migration (see <see cref="NeedsJpegBlurFix"/>) — the linear-RAW buffer is
+    /// left alone, so RAW caches are untouched.
+    /// </summary>
+    public void InvalidatePreview(string fileName)
+    {
+        try { var p = GetThumbnailPath(fileName); if (File.Exists(p)) File.Delete(p); } catch { }
+        try { var p = GetPreviewPath(fileName); if (File.Exists(p)) File.Delete(p); } catch { }
+    }
+
+    // One-time migration marker. Thumbs/previews cached before the WIC blur fix
+    // were upscaled from the tiny embedded EXIF thumbnail, so they're full-width
+    // but soft and can't be told apart from good caches by dimensions. We drop
+    // and re-extract the JPEG ones once per cache dir, gated by this sentinel so
+    // it doesn't repeat on every folder open.
+    private string JpegBlurFixMarkerPath => Path.Combine(_cacheDir, ".jpegblurfix");
+
+    public bool NeedsJpegBlurFix() => !File.Exists(JpegBlurFixMarkerPath);
+
+    public void MarkJpegBlurFixDone()
+    {
+        try { File.WriteAllText(JpegBlurFixMarkerPath, "1"); } catch { }
+    }
+
     // Linear-RAW cache binary format. The downsampled 16-bit linear RGB buffer
     // produced by the LibRaw decode is the slowest thing to recompute (~1-3s vs
     // ~30ms to read back from disk), so persisting it across navigations and app

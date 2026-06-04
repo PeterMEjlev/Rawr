@@ -97,7 +97,11 @@ public partial class MainWindow : Window
         double? SecondMonitorLeft = null,
         double? SecondMonitorTop = null,
         double? SecondMonitorWidth = null,
-        double? SecondMonitorHeight = null);
+        double? SecondMonitorHeight = null,
+        // Expanded/collapsed state of each QUICK FILTERS sidebar subsection,
+        // keyed by the toggle's x:Name. Null on first run / older layout files —
+        // the XAML defaults apply then.
+        Dictionary<string, bool>? QuickFiltersExpanded = null);
 
     private bool _isPanning;
     private Point _panStart;
@@ -368,6 +372,7 @@ public partial class MainWindow : Window
                 ApplyFilmstripVisibility(vm.ShowFilmstrip);
                 ApplyGridExpanded(vm.IsGridExpanded);
                 vm.ShowSecondMonitor = layout.ShowSecondMonitor;
+                RestoreQuickFilterStates(layout);
                 await vm.RestoreLastFolderAsync();
             }
             RecalcGridThumbnailSize();
@@ -421,10 +426,26 @@ public partial class MainWindow : Window
                 vm.ShowSecondMonitor,
                 vm.IsGridExpanded,
                 vm.ExpandedGridColumnCount,
-                smLeft, smTop, smWidth, smHeight);
+                smLeft, smTop, smWidth, smHeight,
+                QuickFilterToggles().ToDictionary(t => t.Name, t => t.IsChecked == true));
             File.WriteAllText(LayoutSettingsFile, JsonSerializer.Serialize(settings));
         }
         catch { /* non-critical */ }
+    }
+
+    // The collapsible QUICK FILTERS sidebar subsections. Their expanded state is
+    // persisted by x:Name in layout.json so it survives restarts.
+    private ToggleButton[] QuickFilterToggles() => new[]
+    {
+        RatedToggle, FlaggedToggle, ExposureToggle, SubjectsToggle, FacesToggle, LabelledToggle, TagsToggle,
+    };
+
+    private void RestoreQuickFilterStates(LayoutSettings layout)
+    {
+        if (layout.QuickFiltersExpanded is not { } saved) return;
+        foreach (var toggle in QuickFilterToggles())
+            if (saved.TryGetValue(toggle.Name, out var expanded))
+                toggle.IsChecked = expanded;
     }
 
     // ── Panel visibility ──
@@ -1610,6 +1631,13 @@ public partial class MainWindow : Window
 
     // ── Classification menu ──
 
+    // When the user clicks the button while its menu is open, the mouse-DOWN
+    // dismisses the menu (outside-click capture → AnalyzeMenu_Closed) and the
+    // mouse-UP then fires this Click. We stamp the close time and treat a click
+    // arriving right after it as the closing half of a toggle, so the menu
+    // stays closed instead of immediately reopening.
+    private DateTime _analyzeMenuClosedAt = DateTime.MinValue;
+
     // The toolbar's single "Analyze" button opens its dropdown on click. The
     // ContextMenu lives in a detached popup tree, so we hand it the button's
     // DataContext (the MainViewModel) for its Header / Command bindings and
@@ -1617,11 +1645,18 @@ public partial class MainWindow : Window
     private void AnalyzeMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.ContextMenu is not { } cm) return;
+
+        // Click that closed the menu — swallow it so we don't reopen.
+        if ((DateTime.UtcNow - _analyzeMenuClosedAt).TotalMilliseconds < 250) return;
+
         cm.DataContext = btn.DataContext;
         cm.PlacementTarget = btn;
         cm.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         cm.IsOpen = true;
     }
+
+    private void AnalyzeMenu_Closed(object sender, RoutedEventArgs e)
+        => _analyzeMenuClosedAt = DateTime.UtcNow;
 
     // ── Settings ──
 

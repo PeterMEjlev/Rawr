@@ -12,6 +12,7 @@
         Title="RAWR — RAW Photo Culling"
         Icon="Assets/rawr.ico"
         Height="800" Width="1280"
+        WindowState="Maximized"
         WindowStartupLocation="CenterScreen">
 
     <Window.DataContext>
@@ -1347,7 +1348,7 @@
                         Margin="0,0,4,0"
                         ToolTip="Run classification on this folder. Set Auto / Manual / Off per feature in Settings → Classification.">
                     <Button.ContextMenu>
-                        <ContextMenu>
+                        <ContextMenu Closed="AnalyzeMenu_Closed">
                             <MenuItem Header="{Binding AnalyzeFacesButtonLabel}"
                                       Command="{Binding AnalyzeFacesCommand}"
                                       Visibility="{Binding IsClosedEyeDetectionEnabled, Converter={StaticResource BoolToVisibility}}" />

@@ -1732,6 +1732,33 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    // One-time-per-cache-dir removal of JPEG thumbs/previews that earlier builds
+    // cached by upscaling the tiny embedded EXIF thumbnail (the WIC blur bug).
+    // We can't distinguish a soft cache from a good one by size, so for any cache
+    // dir not yet migrated we drop every non-RAW still's thumb+preview and let the
+    // normal pass re-extract them sharp. RAW + linear-RAW caches are never touched.
+    private void InvalidateBlurryJpegCaches(IReadOnlyList<PhotoItem> photos)
+    {
+        var needsFix = new HashSet<PreviewCache>();
+        foreach (var photo in photos)
+        {
+            if (photo.IsRaw || photo.IsVideo) continue;
+            var cache = CacheFor(photo);
+            if (!needsFix.Contains(cache) && cache.NeedsJpegBlurFix())
+                needsFix.Add(cache);
+        }
+        if (needsFix.Count == 0) return;
+
+        foreach (var photo in photos)
+        {
+            if (photo.IsRaw || photo.IsVideo) continue;
+            var cache = CacheFor(photo);
+            if (needsFix.Contains(cache))
+                cache.InvalidatePreview(photo.FileName);
+        }
+        foreach (var cache in needsFix) cache.MarkJpegBlurFixDone();
+    }
+
     private async Task GeneratePreviewsAsync(CancellationToken ct)
     {
         if (_cache == null) return;
@@ -1807,6 +1834,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     DispatcherPriority.Background);
             }
         }
+
+        // One-time migration: drop JPEG thumbs/previews cached before the WIC
+        // blur fix so they re-extract sharp. Those were upscaled from the tiny
+        // embedded EXIF thumbnail, so they're full-width but soft — undetectable
+        // by size. Scoped to non-RAW stills (RAW/linear caches are expensive and
+        // unaffected) and gated by a per-cache-dir sentinel so it runs just once.
+        InvalidateBlurryJpegCaches(photos);
 
         // Load cached thumbnails, extract missing thumbnails, and read metadata off
         // the UI thread. UI-bound properties are applied later in small batches.
@@ -1891,13 +1925,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             catch (OperationCanceledException) { /* folder switched mid-scan */ }
         }, ct);
 
-        SetBackgroundActivity("previews", null);
-
-        if (ct.IsCancellationRequested) return;
-
+        // Drain the final thumbnail batch and clear the badge, both at Background
+        // priority so they run *after* any "N/total" progress update still queued
+        // by the parallel loop. Those updates post at Background priority; clearing
+        // on this method's higher-priority await continuation would let the last
+        // update land afterward and re-show a stale count, sticking the badge at
+        // e.g. "175/176". It's most visible with fast JPEG extraction, where every
+        // item finishes before that trailing update drains.
+        bool cancelled = ct.IsCancellationRequested;
         await Application.Current.Dispatcher.InvokeAsync(
-            (Action)(() => FlushPendingPreviewUpdates(int.MaxValue)),
+            (Action)(() =>
+            {
+                if (!cancelled) FlushPendingPreviewUpdates(int.MaxValue);
+                SetBackgroundActivity("previews", null);
+            }),
             DispatcherPriority.Background);
+
+        if (cancelled) return;
 
         // Once metadata is in for every photo, group consecutive shots into bursts.
         // BurstDetector mutates GroupId/BurstBadge on the UI thread (the properties are observable),
@@ -2775,7 +2819,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 if (bs != null) SetBasePreview(bs, "EV (JPG small)");
                 _ = ComputeHistogramAsync(photo, ct);
                 if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
-                _ = PreloadFullJpegAsync(photo, ct);
+                // RAW upgrades its own base via the decode; a JPEG instead upgrades
+                // the base from "small" to a full-resolution decode.
+                if (photo.IsRaw) _ = PreloadFullJpegAsync(photo, ct);
+                else _ = UpgradeJpegBaseToFullAsync(photo, ct);
                 StartRawDecode(photo);
                 return;
             }
@@ -2825,7 +2872,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (fullBs != null) SetBasePreview(fullBs, "EV (JPG small)");
             _ = ComputeHistogramAsync(photo, ct);
             if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
-            _ = PreloadFullJpegAsync(photo, ct);
+            // RAW upgrades its own base via the decode; a JPEG instead upgrades
+            // the base from "small" to a full-resolution decode.
+            if (photo.IsRaw) _ = PreloadFullJpegAsync(photo, ct);
+            else _ = UpgradeJpegBaseToFullAsync(photo, ct);
             StartRawDecode(photo);
         }
         catch (OperationCanceledException) { /* selection moved on */ }
@@ -3222,6 +3272,42 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException) { /* selection moved on */ }
         catch { /* extraction failed — fall back to on-demand on zoom */ }
+    }
+
+    /// <summary>
+    /// For a JPEG there's no RAW pipeline to take over the fit-to-window image,
+    /// so it would otherwise stay on the ~1920px "small" preview (soft on large
+    /// displays) until the user zooms. Once navigation settles, decode the JPEG
+    /// at native resolution and promote it to the base view — mirroring how the
+    /// RAW path swaps in the decoded sensor data. Also lands the full bytes on
+    /// <see cref="PhotoItem.FullJpeg"/> so the zoom path reuses them (this
+    /// replaces <see cref="PreloadFullJpegAsync"/> for non-RAW stills).
+    /// </summary>
+    private async Task UpgradeJpegBaseToFullAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (photo.IsRaw || photo.IsVideo) return;
+        try
+        {
+            // Brief settle so flicking through photos doesn't full-decode each one
+            // we skip past — the small preview already paints instantly.
+            await Task.Delay(FullJpegPreloadSettleDelayMs, ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+
+            var fullBytes = photo.FullJpeg
+                ?? await Task.Run(() => ExtractorFor(photo).ExtractFullJpeg(photo.FilePath), ct);
+            if (fullBytes == null || ct.IsCancellationRequested || SelectedPhoto != photo) return;
+            photo.FullJpeg = fullBytes;
+
+            // decodePixelWidth: 0 → decode at native resolution (no down-scale),
+            // so fit-to-window is pixel-sharp on any display.
+            var fullBs = await Task.Run(() => LoadBitmapFromJpeg(fullBytes, decodePixelWidth: 0), ct);
+            if (fullBs == null || ct.IsCancellationRequested || SelectedPhoto != photo) return;
+
+            SetBasePreview(fullBs, "EV (JPG)");
+            _ = ComputeHistogramAsync(photo, ct);
+        }
+        catch (OperationCanceledException) { /* selection moved on */ }
+        catch { /* extraction/decode failed — keep the small preview on screen */ }
     }
 
     /// <summary>

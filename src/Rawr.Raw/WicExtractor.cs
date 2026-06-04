@@ -62,13 +62,16 @@ public sealed class WicExtractor : IPreviewExtractor
             var frame = decoder.Frames[0];
             BitmapSource? source = TryGetThumbnail(frame);
 
-            if (source == null)
-            {
-                // No embedded thumb — fall through to the slow full-decode path.
+            // frame.Thumbnail is the codec's embedded thumbnail. For RAW via the
+            // Raw Image Extension that's a large preview, but for an ordinary
+            // JPEG it's the tiny ~160px EXIF thumbnail — fine as a grid thumb but
+            // a blurry upscale once stretched to preview size. Only trust it when
+            // it's at least as large as we need; otherwise fall through to a full
+            // frame decode and downscale from that.
+            if (source == null || (maxWidth > 0 && source.PixelWidth < maxWidth))
                 source = frame;
-            }
 
-            // Down-scale if the embedded thumb is larger than we need.
+            // Down-scale if the source is larger than we need.
             if (maxWidth > 0 && source.PixelWidth > maxWidth)
             {
                 double scale = (double)maxWidth / source.PixelWidth;
