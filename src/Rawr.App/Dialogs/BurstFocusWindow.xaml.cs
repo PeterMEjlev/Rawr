@@ -183,6 +183,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         CycleOverlayCommand       = new RelayCommand(CycleOverlay);
 
         InitializeComponent();
+        Opacity = 0.0;
         DataContext = this;
         WindowHelper.ApplyDarkTitleBar(this);
 
@@ -201,6 +202,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
 
         RegisterShortcutBindings();
         PreviewKeyDown += OnPreviewKeyDown;
+        ContentRendered += (_, _) => RevealAfterFirstRender();
 
         Loaded += (_, _) =>
         {
@@ -229,6 +231,14 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
 
         e.Handled = true;
         Close();
+    }
+
+    private void RevealAfterFirstRender()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+        {
+            if (IsVisible) Opacity = 1.0;
+        }));
     }
 
     private void MoveTo(int index, bool keepZoom = false)
@@ -419,10 +429,12 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     // ── Fullscreen monitor-bounds interop (mirrors MainWindow) ──
 
     private const int WM_GETMINMAXINFO = 0x0024;
+    private const int WM_ERASEBKGND = 0x0014;
     private const int MONITOR_DEFAULTTONEAREST = 2;
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_FRAMECHANGED = 0x0020;
+    private const int DarkPreviewColorRef = 0x000E0E0E;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT { public int X, Y; }
@@ -439,18 +451,29 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int dwFlags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr hwndInsertAfter, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr hwnd, out RECT lpRect);
+    [DllImport("user32.dll")] private static extern int FillRect(IntPtr hDC, ref RECT lprc, IntPtr hbr);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateSolidBrush(int colorRef);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr hObject);
 
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
         var hwnd = new WindowInteropHelper(this).Handle;
-        HwndSource.FromHwnd(hwnd)?.AddHook(FullscreenWndProc);
+        HwndSource.FromHwnd(hwnd)?.AddHook(WindowWndProc);
     }
 
     // While fullscreen, report the full monitor as the maximized bounds so we
     // cover the taskbar like the owner does. Otherwise leave the message alone.
-    private IntPtr FullscreenWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    private IntPtr WindowWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WM_ERASEBKGND)
+        {
+            PaintDarkNativeBackground(hwnd, wParam);
+            handled = true;
+            return new IntPtr(1);
+        }
+
         if (msg != WM_GETMINMAXINFO || !_isFullscreen) return IntPtr.Zero;
         if (!TryGetNearestMonitorInfo(hwnd, out var info)) return IntPtr.Zero;
 
@@ -463,6 +486,17 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         Marshal.StructureToPtr(mmi, lParam, true);
         handled = true;
         return IntPtr.Zero;
+    }
+
+    private static void PaintDarkNativeBackground(IntPtr hwnd, IntPtr hdc)
+    {
+        if (hwnd == IntPtr.Zero || hdc == IntPtr.Zero) return;
+        if (!GetClientRect(hwnd, out var rect)) return;
+
+        var brush = CreateSolidBrush(DarkPreviewColorRef);
+        if (brush == IntPtr.Zero) return;
+        try { FillRect(hdc, ref rect, brush); }
+        finally { DeleteObject(brush); }
     }
 
     private static bool TryGetNearestMonitorInfo(IntPtr hwnd, out MONITORINFO info)

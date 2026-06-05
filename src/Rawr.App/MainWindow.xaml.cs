@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -29,6 +30,8 @@ public partial class MainWindow : Window
     private const double MinZoom = 1.0;
     private const double MaxZoom = 64.0;
     private const double ZoomStep = 1.2;
+    // Per-card diagonal offset for the burst stack-of-cards frame in the detail preview.
+    private const double BurstStackStep = 6.0;
     private const int FullscreenTransitionSettleMs = 20;
     private const int FullscreenTransitionFadeMs = 110;
 
@@ -1351,6 +1354,7 @@ public partial class MainWindow : Window
         PreviewScale.ScaleX = PreviewScale.ScaleY = newScale;
         UpdateZoomIndicator(newScale);
         UpdatePreviewScalingMode(newScale);
+        UpdateBurstStackFrame();
 
         // Defer the full-resolution upgrade until the wheel stops — see _hiResZoomTimer.
         if (newScale > MinZoom + 1e-3)
@@ -1399,6 +1403,7 @@ public partial class MainWindow : Window
                 PreviewScale.ScaleX = PreviewScale.ScaleY = dblClickZoom;
                 UpdateZoomIndicator(dblClickZoom);
                 UpdatePreviewScalingMode(dblClickZoom);
+                UpdateBurstStackFrame();
                 if (DataContext is MainViewModel vm)
                 {
                     _ = vm.LoadHighResPreviewAsync().ContinueWith(
@@ -1458,6 +1463,90 @@ public partial class MainWindow : Window
         PreviewTranslate.Y = 0;
         ZoomIndicator.Visibility = Visibility.Collapsed;
         UpdatePreviewScalingMode(1.0);
+        UpdateBurstStackFrame();
+    }
+
+    // ── Burst stack-of-cards frame (detail preview) ────────────────────────
+    // Positions two white outlined backer cards behind the front photo so a
+    // burst group reads as a physical stack. The cards must hug the *photo*,
+    // not the Image element: with Stretch="Uniform" the bitmap is letterboxed
+    // and centred inside its slot, so we reconstruct that rendered rect here.
+    // Only shown at fit zoom — once magnified the cards would be off-screen and
+    // the pan/zoom transform isn't applied to them.
+
+    private void PreviewImageElement_TargetUpdated(object? sender, DataTransferEventArgs e)
+        => UpdateBurstStackFrame();
+
+    // Listen on the container, not the Image: for a height-limited portrait,
+    // widening the pane shifts the centred image without changing its size, so
+    // Image.SizeChanged never fires — but the grid's does.
+    private void PreviewImageGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+        => UpdateBurstStackFrame();
+
+    private void UpdateBurstStackFrame()
+    {
+        var photo = (DataContext as MainViewModel)?.SelectedPhoto;
+        bool isBurst = photo?.GroupId is > 0;
+        bool atFit = PreviewScale.ScaleX <= MinZoom + 1e-3;
+
+        if (!isBurst
+            || !atFit
+            || PreviewImageElement.Visibility != Visibility.Visible
+            || PreviewImageElement.Source is not BitmapSource src
+            || src.PixelWidth <= 0 || src.PixelHeight <= 0
+            || PreviewImageElement.ActualWidth <= 0 || PreviewImageElement.ActualHeight <= 0)
+        {
+            BurstStackCard1.Visibility = Visibility.Collapsed;
+            BurstStackCard2.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // Uniform fit of the bitmap inside the Image element's content box.
+        double slotW = PreviewImageElement.ActualWidth;
+        double slotH = PreviewImageElement.ActualHeight;
+        double scale = Math.Min(slotW / src.PixelWidth, slotH / src.PixelHeight);
+        double renderedW = src.PixelWidth * scale;
+        double renderedH = src.PixelHeight * scale;
+
+        // WPF sizes the Image element to the letterboxed bitmap and centres *that
+        // element* in the cell, so we can't assume it sits at the margin. Ask for
+        // its real top-left in the shared grid, then add any residual letterbox
+        // offset within the element. Robust whether the element is stretched to
+        // the slot or shrunk to the bitmap. (Only called at fit zoom, so the
+        // identity RenderTransform doesn't skew the translation.)
+        var elementOrigin = PreviewImageElement.TranslatePoint(new Point(0, 0), PreviewImageGrid);
+        double photoLeft = elementOrigin.X + (slotW - renderedW) / 2;
+        double photoTop = elementOrigin.Y + (slotH - renderedH) / 2;
+
+        // The cards peek up and to the right, so the outermost (2×) card needs that
+        // much clear room above the photo and to its right. When the photo nearly
+        // fills the pane that room is just the image margin, so shrink the step to
+        // fit rather than letting the clip region chop the outer outline.
+        double topRoom = photoTop;
+        double rightRoom = PreviewImageGrid.ActualWidth - (photoLeft + renderedW);
+        double step = Math.Min(BurstStackStep, Math.Min(topRoom, rightRoom) / 2.0);
+        if (step < 1.0)
+        {
+            // Photo fills the pane — nowhere for the stack to peek without clipping.
+            BurstStackCard1.Visibility = Visibility.Collapsed;
+            BurstStackCard2.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        PositionBurstStackCard(BurstStackCard1, photoLeft, photoTop, renderedW, renderedH, step);
+        PositionBurstStackCard(BurstStackCard2, photoLeft, photoTop, renderedW, renderedH, step * 2);
+        BurstStackCard1.Visibility = Visibility.Visible;
+        BurstStackCard2.Visibility = Visibility.Visible;
+    }
+
+    // Same size as the photo, nudged right and up so only the top + right edges
+    // peek out from behind the front image.
+    private static void PositionBurstStackCard(
+        Border card, double photoLeft, double photoTop, double width, double height, double offset)
+    {
+        card.Width = width;
+        card.Height = height;
+        card.Margin = new Thickness(photoLeft + offset, photoTop - offset, 0, 0);
     }
 
     // Pick a scaling filter based on whether each source pixel will end up smaller

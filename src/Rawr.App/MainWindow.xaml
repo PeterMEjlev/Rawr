@@ -2369,9 +2369,37 @@
                                       Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                         </ContextMenu>
                     </Border.ContextMenu>
-                    <Grid>
+                    <Grid x:Name="PreviewImageGrid"
+                          SizeChanged="PreviewImageGrid_SizeChanged">
+                        <!-- Burst stack-of-cards backers. Sized and positioned in
+                             code-behind (UpdateBurstStackFrame) to hug the letterboxed
+                             photo and peek out top + right, so a burst group reads as a
+                             stack even when the small "BURST" badge is easy to miss.
+                             Only the top + right edges are drawn (BorderThickness
+                             "0,t,t,0") so the lines simply end rather than crossing at
+                             the other corners. Card2 sits farthest back; both are
+                             hidden when zoomed. -->
+                        <Border x:Name="BurstStackCard2"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource BurstPreviewStackOutlineBrush}"
+                                BorderThickness="0,1.5,1.5,0"
+                                CornerRadius="0,3,0,0"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed" />
+                        <Border x:Name="BurstStackCard1"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource BurstPreviewStackOutlineBrush}"
+                                BorderThickness="0,1.5,1.5,0"
+                                CornerRadius="0,3,0,0"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed" />
                         <Image x:Name="PreviewImageElement"
-                               Source="{Binding PreviewImage}"
+                               Source="{Binding PreviewImage, NotifyOnTargetUpdated=True}"
+                               Binding.TargetUpdated="PreviewImageElement_TargetUpdated"
                                Stretch="Uniform"
                                SnapsToDevicePixels="True"
                                RenderOptions.BitmapScalingMode="Linear"

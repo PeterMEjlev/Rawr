@@ -42,7 +42,7 @@
                            FontWeight="SemiBold"
                            VerticalAlignment="Center" />
                 <TextBlock DockPanel.Dock="Right"
-                           Text="Esc to close"
+                           Text="Esc / Down to close"
                            Foreground="{StaticResource TextDimBrush}"
                            VerticalAlignment="Center" />
                 <Button DockPanel.Dock="Right"
