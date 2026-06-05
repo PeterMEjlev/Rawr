@@ -116,7 +116,7 @@
     <SolidColorBrush x:Key="BurstStackBack2Brush" Color="#FF22252D" />
     <SolidColorBrush x:Key="BurstStackBackBorderBrush" Color="#FF2E323B" />
     <!-- Detail-preview burst stack: white outlined cards peeking behind the photo -->
-    <SolidColorBrush x:Key="BurstPreviewStackOutlineBrush" Color="#E6FFFFFF" />
+    <SolidColorBrush x:Key="BurstPreviewStackOutlineBrush" Color="#CCFFFFFF" />
 
     <!-- Scrollbar thumb brushes -->
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#FF3D414A" />

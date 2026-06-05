@@ -32,6 +32,8 @@ public partial class MainWindow : Window
     private const double ZoomStep = 1.2;
     // Per-card diagonal offset for the burst stack-of-cards frame in the detail preview.
     private const double BurstStackStep = 6.0;
+    // Minimum breathing room kept between the topmost stack card and the top bar.
+    private const double BurstStackTopGap = 8.0;
     private const int FullscreenTransitionSettleMs = 20;
     private const int FullscreenTransitionFadeMs = 110;
 
@@ -1521,8 +1523,9 @@ public partial class MainWindow : Window
         // The cards peek up and to the right, so the outermost (2×) card needs that
         // much clear room above the photo and to its right. When the photo nearly
         // fills the pane that room is just the image margin, so shrink the step to
-        // fit rather than letting the clip region chop the outer outline.
-        double topRoom = photoTop;
+        // fit rather than letting the clip region chop the outer outline. Reserve a
+        // small gap at the top so the outermost card never butts up against the top bar.
+        double topRoom = Math.Max(0, photoTop - BurstStackTopGap);
         double rightRoom = PreviewImageGrid.ActualWidth - (photoLeft + renderedW);
         double step = Math.Min(BurstStackStep, Math.Min(topRoom, rightRoom) / 2.0);
         if (step < 1.0)

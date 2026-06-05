@@ -2403,7 +2403,7 @@
                                Stretch="Uniform"
                                SnapsToDevicePixels="True"
                                RenderOptions.BitmapScalingMode="Linear"
-                               Margin="8"
+                               Margin="8,16,8,8"
                                RenderTransformOrigin="0,0"
                                Visibility="{Binding PreviewImage, Converter={StaticResource NullToVisibility}}">
                             <Image.RenderTransform>
@@ -2414,7 +2414,7 @@
                             </Image.RenderTransform>
                         </Image>
                         <flyleaf:FlyleafHost x:Name="VideoPlayer"
-                                             Margin="8"
+                                             Margin="8,16,8,8"
                                              Background="Black"
                                              Visibility="Collapsed"
                                              MouseBindings="None"
@@ -2432,7 +2432,7 @@
                                Stretch="Uniform"
                                SnapsToDevicePixels="True"
                                RenderOptions.BitmapScalingMode="Linear"
-                               Margin="8"
+                               Margin="8,16,8,8"
                                RenderTransformOrigin="0,0"
                                IsHitTestVisible="False"
                                Visibility="{Binding FocusPeakingEnabled, Converter={StaticResource NullToVisibility}}">
@@ -2452,7 +2452,7 @@
                                Stretch="Uniform"
                                SnapsToDevicePixels="True"
                                RenderOptions.BitmapScalingMode="Linear"
-                               Margin="8"
+                               Margin="8,16,8,8"
                                RenderTransformOrigin="0,0"
                                IsHitTestVisible="False"
                                Visibility="{Binding ClippingEnabled, Converter={StaticResource NullToVisibility}}">
