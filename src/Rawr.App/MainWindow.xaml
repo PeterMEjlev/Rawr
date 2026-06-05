@@ -2738,9 +2738,9 @@
                                 Minimum="-5"
                                 Maximum="5"
                                 Value="{Binding ExposureCompensation}"
-                                SmallChange="0.2"
+                                SmallChange="0.3333333333333333"
                                 LargeChange="1.0"
-                                TickFrequency="0.2"
+                                TickFrequency="0.3333333333333333"
                                 IsSnapToTickEnabled="True"
                                 IsSelectionRangeEnabled="True"
                                 SelectionStart="{Binding ExposureSelectionStart, Mode=OneWay}"
@@ -2749,13 +2749,13 @@
                                 VerticalAlignment="Center"
                                 MouseDoubleClick="ExposureSlider_MouseDoubleClick" />
                         <TextBlock Grid.Column="2"
-                                   Text="{Binding ExposureCompensation, StringFormat='{}{0:+0.0;-0.0;0.0}'}"
+                                   Text="{Binding ExposureCompensation, StringFormat='{}{0:+0.00;-0.00;0.00}'}"
                                    Foreground="{StaticResource TextBrush}"
                                    VerticalAlignment="Center"
                                    Margin="8,0,0,0"
                                    FontSize="11"
                                    FontFamily="Consolas"
-                                   Width="36"
+                                   Width="42"
                                    TextAlignment="Right" />
                     </Grid>
                 </Border>

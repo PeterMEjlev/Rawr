@@ -2462,11 +2462,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return rotated;
     }
 
+    private const double ExposureStepEv = 1.0 / 3.0;
+
     [RelayCommand] private void IncreaseExposure() =>
-        ExposureCompensation = Math.Round(Math.Clamp(ExposureCompensation + 0.2, -5.0, 5.0), 10);
+        ExposureCompensation = Math.Round(Math.Clamp(ExposureCompensation + ExposureStepEv, -5.0, 5.0), 10);
 
     [RelayCommand] private void DecreaseExposure() =>
-        ExposureCompensation = Math.Round(Math.Clamp(ExposureCompensation - 0.2, -5.0, 5.0), 10);
+        ExposureCompensation = Math.Round(Math.Clamp(ExposureCompensation - ExposureStepEv, -5.0, 5.0), 10);
 
     partial void OnExposureCompensationChanged(double value)
     {

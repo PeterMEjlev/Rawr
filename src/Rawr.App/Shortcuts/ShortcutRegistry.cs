@@ -32,13 +32,11 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
 
             // Navigation
             new("NextPhoto",     "Next photo",          CatNav, Key.Right, ModifierKeys.None,    Vm(vm => vm.NextPhotoCommand)),
-            new("NextPhotoAlt",  "Next photo (alt)",    CatNav, Key.Down,  ModifierKeys.None,    Vm(vm => vm.NextPhotoCommand)),
             new("PreviousPhoto", "Previous photo",      CatNav, Key.Left,  ModifierKeys.None,    Vm(vm => vm.PreviousPhotoCommand)),
-            new("PreviousPhotoAlt","Previous photo (alt)", CatNav, Key.Up, ModifierKeys.None,    Vm(vm => vm.PreviousPhotoCommand)),
             new("NextBurst",           "Next burst",              CatNav, Key.Right, ModifierKeys.Control | ModifierKeys.Shift, Vm(vm => vm.NextBurstCommand)),
             new("PreviousBurst",       "Previous burst",          CatNav, Key.Left,  ModifierKeys.Control | ModifierKeys.Shift, Vm(vm => vm.PreviousBurstCommand)),
-            new("IncreaseExposure",    "Increase exposure +0.2",  CatEdit, Key.Right, ModifierKeys.Control, Vm(vm => vm.IncreaseExposureCommand)),
-            new("DecreaseExposure",    "Decrease exposure -0.2 / video to start",  CatEdit, Key.Left,  ModifierKeys.Control, w => w.SeekVideoStartOrDecreaseExposureCommand),
+            new("IncreaseExposure",    "Increase exposure +0.33", CatEdit, Key.Right, ModifierKeys.Control, Vm(vm => vm.IncreaseExposureCommand)),
+            new("DecreaseExposure",    "Decrease exposure -0.33 / video to start", CatEdit, Key.Left,  ModifierKeys.Control, w => w.SeekVideoStartOrDecreaseExposureCommand),
 
             // Flags
             new("TogglePick",       "Toggle pick",                CatFlag, Key.P, ModifierKeys.None,  Vm(vm => vm.TogglePickCommand)),

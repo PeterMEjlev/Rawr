@@ -200,6 +200,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         };
 
         RegisterShortcutBindings();
+        PreviewKeyDown += OnPreviewKeyDown;
 
         Loaded += (_, _) =>
         {
@@ -219,6 +220,15 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             _peek?.Dispose();
             _peek = null;
         };
+    }
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
+        if (e.Key != Key.Down) return;
+
+        e.Handled = true;
+        Close();
     }
 
     private void MoveTo(int index, bool keepZoom = false)
@@ -326,9 +336,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         ["ToggleClipping"]     = ToggleClippingCommand,
         ["CycleOverlay"]       = CycleOverlayCommand,
         ["NextPhoto"]        = NextCommand,
-        ["NextPhotoAlt"]     = NextCommand,
         ["PreviousPhoto"]    = PrevCommand,
-        ["PreviousPhotoAlt"] = PrevCommand,
         ["Rating0"]          = SetRatingCommand,
         ["Rating1"]          = SetRatingCommand,
         ["Rating2"]          = SetRatingCommand,

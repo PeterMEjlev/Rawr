@@ -15,9 +15,10 @@
 
     <!-- Per-frame shortcuts (P, X, U, T, ratings, colors, navigation) and macros are
          applied programmatically in code-behind so they honour user customisation
-         from Settings. Only Escape stays here as a window-close convention. -->
+         from Settings. Escape and Down stay here as window-close conventions. -->
     <Window.InputBindings>
         <KeyBinding Key="Escape" Command="{Binding CloseCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+        <KeyBinding Key="Down" Command="{Binding CloseCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
     </Window.InputBindings>
 
     <Grid>

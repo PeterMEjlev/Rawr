@@ -1142,28 +1142,40 @@ public partial class MainWindow : Window
         if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Enter)) return;
         if (vm.FilteredPhotos.Count == 0) return;
 
-        if (e.Key is Key.Enter)
+        if (e.Key is Key.Enter or Key.Up)
         {
-            if (vm is { IsGridExpanded: true, SelectedPhoto: not null })
-            {
-                vm.IsGridExpanded = false;
-                e.Handled = true;
-                return;
-            }
-
-            if (vm.SelectedPhoto is { CollapsedBurstCount: > 0 } burst)
-            {
-                OpenBurstFocus(burst);
-                e.Handled = true;
-            }
+            e.Handled = TryOpenSelectedBurst(vm) || e.Key is Key.Up;
             return;
         }
 
-        if (e.Key is Key.Right or Key.Down)
+        if (e.Key is Key.Down)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key is Key.Right)
             vm.NextPhotoCommand.Execute(null);
         else
             vm.PreviousPhotoCommand.Execute(null);
         e.Handled = true;
+    }
+
+    private bool TryOpenSelectedBurst(MainViewModel vm)
+    {
+        if (vm is { IsGridExpanded: true, SelectedPhoto: not null })
+        {
+            vm.IsGridExpanded = false;
+            return true;
+        }
+
+        if (vm.SelectedPhoto is { CollapsedBurstCount: > 0 } burst)
+        {
+            OpenBurstFocus(burst);
+            return true;
+        }
+
+        return false;
     }
 
     // Fallback handler that tries to match shortcuts via the resolved key, covering
@@ -1274,14 +1286,23 @@ public partial class MainWindow : Window
         if (DataContext is not MainViewModel vm) return;
         if (vm.FilteredPhotos.Count == 0) return;
 
-        if (e.Key is Key.Right or Key.Down)
+        if (e.Key is Key.Right)
         {
             vm.NextPhotoCommand.Execute(null);
             e.Handled = true;
         }
-        else if (e.Key is Key.Left or Key.Up)
+        else if (e.Key is Key.Left)
         {
             vm.PreviousPhotoCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key is Key.Up)
+        {
+            TryOpenSelectedBurst(vm);
+            e.Handled = true;
+        }
+        else if (e.Key is Key.Down)
+        {
             e.Handled = true;
         }
     }

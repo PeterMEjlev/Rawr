@@ -8,10 +8,6 @@
 
 - ## Folders that are open in RAWR dont disappear when ejected
 
-- ## Make EV exposure change by 0.33 increments instead of of 0.2 (like in LR)
-
-
-
 ## OPUS:
 - ## Allow user to manually add location metadata to selected photos (using the map function)
 
