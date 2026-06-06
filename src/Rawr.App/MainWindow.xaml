@@ -1537,7 +1537,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="★★★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Rating5Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating5Count}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1550,7 +1550,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="★★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Rating4Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating4Count}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1563,7 +1563,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="★★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Rating3Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating3Count}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1576,7 +1576,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="★★" Foreground="{StaticResource StarBrush}" FontSize="11" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Rating2Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating2Count}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1589,7 +1589,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="★" Foreground="{StaticResource StarBrush}" FontSize="11" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Rating1Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Rating1Count}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1602,7 +1602,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Unrated" Foreground="{StaticResource TextBrush}" FontSize="11" />
-                                    <TextBlock Grid.Column="1" Text="{Binding RatingUnratedCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="1" Text="{Binding RatingUnratedCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
@@ -1627,7 +1627,7 @@
                                           VerticalAlignment="Center"
                                           SnapsToDevicePixels="True" />
                                     <TextBlock Grid.Column="1" Text="Picks" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding FlagPickCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding FlagPickCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1646,7 +1646,7 @@
                                           VerticalAlignment="Center"
                                           SnapsToDevicePixels="True" />
                                     <TextBlock Grid.Column="1" Text="Rejected" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding FlagRejectCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding FlagRejectCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1668,7 +1668,7 @@
                                           VerticalAlignment="Center"
                                           SnapsToDevicePixels="True" />
                                     <TextBlock Grid.Column="1" Text="Unflagged" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding FlagUnflaggedCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding FlagUnflaggedCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
@@ -1699,7 +1699,7 @@
                                           VerticalAlignment="Center"
                                           SnapsToDevicePixels="True" />
                                     <TextBlock Grid.Column="1" Text="Clipped highlights" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding ClippedHighlightsCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ClippedHighlightsCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1720,7 +1720,7 @@
                                           VerticalAlignment="Center"
                                           SnapsToDevicePixels="True" />
                                     <TextBlock Grid.Column="1" Text="Crushed shadows" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding CrushedShadowsCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding CrushedShadowsCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
@@ -1729,10 +1729,11 @@
                              zero-shot CLIP classifier after folder open. Built
                              from the SubjectGroups taxonomy: each group root is a
                              chip whose count is the union of its leaves; groups
-                             with leaves expand to reveal them. Every chip is
-                             multi-select (clicking Animal + Nature ORs the
-                             categories). Unclassified photos stay out of both
-                             sides of the include/exclude split. -->
+                             with leaves expand to reveal them. Chips are
+                             single-select — clicking one filters to exactly that
+                             category and clears any other; clicking it again
+                             clears the filter. Unclassified photos stay out of
+                             both sides of the include/exclude split. -->
                         <ToggleButton x:Name="SubjectsToggle" Content="Subjects" Style="{StaticResource SidebarSubsectionToggle}" IsChecked="True" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=SubjectsToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1743,13 +1744,13 @@
                                     <Setter Property="BorderThickness" Value="0" />
                                     <Setter Property="Padding" Value="0" />
                                     <Setter Property="Cursor" Value="Hand" />
-                                    <Setter Property="Width" Value="16" />
-                                    <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+                                    <Setter Property="Width" Value="20" />
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="ToggleButton">
                                                 <Border Background="Transparent">
-                                                    <TextBlock x:Name="Arrow" Text="▸" FontSize="9"
+                                                    <TextBlock x:Name="Arrow" Text="▸" FontSize="13"
                                                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                                                Foreground="{TemplateBinding Foreground}" />
                                                 </Border>
@@ -1770,7 +1771,7 @@
                                             <!-- Group header: expander (only when the group has leaves) + the group chip. -->
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="16" />
+                                                    <ColumnDefinition Width="20" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
                                                 <ToggleButton Grid.Column="0"
@@ -1792,7 +1793,7 @@
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center" />
                                                         <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="11" />
-                                                        <TextBlock Grid.Column="2" Text="{Binding Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="11" />
                                                     </Grid>
                                                 </controls:SidebarBucketButton>
                                             </Grid>
@@ -1813,7 +1814,7 @@
                                                                 </Grid.ColumnDefinitions>
                                                                 <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center" />
                                                                 <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="11" />
-                                                                <TextBlock Grid.Column="2" Text="{Binding Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                                                <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="11" />
                                                             </Grid>
                                                         </controls:SidebarBucketButton>
                                                     </DataTemplate>
@@ -1849,7 +1850,7 @@
                                                Margin="0,0,8,0"
                                                VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="Closed eyes" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding ClosedEyesCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ClosedEyesCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
@@ -1869,7 +1870,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FFE53935" Margin="0,0,8,0" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="Red" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding LabelRedCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelRedCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1883,7 +1884,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FFFFC107" Margin="0,0,8,0" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="Yellow" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding LabelYellowCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelYellowCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1897,7 +1898,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FF4CAF50" Margin="0,0,8,0" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="Green" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding LabelGreenCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelGreenCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1911,7 +1912,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FF2196F3" Margin="0,0,8,0" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="Blue" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding LabelBlueCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelBlueCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1925,7 +1926,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FF9C27B0" Margin="0,0,8,0" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="Purple" FontSize="11" />
-                                    <TextBlock Grid.Column="2" Text="{Binding LabelPurpleCount}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                    <TextBlock Grid.Column="2" Text="{Binding LabelPurpleCount}" FontSize="11" />
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
@@ -1952,7 +1953,7 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Count}" Foreground="{StaticResource TextDimBrush}" FontSize="11" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Count}" FontSize="11" />
                                             </Grid>
                                         </controls:SidebarBucketButton.Content>
                                     </controls:SidebarBucketButton>

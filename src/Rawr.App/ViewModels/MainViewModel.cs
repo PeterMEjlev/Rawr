@@ -6930,12 +6930,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetSidebarSubject(SubjectTag tag)
     {
         if (tag == SubjectTag.None) return;
-        // Toggle, multi-select. Unlike Rating/Color the subject chips don't
-        // wipe each other — selecting Person + Animal ORs the categories.
-        bool changed = _subjectFilters.Contains(tag)
-            ? _subjectFilters.Remove(tag)
-            : _subjectFilters.Add(tag);
-        if (!changed) return;
+        // Single-select: clicking a chip filters to exactly that subject and
+        // clears any other subject selection; clicking the already-sole-active
+        // chip toggles it back off.
+        bool wasOnlyActive = _subjectFilters.Count == 1 && _subjectFilters.Contains(tag);
+        _subjectFilters.Clear();
+        if (!wasOnlyActive) _subjectFilters.Add(tag);
 
         if (_subjectFilters.Count == 0) SubjectFilterExclude = false;
 
