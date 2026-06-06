@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -6926,19 +6927,35 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    // Shift-click combines quick filters instead of replacing. Read live from the
+    // keyboard at command time so we don't have to thread a modifier flag through
+    // every CommandParameter binding — WPF runs these commands synchronously on
+    // the UI thread during the click, so Modifiers is current.
+    private static bool AdditiveFilterClick =>
+        (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+
     [RelayCommand]
     private void SetSidebarSubject(SubjectTag tag)
     {
         if (tag == SubjectTag.None) return;
-        // Single-select: clicking a chip filters to exactly that subject and
-        // clears any other subject selection; clicking the already-sole-active
-        // chip toggles it back off.
-        bool wasOnlyActive = _subjectFilters.Count == 1 && _subjectFilters.Contains(tag);
-        _subjectFilters.Clear();
-        if (!wasOnlyActive) _subjectFilters.Add(tag);
+
+        if (AdditiveFilterClick)
+        {
+            // Combine: toggle this subject in/out, leaving every other active
+            // filter (and any other selected subjects) in place.
+            if (!_subjectFilters.Remove(tag)) _subjectFilters.Add(tag);
+        }
+        else
+        {
+            // Replace: this subject becomes the only active filter in the whole
+            // sidebar; clicking the sole-active subject again clears it.
+            bool wasOnlyActive = _subjectFilters.Count == 1 && _subjectFilters.Contains(tag);
+            ClearOtherSidebarFilters(SidebarFilterKind.Subject);
+            _subjectFilters.Clear();
+            if (!wasOnlyActive) _subjectFilters.Add(tag);
+        }
 
         if (_subjectFilters.Count == 0) SubjectFilterExclude = false;
-
         OnPropertyChanged(nameof(SubjectFilters));
         OnPropertyChanged(nameof(IsSubjectFilterActive));
         OnPropertyChanged(nameof(HasActiveFilters));
@@ -6949,6 +6966,47 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SetRatingBucket(int rating)
     {
+        if (AdditiveFilterClick)
+        {
+            // Combine: toggle this rating within the Exact active-set (anchor +
+            // extras) without disturbing other filter kinds. Pinned to Exact so a
+            // sidebar bucket always means "exactly N stars", independent of the
+            // popup's rating cycle mode.
+            if (RatingFilterMode == RatingFilterMode.Exact)
+            {
+                if (RatingFilterValue == rating)
+                {
+                    if (_ratingFilterExtraValues.Count > 0)
+                    {
+                        var first = _ratingFilterExtraValues.First();
+                        _ratingFilterExtraValues.Remove(first);
+                        RatingFilterValue = first;
+                    }
+                    else
+                    {
+                        RatingFilterMode = RatingFilterMode.Any;
+                        RatingFilterValue = 0;
+                        RatingFilterExclude = false;
+                    }
+                }
+                else if (!_ratingFilterExtraValues.Remove(rating))
+                {
+                    _ratingFilterExtraValues.Add(rating);
+                }
+                OnPropertyChanged(nameof(RatingFilterExtraValues));
+                OnPropertyChanged(nameof(RatingFilterActiveValues));
+            }
+            else
+            {
+                _ratingFilterExtraValues.Clear();
+                RatingFilterValue = rating;
+                RatingFilterMode = RatingFilterMode.Exact;
+                OnPropertyChanged(nameof(RatingFilterActiveValues));
+            }
+            ApplyFilter();
+            return;
+        }
+
         var isSame = RatingFilterMode == RatingFilterMode.Exact && RatingFilterValue == rating;
         ClearOtherSidebarFilters(SidebarFilterKind.Rating);
         if (isSame)
@@ -6968,6 +7026,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SetSidebarColorLabel(ColorLabel label)
     {
+        // Shift-click routes to the multi-select core (toggle within-kind, keep
+        // other kinds); plain click single-selects and clears everything else.
+        if (AdditiveFilterClick) { SetColorLabelFilterCore(label, extend: true); return; }
         var isSame = ColorLabelFilter == label;
         ClearOtherSidebarFilters(SidebarFilterKind.Color);
         ColorLabelFilter = isSame ? null : label;
@@ -6978,6 +7039,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SetSidebarTag(PhotoTag tag)
     {
+        if (AdditiveFilterClick) { SetTagFilterCore(tag, extend: true); return; }
         var isSame = TagFilter?.Id == tag.Id;
         ClearOtherSidebarFilters(SidebarFilterKind.Tag);
         TagFilter = isSame ? null : tag;
@@ -6988,6 +7050,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SetSidebarFlag(CullFlag flag)
     {
+        if (AdditiveFilterClick) { SetFlagFilterCore(flag, extend: true); return; }
         var isSame = FlagFilter == flag;
         ClearOtherSidebarFilters(SidebarFilterKind.Flag);
         FlagFilter = isSame ? null : flag;
@@ -6998,8 +7061,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SetSidebarExposure(ExposureFilterMode mode)
     {
+        // Exposure carries no multi-value set, so shift just preserves the other
+        // active filter kinds (combine across kinds); within its own kind it stays
+        // single-valued.
         var isSame = ExposureFilter == mode;
-        ClearOtherSidebarFilters(SidebarFilterKind.Exposure);
+        if (!AdditiveFilterClick) ClearOtherSidebarFilters(SidebarFilterKind.Exposure);
         ExposureFilter = isSame ? ExposureFilterMode.Any : mode;
         if (ExposureFilter == ExposureFilterMode.Any) ExposureFilterExclude = false;
         ApplyFilter();
@@ -7009,13 +7075,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void SetSidebarFace(FaceFilterMode mode)
     {
         var isSame = FaceFilter == mode;
-        ClearOtherSidebarFilters(SidebarFilterKind.Face);
+        if (!AdditiveFilterClick) ClearOtherSidebarFilters(SidebarFilterKind.Face);
         FaceFilter = isSame ? FaceFilterMode.Any : mode;
         if (FaceFilter == FaceFilterMode.Any) FaceFilterExclude = false;
         ApplyFilter();
     }
 
-    private enum SidebarFilterKind { Rating, Color, Tag, Flag, Exposure, Face }
+    private enum SidebarFilterKind { Rating, Color, Tag, Flag, Exposure, Face, Subject }
 
     private void ClearOtherSidebarFilters(SidebarFilterKind keep)
     {

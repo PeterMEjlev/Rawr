@@ -1960,6 +1960,13 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- Combine-filters hint, parked at the bottom of the quick filters. -->
+                        <TextBlock Text="Tip: Shift-click to combine filters"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="6,10,6,2" />
                         </StackPanel>
                         </Border>
 
