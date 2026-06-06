@@ -650,29 +650,69 @@
                                      Content="Off"
                                      GroupName="SubjectMode"
                                      Margin="0,0,0,12" />
-                        <TextBlock Text="Subject-match sensitivity (0–100)" Margin="0,0,0,4" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="Looser"
-                                       Foreground="{StaticResource TextDimBrush}"
-                                       FontSize="10"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0" />
-                            <Slider x:Name="SubjectTagThresholdSlider"
-                                    Minimum="5" Maximum="50"
-                                    SmallChange="1" LargeChange="5"
+                        <TextBlock Text="Subject-match sensitivity per group (5–50, higher = stricter)" Margin="0,0,0,4" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <TextBlock Text="Person" Width="86" VerticalAlignment="Center" />
+                            <Slider x:Name="SubjectThresholdPersonSlider"
+                                    Minimum="5" Maximum="50" SmallChange="1" LargeChange="5"
                                     TickFrequency="1" IsSnapToTickEnabled="True"
-                                    Width="220"
-                                    VerticalAlignment="Center" />
-                            <TextBlock Text="Stricter"
-                                       Foreground="{StaticResource TextDimBrush}"
-                                       FontSize="10"
-                                       VerticalAlignment="Center"
-                                       Margin="6,0,0,0" />
+                                    Width="190" VerticalAlignment="Center" />
                             <TextBox Style="{StaticResource SliderValueBox}"
-                                     Text="{Binding ElementName=SubjectTagThresholdSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                            <Button Style="{StaticResource ResetButton}" Tag="SubjectTagThreshold" />
+                                     Text="{Binding ElementName=SubjectThresholdPersonSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectThresholdPerson" />
                         </StackPanel>
-                        <TextBlock Text="Cosine-similarity threshold × 100. The classifier emits a score per category; any score at or above this value applies the tag. Typical positives for ViT-B-16-class models land in the 15–30 range — lower is more permissive (more tags per photo). Requires subject_image_encoder.onnx + subject_tags.json in models/ (see models/README.md)."
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <TextBlock Text="Animal" Width="86" VerticalAlignment="Center" />
+                            <Slider x:Name="SubjectThresholdAnimalSlider"
+                                    Minimum="5" Maximum="50" SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="190" VerticalAlignment="Center" />
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=SubjectThresholdAnimalSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectThresholdAnimal" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <TextBlock Text="Vehicle" Width="86" VerticalAlignment="Center" />
+                            <Slider x:Name="SubjectThresholdVehicleSlider"
+                                    Minimum="5" Maximum="50" SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="190" VerticalAlignment="Center" />
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=SubjectThresholdVehicleSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectThresholdVehicle" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <TextBlock Text="Nature" Width="86" VerticalAlignment="Center" />
+                            <Slider x:Name="SubjectThresholdNatureSlider"
+                                    Minimum="5" Maximum="50" SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="190" VerticalAlignment="Center" />
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=SubjectThresholdNatureSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectThresholdNature" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <TextBlock Text="Architecture" Width="86" VerticalAlignment="Center" />
+                            <Slider x:Name="SubjectThresholdArchitectureSlider"
+                                    Minimum="5" Maximum="50" SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="190" VerticalAlignment="Center" />
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=SubjectThresholdArchitectureSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectThresholdArchitecture" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Food" Width="86" VerticalAlignment="Center" />
+                            <Slider x:Name="SubjectThresholdFoodSlider"
+                                    Minimum="5" Maximum="50" SmallChange="1" LargeChange="5"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Width="190" VerticalAlignment="Center" />
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=SubjectThresholdFoodSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <Button Style="{StaticResource ResetButton}" Tag="SubjectThresholdFood" />
+                        </StackPanel>
+                        <TextBlock Text="Per-group match threshold × 100. Within each group, categories compete in a softmax (against each other and a background anchor); a group is tagged when its probability clears its threshold. Raise a group's value if it over-fires (e.g. Animal tagging mountains), lower it if real subjects are missed. Requires subject_image_encoder.onnx + subject_tags.json in models/ (see models/README.md)."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"

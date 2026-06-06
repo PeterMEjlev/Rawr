@@ -256,7 +256,7 @@ public sealed class LibRawExtractor : IPreviewExtractor
             if (ret != 0) return null;
 
             byte[]? best = null;
-            int bestPixels = 0;
+            int bestLen = 0;
             bool exAvailable = true;
 
             for (int idx = 0; idx < 4 && exAvailable; idx++)
@@ -272,19 +272,28 @@ public sealed class LibRawExtractor : IPreviewExtractor
                     break;
                 }
 
-                var data = ReadCurrentThumb(handle, out int pixels);
-                if (data != null && pixels > bestPixels)
+                // Rank by byte length, not width*height: LibRaw leaves the struct's
+                // width/height at 0 for JPEG-type thumbs, so a pixel-count ranking
+                // silently prefers an *uncompressed* bitmap preview (some DNGs carry
+                // one) over the real JPEG — and the caller then can't decode it
+                // (black zoom). Only JPEG-encoded thumbs are usable here; byte
+                // length is a fine size proxy for same-codec previews.
+                var data = ReadCurrentThumb(handle, out _);
+                if (IsJpeg(data) && data!.Length > bestLen)
                 {
                     best = data;
-                    bestPixels = pixels;
+                    bestLen = data.Length;
                 }
             }
 
             if (best != null) return best;
 
-            // Fallback: older LibRaw without unpack_thumb_ex.
+            // Fallback: older LibRaw without unpack_thumb_ex (or no JPEG thumb in the
+            // indexed list). UnpackThumb yields the default/largest preview; keep it
+            // only if it's actually a JPEG.
             if (LibRawInterop.UnpackThumb(handle) != 0) return null;
-            return ReadCurrentThumb(handle, out _);
+            var def = ReadCurrentThumb(handle, out _);
+            return IsJpeg(def) ? def : null;
         }
         catch
         {
@@ -309,6 +318,12 @@ public sealed class LibRawExtractor : IPreviewExtractor
     //   ushort bits       (10)
     //   int    data_size  (12)
     //   byte[] data       (16)
+    // SOI marker check — the only reliable way to tell a JPEG thumb from an
+    // uncompressed bitmap thumb, since ReadCurrentThumb hands back the raw bytes
+    // either way and LibRaw's struct dims are unreliable for JPEGs.
+    private static bool IsJpeg(byte[]? data) =>
+        data is { Length: >= 2 } && data[0] == 0xFF && data[1] == 0xD8;
+
     private static byte[]? ReadCurrentThumb(nint handle, out int pixels)
     {
         pixels = 0;

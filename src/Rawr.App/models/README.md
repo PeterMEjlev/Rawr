@@ -125,13 +125,31 @@ name and the runtime silently skips any name it can't map.
 > sure it's the **same** checkpoint that produced `subject_image_encoder.onnx`
 > or the text and image embeddings won't share a vector space.
 
-## Threshold
+## Decision rule & threshold
 
-Sensitivity is configurable in **Settings → Subjects** (default 22). The
-classifier emits a cosine similarity per category; any score at or above
-`threshold / 100` applies the tag. CLIP cosine sim is typically in the
-0.15–0.30 range for positives — 22 is a sensible starting point for
-ViT-B-16-class models. Lower = more permissive (more tags per photo).
+The classifier does **not** threshold each category's raw cosine independently
+(that over-fires on uncalibrated categories — e.g. tagging Bird/Dog on a
+mountain). Instead it runs a temperature-scaled **softmax** over the top-level
+set (standalone categories + group roots) plus a generic `background` anchor,
+and applies a top-level category when its *probability* clears the threshold.
+Leaves are **parent-gated**: a group's leaves (Dog/Cat/…) are only scored once
+the group root passed, then compete in their own softmax so at most the dominant
+leaf is tagged. The regenerated `subject_tags.json` therefore includes a
+`background` entry — keep it; without it the softmax has nothing to absorb
+none-of-the-above frames and precision drops.
+
+Sensitivity is configurable **per top-level group** in **Settings → Subjects**
+— one slider each for Person / Animal / Vehicle / Nature / Architecture / Food
+(default 22 ⇒ probability ≥ 0.22). Raise a group that over-fires (e.g. Animal
+tagging mountains) without making the others stricter; lower one whose subjects
+are missed. Stored as `AppSettings.SubjectGroupThresholds` (keyed by group name);
+a group with no entry falls back to the global `SubjectTagThreshold`. Leaf
+categories (Dog/Bird/…) inherit their parent group's gate, then compete in a
+within-group softmax (`SubjectClassifier.LeafProbThreshold`, default 0.30).
+
+The softmax temperature is a code constant (`SubjectClassifier.LogitScale`,
+default 50): lower it for softer / more multi-label output, raise it toward
+CLIP's trained ~100 for sharper / more single-label output.
 
 ## Re-running
 

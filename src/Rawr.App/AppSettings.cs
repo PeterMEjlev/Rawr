@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Rawr.App.Services;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
+using Rawr.Core.Models;
 
 namespace Rawr.App;
 
@@ -124,10 +125,29 @@ public sealed class AppSettings
     // menu; Off skips it (and hides the menu entry).
     public ClassificationRunMode ClosedEyeDetectionMode { get; set; } = ClassificationRunMode.Auto;
 
-    // Score gate (cosine similarity, scaled 0..100). CLIP cosine sim is
-    // usually quite low — typical positives land around 0.20–0.30. 22 is a
-    // sensible default for MobileCLIP-S0 / OpenCLIP exports; tune per-model.
+    // Top-level softmax probability gate, scaled 0..100 (see SubjectClassifier
+    // for the decision rule — categories compete in a temperature-scaled softmax
+    // against each other plus a background anchor, rather than each racing an
+    // absolute cosine floor). A category is applied when its probability ≥
+    // value/100. Lower = more permissive (more tags per photo). 22 is a sensible
+    // default; raise it if you see false positives, lower it if subjects are missed.
+    // Acts as the fallback default for any group without a per-group override below.
     public byte SubjectTagThreshold { get; set; } = 22;
+
+    // Per-group overrides of SubjectTagThreshold, keyed by the top-level group's
+    // SubjectTag name ("Person", "Animal", "Vehicle", "Nature", "Architecture",
+    // "Food"). A group absent from the map falls back to SubjectTagThreshold, so
+    // the user can demand more certainty for a group the model struggles with
+    // (e.g. raise "Animal" to suppress spurious Dog/Bird) without touching the rest.
+    public Dictionary<string, byte> SubjectGroupThresholds { get; set; } = new();
+
+    /// <summary>
+    /// Effective subject-match threshold (0..100) for a top-level group: the
+    /// per-group override when present, otherwise the global
+    /// <see cref="SubjectTagThreshold"/>.
+    /// </summary>
+    public byte GetSubjectGroupThreshold(SubjectTag group) =>
+        SubjectGroupThresholds.TryGetValue(group.ToString(), out var v) ? v : SubjectTagThreshold;
 
     public double DoubleClickZoom { get; set; } = 3.0;
     public int ScrollSpeedPercent { get; set; } = Rawr.App.Controls.ScrollSpeed.DefaultPercent;
@@ -249,6 +269,7 @@ public sealed class AppSettings
         SubjectClassificationMode = SubjectClassificationMode,
         ClosedEyeDetectionMode = ClosedEyeDetectionMode,
         SubjectTagThreshold = SubjectTagThreshold,
+        SubjectGroupThresholds = new Dictionary<string, byte>(SubjectGroupThresholds),
         DoubleClickZoom = DoubleClickZoom,
         ScrollSpeedPercent = ScrollSpeedPercent,
         ReverseFilmstripScroll = ReverseFilmstripScroll,

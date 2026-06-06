@@ -92,7 +92,12 @@ public partial class SettingsWindow : Window
         ClosedEyeThresholdSlider.Value = Math.Clamp(current.ClosedEyeThreshold, (byte)10, (byte)90);
         SetClosedEyeMode(current.ClosedEyeDetectionMode);
         SetSubjectMode(current.SubjectClassificationMode);
-        SubjectTagThresholdSlider.Value = Math.Clamp(current.SubjectTagThreshold, (byte)5, (byte)50);
+        SubjectThresholdPersonSlider.Value       = Math.Clamp(current.GetSubjectGroupThreshold(SubjectTag.Person),       (byte)5, (byte)50);
+        SubjectThresholdAnimalSlider.Value       = Math.Clamp(current.GetSubjectGroupThreshold(SubjectTag.Animal),       (byte)5, (byte)50);
+        SubjectThresholdVehicleSlider.Value      = Math.Clamp(current.GetSubjectGroupThreshold(SubjectTag.Vehicle),      (byte)5, (byte)50);
+        SubjectThresholdNatureSlider.Value       = Math.Clamp(current.GetSubjectGroupThreshold(SubjectTag.Nature),       (byte)5, (byte)50);
+        SubjectThresholdArchitectureSlider.Value = Math.Clamp(current.GetSubjectGroupThreshold(SubjectTag.Architecture), (byte)5, (byte)50);
+        SubjectThresholdFoodSlider.Value         = Math.Clamp(current.GetSubjectGroupThreshold(SubjectTag.Food),         (byte)5, (byte)50);
         ClippingModeHighlights.IsChecked = current.ClippingMode == ClippingMode.Highlights;
         ClippingModeShadows.IsChecked = current.ClippingMode == ClippingMode.Shadows;
         ClippingModeBoth.IsChecked = current.ClippingMode == ClippingMode.Both;
@@ -375,7 +380,12 @@ public partial class SettingsWindow : Window
         s.ClosedEyeThreshold = (byte)ClosedEyeThresholdSlider.Value;
         s.ClosedEyeDetectionMode = ReadClosedEyeMode();
         s.SubjectClassificationMode = ReadSubjectMode();
-        s.SubjectTagThreshold = (byte)SubjectTagThresholdSlider.Value;
+        s.SubjectGroupThresholds[nameof(SubjectTag.Person)]       = (byte)SubjectThresholdPersonSlider.Value;
+        s.SubjectGroupThresholds[nameof(SubjectTag.Animal)]       = (byte)SubjectThresholdAnimalSlider.Value;
+        s.SubjectGroupThresholds[nameof(SubjectTag.Vehicle)]      = (byte)SubjectThresholdVehicleSlider.Value;
+        s.SubjectGroupThresholds[nameof(SubjectTag.Nature)]       = (byte)SubjectThresholdNatureSlider.Value;
+        s.SubjectGroupThresholds[nameof(SubjectTag.Architecture)] = (byte)SubjectThresholdArchitectureSlider.Value;
+        s.SubjectGroupThresholds[nameof(SubjectTag.Food)]         = (byte)SubjectThresholdFoodSlider.Value;
         s.DoubleClickZoom     = DoubleClickZoomSlider.Value;
         s.ScrollSpeedPercent  = (int)ScrollSpeedSlider.Value;
         s.ReverseFilmstripScroll = ReverseFilmstripScrollCheck.IsChecked == true;
@@ -468,7 +478,12 @@ public partial class SettingsWindow : Window
             case "ClosedEyeDetectionMode":   SetClosedEyeMode(d.ClosedEyeDetectionMode); break;
             // Classification — subjects
             case "SubjectClassificationMode": SetSubjectMode(d.SubjectClassificationMode); break;
-            case "SubjectTagThreshold":          SubjectTagThresholdSlider.Value = d.SubjectTagThreshold; break;
+            case "SubjectThresholdPerson":       SubjectThresholdPersonSlider.Value       = d.GetSubjectGroupThreshold(SubjectTag.Person); break;
+            case "SubjectThresholdAnimal":       SubjectThresholdAnimalSlider.Value       = d.GetSubjectGroupThreshold(SubjectTag.Animal); break;
+            case "SubjectThresholdVehicle":      SubjectThresholdVehicleSlider.Value      = d.GetSubjectGroupThreshold(SubjectTag.Vehicle); break;
+            case "SubjectThresholdNature":       SubjectThresholdNatureSlider.Value       = d.GetSubjectGroupThreshold(SubjectTag.Nature); break;
+            case "SubjectThresholdArchitecture": SubjectThresholdArchitectureSlider.Value = d.GetSubjectGroupThreshold(SubjectTag.Architecture); break;
+            case "SubjectThresholdFood":         SubjectThresholdFoodSlider.Value         = d.GetSubjectGroupThreshold(SubjectTag.Food); break;
             // Focus peaking
             case "FocusPeakingThreshold":    FocusPeakingStrictnessSlider.Value = d.FocusPeakingThreshold; break;
             // Video

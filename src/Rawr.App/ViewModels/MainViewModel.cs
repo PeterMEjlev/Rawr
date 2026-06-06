@@ -2803,6 +2803,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
+            // Edited DNGs ship an embedded preview that already reflects their
+            // Adobe Camera Raw edits; resolve that once (cached on the item) so the
+            // paths below keep it instead of overriding with a neutral raw render.
+            bool preferEmbedded = await ResolvePreferEmbeddedAsync(photo, ct);
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+
             // Already-resident bytes (set by an earlier prefetch) — skip the disk read.
             var cached = photo.PreviewJpeg ?? _cache?.LoadPreview(photo.FileName);
             if (cached != null)
@@ -2813,9 +2819,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 if (bs != null) SetBasePreview(bs, "EV (JPG small)");
                 _ = ComputeHistogramAsync(photo, ct);
                 if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
-                // RAW upgrades its own base via the decode; a JPEG instead upgrades
-                // the base from "small" to a full-resolution decode.
-                if (photo.IsRaw) _ = PreloadFullJpegAsync(photo, ct);
+                // RAW upgrades its own base via the decode; a JPEG (and an edited
+                // DNG, which we treat as its embedded JPEG) instead upgrades the
+                // base from "small" to a native-resolution decode.
+                if (photo.IsRaw && !preferEmbedded) _ = PreloadFullJpegAsync(photo, ct);
                 else _ = UpgradeJpegBaseToFullAsync(photo, ct);
                 StartRawDecode(photo);
                 return;
@@ -2828,6 +2835,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // the preview and we'd be left blank.
             if (photo.IsRaw && _libRaw != null && _cache != null
                 && !AppSettings.Current.UseEmbeddedJpegOnly
+                && !preferEmbedded
                 && CacheFor(photo).HasLinearRaw(photo.FileName))
             {
                 StartRawDecode(photo);
@@ -2866,9 +2874,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (fullBs != null) SetBasePreview(fullBs, "EV (JPG small)");
             _ = ComputeHistogramAsync(photo, ct);
             if (FocusPeakingEnabled) _ = ComputeFocusPeakingAsync(photo, ct);
-            // RAW upgrades its own base via the decode; a JPEG instead upgrades
-            // the base from "small" to a full-resolution decode.
-            if (photo.IsRaw) _ = PreloadFullJpegAsync(photo, ct);
+            // RAW upgrades its own base via the decode; a JPEG (and an edited DNG,
+            // which we treat as its embedded JPEG) instead upgrades the base from
+            // "small" to a native-resolution decode.
+            if (photo.IsRaw && !preferEmbedded) _ = PreloadFullJpegAsync(photo, ct);
             else _ = UpgradeJpegBaseToFullAsync(photo, ct);
             StartRawDecode(photo);
         }
@@ -2987,9 +2996,40 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return jpeg;
     }
 
+    /// <summary>
+    /// Resolves (and caches on the item) whether this RAW's embedded preview should
+    /// stay on screen rather than being replaced by a linear-RAW render. Currently
+    /// true only for DNGs that carry Adobe Camera Raw edits — their embedded preview
+    /// is the user's edited result, which our neutral raw render would discard.
+    /// Cheap and synchronous on every visit after the first (the result is memoised).
+    /// </summary>
+    private async Task<bool> ResolvePreferEmbeddedAsync(PhotoItem photo, CancellationToken ct)
+    {
+        if (photo.PrefersEmbeddedPreview is bool known) return known;
+        return await Task.Run(() => PrefersEmbeddedPreview(photo), ct);
+    }
+
+    // Synchronous core of the above, for background loops (prefetch / cache-all)
+    // that already run off the UI thread. Memoises onto the item; only DNGs pay
+    // the XMP read, and only on first touch.
+    private static bool PrefersEmbeddedPreview(PhotoItem photo)
+    {
+        if (photo.PrefersEmbeddedPreview is bool known) return known;
+        bool edited = photo.IsRaw && !photo.IsVideo && photo.Extension == ".DNG"
+                      && DngEditDetector.HasCameraRawEdits(photo.FilePath);
+        photo.PrefersEmbeddedPreview = edited;
+        return edited;
+    }
+
     private void StartRawDecode(PhotoItem photo)
     {
         if (!photo.IsRaw || photo.IsVideo) return;
+        if (photo.PrefersEmbeddedPreview == true)
+        {
+            // Edited DNG — keep its baked-in, already-edited embedded preview
+            // instead of overriding it with our neutral linear-RAW render.
+            return;
+        }
         if (AppSettings.Current.UseEmbeddedJpegOnly)
         {
             // RAW decode skipped by user setting — the JPG preview stays on screen.
@@ -3083,11 +3123,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
             var rotation = await Task.Run(() => ResolveJpegRotation(photo, jpeg), ct);
             var bs = await Task.Run(() => LoadBitmapFromJpeg(jpeg, decodePixelWidth: 0, rotationOverride: rotation), ct);
-            if (!ct.IsCancellationRequested && SelectedPhoto == photo)
-            {
-                if (bs != null) SetBasePreview(bs, "EV (JPG large)");
-                else PreviewImage = null;
-            }
+            // On decode failure keep whatever is already on screen (the fit-res
+            // preview) rather than nulling PreviewImage to black — the upgrade is
+            // best-effort and a soft zoom beats a blank one.
+            if (bs != null && !ct.IsCancellationRequested && SelectedPhoto == photo)
+                SetBasePreview(bs, "EV (JPG large)");
         }
         catch (OperationCanceledException) { /* selection moved on */ }
     }
@@ -3294,7 +3334,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task UpgradeJpegBaseToFullAsync(PhotoItem photo, CancellationToken ct)
     {
-        if (photo.IsRaw || photo.IsVideo) return;
+        // JPEGs always; RAWs only when we're keeping their embedded preview (edited
+        // DNGs) — a normal RAW upgrades via its linear-RAW decode instead.
+        if (photo.IsVideo) return;
+        if (photo.IsRaw && photo.PrefersEmbeddedPreview != true) return;
         try
         {
             // Brief settle so flicking through photos doesn't full-decode each one
@@ -3307,9 +3350,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (fullBytes == null || ct.IsCancellationRequested || SelectedPhoto != photo) return;
             photo.FullJpeg = fullBytes;
 
+            // A DNG's embedded full preview often lacks an EXIF orientation tag, so
+            // for raws (edited DNGs) resolve rotation the robust way the zoom path
+            // uses — it falls back to the source file's TIFF orientation. Plain
+            // JPEGs keep letting LoadBitmapFromJpeg read their own EXIF directly.
+            double? rotation = photo.IsRaw
+                ? await Task.Run(() => ResolveJpegRotation(photo, fullBytes), ct)
+                : null;
+            if (ct.IsCancellationRequested || SelectedPhoto != photo) return;
+
             // decodePixelWidth: 0 → decode at native resolution (no down-scale),
             // so fit-to-window is pixel-sharp on any display.
-            var fullBs = await Task.Run(() => LoadBitmapFromJpeg(fullBytes, decodePixelWidth: 0), ct);
+            var fullBs = await Task.Run(() => LoadBitmapFromJpeg(fullBytes, decodePixelWidth: 0, rotationOverride: rotation), ct);
             if (fullBs == null || ct.IsCancellationRequested || SelectedPhoto != photo) return;
 
             SetBasePreview(fullBs, "EV (JPG)");
@@ -3496,6 +3548,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void PrefetchLinearRaw(PhotoItem photo, CancellationToken ct)
     {
+        // Edited DNGs never display the raw render, so don't pay to decode/cache it.
+        if (PrefersEmbeddedPreview(photo)) return;
         if (_libRaw != null && photo.IsRaw && _cache != null
             && CacheFor(photo).LoadLinearRaw(photo.FileName, photo.FilePath) == null)
         {
@@ -3568,6 +3622,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     if (ct.IsCancellationRequested) return;
                     try
                     {
+                        // Edited DNGs display the embedded preview, never the raw
+                        // render — skip the (expensive) decode for them.
+                        if (PrefersEmbeddedPreview(photo)) return;
                         var photoCache = CacheFor(photo);
                         if (photoCache.LoadLinearRaw(photo.FileName, photo.FilePath) == null)
                         {
@@ -3944,7 +4001,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         IsClassifyingSubjects = true;
         SetBackgroundActivity("subjects", $"Classifying subjects 0/{todo.Count}");
 
-        float threshold = AppSettings.Current.SubjectTagThreshold / 100f;
+        // Resolve per-group thresholds once into a snapshot so the pass is stable
+        // (and thread-safe) even if the user opens Settings mid-run.
+        var settings = AppSettings.Current;
+        float defaultThreshold = settings.SubjectTagThreshold / 100f;
+        var groupThresholds = new Dictionary<SubjectTag, float>();
+        foreach (var g in SubjectTaxonomy.Groups)
+            groupThresholds[g.Group] = settings.GetSubjectGroupThreshold(g.Group) / 100f;
+        float GroupThresholdFor(SubjectTag tag) =>
+            groupThresholds.TryGetValue(tag, out var t) ? t : defaultThreshold;
+
         // Lower parallelism than face analysis — folder-open path is already
         // hot, and this is a courtesy background pass, not a button press.
         int parallelism = Math.Max(1, Math.Min(4, Environment.ProcessorCount / 2));
@@ -3967,7 +4033,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                                     ?? photoCache.LoadPreview(photo.FileName);
                         if (jpeg == null) return;
 
-                        var result = _subjectClassifier.Classify(jpeg, threshold);
+                        var result = _subjectClassifier.Classify(jpeg, GroupThresholdFor);
                         if (result == null) return;
 
                         Application.Current?.Dispatcher.Invoke(() =>

@@ -1829,7 +1829,8 @@ public partial class MainWindow : Window
         bool rerunFaces    = dlg.RequestRerunFaceAnalysis
                           || prev.ClosedEyeThreshold != AppSettings.Current.ClosedEyeThreshold;
         bool rerunSubjects = dlg.RequestRerunSubjectClassification
-                          || prev.SubjectTagThreshold != AppSettings.Current.SubjectTagThreshold;
+                          || SubjectTaxonomy.Groups.Any(g =>
+                                 prev.GetSubjectGroupThreshold(g.Group) != AppSettings.Current.GetSubjectGroupThreshold(g.Group));
         if (rerunFaces)    _ = vm.RerunFaceAnalysisAsync();
         if (rerunSubjects) _ = vm.RerunSubjectClassificationAsync();
     }

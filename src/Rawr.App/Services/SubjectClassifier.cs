@@ -16,9 +16,23 @@ namespace Rawr.App.Services;
 /// Architecture: we ship the image encoder only — the text-prompt embeddings
 /// for each category are precomputed offline and stored alongside the model in
 /// <c>subject_tags.json</c>. At inference time we compute the image embedding,
-/// L2-normalise it, and take the cosine similarity against every tag's
-/// (already L2-normalised) text embedding. Any tag whose similarity exceeds
-/// <see cref="AppSettings.SubjectTagThreshold"/> (scaled 0–1) gets applied.
+/// L2-normalise it, and score it against every tag's (already L2-normalised)
+/// text embedding.
+///
+/// Decision rule (not a flat per-tag threshold): raw CLIP cosine similarities
+/// aren't calibrated across categories — "a photo of a bird" sits closer to the
+/// image manifold than "a forest" for almost any outdoor shot, so a single
+/// absolute gate over-fires on some categories and under-fires on others. We
+/// instead take a temperature-scaled <b>softmax</b> over the top-level set
+/// (standalone categories + group roots) plus a generic <c>background</c> anchor
+/// that absorbs probability mass for none-of-the-above frames. A top-level
+/// category is applied when its softmax probability clears
+/// <see cref="AppSettings.SubjectTagThreshold"/> (scaled 0–1). Leaves are
+/// <b>parent-gated</b>: a group's leaves (Dog/Cat/…) are only considered once the
+/// group root itself passed, and then they compete in their own softmax so we
+/// never tag Dog+Cat+Bird on one frame. This is what stops Animal leaves from
+/// firing on a mountain (Nature wins the top-level softmax → Animal never opens
+/// its leaves) and Bird from firing on a gymnast (Person wins).
 ///
 /// Both files are optional. <see cref="IsAvailable"/> reports whether the
 /// pipeline is wired up; if not, <see cref="UnavailableReason"/> tells the
@@ -56,6 +70,24 @@ public sealed class SubjectClassifier : IDisposable
     // CLIP image-encoder input.
     private const int FallbackInputSize = 224;
 
+    // Softmax temperature (logit = cosine × scale). CLIP's trained logit scale
+    // is ~100, which is very peaky — great for single-label argmax but it
+    // collapses the threshold knob and kills legitimate secondary subjects. We
+    // run softer so the probabilities stay graded and a genuine second subject
+    // (person on a mountain) can still clear the threshold. Lower = softer /
+    // more multi-label; higher = sharper / more single-label.
+    private const float LogitScale = 50f;
+
+    // Within a group that already passed, the dominant leaf must hold at least
+    // this share of the group's leaf softmax (background included) to be tagged.
+    // Keeps borderline leaves off without losing the obvious ones.
+    private const float LeafProbThreshold = 0.30f;
+
+    // Special tag name in subject_tags.json whose embedding is the
+    // none-of-the-above anchor. Participates in every softmax but is never
+    // emitted as a SubjectTag.
+    private const string BackgroundTagName = "background";
+
     private readonly object _initLock = new();
     private InferenceSession? _session;
     private string? _inputName;
@@ -63,7 +95,8 @@ public sealed class SubjectClassifier : IDisposable
     private int _inputH = FallbackInputSize;
     private int _inputW = FallbackInputSize;
     private int _embedDim;
-    private TagEntry[] _tags = Array.Empty<TagEntry>();
+    private Dictionary<SubjectTag, float[]> _embeddings = new();
+    private float[]? _background;
     private volatile bool _initAttempted;
 
     public bool IsAvailable { get; private set; }
@@ -74,17 +107,56 @@ public sealed class SubjectClassifier : IDisposable
 
     /// <summary>
     /// Classify a JPEG (typically the cached thumbnail or preview) and return
-    /// the set of tags whose similarity score met <paramref name="threshold"/>.
-    /// Returns null if the classifier isn't available or the JPEG can't be
-    /// decoded. Returning <see cref="SubjectTag.None"/> means classification
-    /// ran successfully and nothing scored high enough — distinct from a null
-    /// "not classified yet" result that the persistence layer leans on.
+    /// the set of tags that cleared their threshold. <paramref name="groupThresholdFor"/>
+    /// resolves the softmax-probability gate for each top-level group, so the
+    /// caller can apply per-group sensitivity (a group the model struggles with
+    /// can demand more certainty than the rest). Returns null if the classifier
+    /// isn't available or the JPEG can't be decoded. Returning
+    /// <see cref="SubjectTag.None"/> means classification ran successfully and
+    /// nothing scored high enough — distinct from a null "not classified yet"
+    /// result that the persistence layer leans on.
     /// </summary>
-    public SubjectTag? Classify(byte[] jpeg, float threshold)
+    public SubjectTag? Classify(byte[] jpeg, Func<SubjectTag, float> groupThresholdFor)
     {
         EnsureInitialized();
         if (!IsAvailable) return null;
 
+        var imageEmbed = ComputeImageEmbedding(jpeg);
+        if (imageEmbed == null) return null;
+
+        // Top-level decision: softmax over standalone categories + group roots
+        // (plus the background anchor), so categories compete instead of each
+        // racing a fixed cosine floor. See the class header for why this beats
+        // independent thresholding.
+        var topProbs = SoftmaxOver(SubjectTaxonomy.Groups.Select(g => g.Group), imageEmbed);
+
+        SubjectTag result = SubjectTag.None;
+        foreach (var g in SubjectTaxonomy.Groups)
+        {
+            if (!topProbs.TryGetValue(g.Group, out float p) || p < groupThresholdFor(g.Group)) continue;
+            result |= g.Group;
+            if (g.Leaves.Count == 0) continue;
+
+            // Parent gate passed — let this group's leaves compete among
+            // themselves (background included) and emit only the dominant one(s).
+            var leafProbs = SoftmaxOver(g.Leaves, imageEmbed);
+            foreach (var leaf in g.Leaves)
+                if (leafProbs.TryGetValue(leaf, out float lp) && lp >= LeafProbThreshold)
+                    result |= leaf;
+        }
+
+        // Defensive: leaves only fire behind a passed parent, so the group bit is
+        // already set, but keep the invariant explicit (group ⊇ its leaves).
+        return SubjectTaxonomy.ApplyGroupRollup(result);
+    }
+
+    /// <summary>
+    /// Decode, preprocess and run the image encoder, returning the
+    /// L2-normalised image embedding (or null if the JPEG can't be decoded /
+    /// the model output is shorter than the embedding dim).
+    /// </summary>
+    private float[]? ComputeImageEmbedding(byte[] jpeg)
+    {
         var rgb = DecodeJpegToRgb(jpeg, out int srcW, out int srcH);
         if (rgb == null) return null;
 
@@ -103,21 +175,46 @@ public sealed class SubjectClassifier : IDisposable
         // CLIP image encoders sometimes emit a sequence ([1, N, D]) and
         // sometimes the pooled vector ([1, D]). Take the last D values either
         // way — that's the CLS / projection-head output we want.
-        if (embedding.Length < _embedDim) return SubjectTag.None;
+        if (embedding.Length < _embedDim) return null;
         var imageEmbed = new float[_embedDim];
         Array.Copy(embedding, embedding.Length - _embedDim, imageEmbed, 0, _embedDim);
         L2Normalize(imageEmbed);
+        return imageEmbed;
+    }
 
-        SubjectTag result = SubjectTag.None;
-        foreach (var tag in _tags)
+    /// <summary>
+    /// Temperature-scaled softmax of the image against the given category set,
+    /// with the <c>background</c> anchor added to the denominator (when present)
+    /// so probabilities reflect "this category vs. everything else, incl. none".
+    /// Categories without a loaded embedding are silently omitted; the returned
+    /// dictionary never contains the background entry.
+    /// </summary>
+    private Dictionary<SubjectTag, float> SoftmaxOver(IEnumerable<SubjectTag> flags, float[] imageEmbed)
+    {
+        var logits = new List<(SubjectTag Flag, float Logit)>();
+        float max = float.NegativeInfinity;
+        foreach (var f in flags)
         {
-            float score = Dot(imageEmbed, tag.Embedding);
-            if (score >= threshold) result |= tag.Flag;
+            if (!_embeddings.TryGetValue(f, out var e)) continue;
+            float logit = Dot(imageEmbed, e) * LogitScale;
+            logits.Add((f, logit));
+            if (logit > max) max = logit;
         }
-        // Hybrid grouping: a leaf hit (e.g. Dog) implies its group (Animal) even
-        // when the group's own embedding didn't clear the threshold, so a group
-        // bit is always a superset of its leaves.
-        return SubjectTaxonomy.ApplyGroupRollup(result);
+
+        float bgLogit = _background != null ? Dot(imageEmbed, _background) * LogitScale : float.NegativeInfinity;
+        if (_background != null && bgLogit > max) max = bgLogit;
+
+        var result = new Dictionary<SubjectTag, float>(logits.Count);
+        if (logits.Count == 0) return result;
+
+        double denom = 0;
+        foreach (var (_, logit) in logits) denom += Math.Exp(logit - max);
+        if (_background != null) denom += Math.Exp(bgLogit - max);
+        if (denom <= 0) return result;
+
+        foreach (var (flag, logit) in logits)
+            result[flag] = (float)(Math.Exp(logit - max) / denom);
+        return result;
     }
 
     // ── Initialisation ──
@@ -179,23 +276,31 @@ public sealed class SubjectClassifier : IDisposable
                     return;
                 }
 
-                var entries = new List<TagEntry>(parsed.Tags.Count);
+                var embeddings = new Dictionary<SubjectTag, float[]>(parsed.Tags.Count);
+                float[]? background = null;
                 foreach (var t in parsed.Tags)
                 {
                     if (string.IsNullOrEmpty(t.Name)) continue;
                     if (t.Embedding == null || t.Embedding.Length != _embedDim) continue;
-                    if (!TryMapFlag(t.Name, out var flag)) continue;
                     var copy = (float[])t.Embedding.Clone();
                     L2Normalize(copy);
-                    entries.Add(new TagEntry(flag, copy));
+
+                    if (string.Equals(t.Name, BackgroundTagName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        background = copy;
+                        continue;
+                    }
+                    if (!TryMapFlag(t.Name, out var flag)) continue;
+                    embeddings[flag] = copy;
                 }
-                if (entries.Count == 0)
+                if (embeddings.Count == 0)
                 {
                     UnavailableReason = $"{TagsFile}: no usable tag entries (names must match SubjectTag values).";
                     _session.Dispose(); _session = null;
                     return;
                 }
-                _tags = entries.ToArray();
+                _embeddings = embeddings;
+                _background = background;
 
                 IsAvailable = true;
             }
@@ -334,8 +439,6 @@ public sealed class SubjectClassifier : IDisposable
     }
 
     // ── JSON schema for subject_tags.json ──
-
-    private readonly record struct TagEntry(SubjectTag Flag, float[] Embedding);
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {

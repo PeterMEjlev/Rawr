@@ -126,6 +126,13 @@ public sealed partial class PhotoItem : ObservableObject
     // user navigates far enough away. Not observable — never bound to UI.
     public byte[]? FullJpeg { get; set; }
 
+    // Lazily resolved by the VM on first preview: true when this is a DNG whose
+    // embedded XMP carries Adobe Camera Raw edits. Such DNGs ship an already-
+    // edited embedded preview, so RAWR keeps it instead of overriding it with a
+    // neutral linear-RAW render (which would discard the edits on screen).
+    // null = not yet determined. Transient — recomputed per session.
+    public bool? PrefersEmbeddedPreview { get; set; }
+
     // EXIF orientation resolved to a degrees-clockwise rotation. The full-resolution
     // embedded JPEG often lacks the orientation tag (CR3 etc.) so we fall back to
     // the smaller default thumb and cache the answer here for the rest of the
