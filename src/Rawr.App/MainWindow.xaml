@@ -2130,6 +2130,7 @@
                                             </MenuItem>
                                             <Separator />
                                             <MenuItem Header="Delete…"
+                                                      InputGestureText="{Binding PlacementTarget.Tag.DeletePhotoShortcutDisplay, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                       Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         </ContextMenu>
                                     </StackPanel.ContextMenu>
@@ -2374,6 +2375,7 @@
                             </MenuItem>
                             <Separator />
                             <MenuItem Header="Delete…"
+                                      InputGestureText="{Binding PlacementTarget.Tag.DeletePhotoShortcutDisplay, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                       Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                         </ContextMenu>
                     </Border.ContextMenu>
@@ -2952,6 +2954,7 @@
                                     </MenuItem>
                                     <Separator />
                                     <MenuItem Header="Delete…"
+                                              InputGestureText="{Binding PlacementTarget.Tag.DeletePhotoShortcutDisplay, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                               Command="{Binding PlacementTarget.Tag.DeletePhotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                 </ContextMenu>
                             </Grid.ContextMenu>

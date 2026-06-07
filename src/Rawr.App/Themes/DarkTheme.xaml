@@ -520,23 +520,47 @@
         </Setter>
     </Style>
 
-    <!-- ContextMenu -->
+    <!-- ContextMenu — VS Code style: rounded card, soft drop shadow, Segoe UI 13.
+         The 5px border Margin gives the DropShadowEffect room to render (the popup
+         clips to the border's bounds, so without the margin the blur is cut off). -->
     <Style TargetType="{x:Type ContextMenu}">
         <Setter Property="Background" Value="{StaticResource BgControlBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="0,4" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="HasDropShadow" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ContextMenu}">
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="4"
+                            CornerRadius="6"
+                            Margin="5"
                             Padding="{TemplateBinding Padding}">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="10" ShadowDepth="2"
+                                              Direction="315" Opacity="0.45" Color="#FF000000" />
+                        </Border.Effect>
                         <ItemsPresenter />
                     </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Menu separator — subtle divider matching VS Code's grouped menus. Keyed off
+         MenuItem.SeparatorStyleKey so it only affects separators inside menus, not the
+         standalone Separators used in side-panel layouts. -->
+    <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="{x:Type Separator}">
+        <Setter Property="Margin" Value="8,4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Separator}">
+                    <Border Height="1" Background="#22FFFFFF" />
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -866,21 +890,26 @@
         </Setter>
     </Style>
 
-    <!-- MenuItem -->
+    <!-- MenuItem — VS Code-style rows: a check gutter, the label, a dimmed
+         right-aligned input-gesture (keyboard shortcut), then a submenu chevron at
+         the far right. The selected row is an inset rounded accent bar. -->
     <Style TargetType="{x:Type MenuItem}">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="Padding" Value="8,6" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type MenuItem}">
                     <Border x:Name="Bd"
                             Background="{TemplateBinding Background}"
+                            CornerRadius="4"
+                            Margin="3,0"
                             Padding="{TemplateBinding Padding}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="18" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <!-- Checkmark column -->
@@ -895,15 +924,23 @@
                                               ContentSource="Header"
                                               VerticalAlignment="Center"
                                               RecognizesAccessKey="True" />
+                            <!-- Input gesture (keyboard shortcut): dimmed, pushed to the
+                                 right by the star-sized header column. -->
+                            <TextBlock x:Name="GestureText"
+                                       Grid.Column="2"
+                                       Text="{TemplateBinding InputGestureText}"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       Margin="24,0,0,0"
+                                       VerticalAlignment="Center" />
                             <!-- Submenu arrow -->
                             <TextBlock x:Name="Arrow"
-                                       Grid.Column="2"
-                                       Text="▶"
-                                       FontSize="8"
+                                       Grid.Column="3"
+                                       Text="❯"
+                                       FontSize="10"
                                        Foreground="{StaticResource TextDimBrush}"
                                        Visibility="Collapsed"
                                        VerticalAlignment="Center"
-                                       Margin="8,0,0,0" />
+                                       Margin="12,0,0,0" />
                             <!-- Submenu popup -->
                             <Popup x:Name="PART_Popup"
                                    Grid.Column="1"
@@ -914,16 +951,30 @@
                                 <Border Background="{StaticResource BgControlBrush}"
                                         BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="1"
-                                        CornerRadius="4"
+                                        CornerRadius="6"
+                                        Margin="5"
                                         Padding="0,4">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="10" ShadowDepth="2"
+                                                          Direction="315" Opacity="0.45" Color="#FF000000" />
+                                    </Border.Effect>
                                     <ItemsPresenter />
                                 </Border>
                             </Popup>
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <!-- Collapse the gesture cell when there's no shortcut, otherwise its
+                             left Margin would reserve dead space on the right of every item. -->
+                        <Trigger Property="InputGestureText" Value="">
+                            <Setter TargetName="GestureText" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="GestureText" Property="Foreground" Value="#CCFFFFFF" />
+                            <Setter TargetName="Arrow" Property="Foreground" Value="{StaticResource TextBrush}" />
+                            <!-- Keep the checkmark visible against the accent-blue selection. -->
+                            <Setter TargetName="Check" Property="Foreground" Value="{StaticResource TextBrush}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Check" Property="Visibility" Value="Visible" />
@@ -942,7 +993,8 @@
                                 <Condition Property="Role" Value="SubmenuHeader" />
                                 <Condition Property="IsSubmenuOpen" Value="True" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Arrow" Property="Foreground" Value="{StaticResource TextBrush}" />
                         </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

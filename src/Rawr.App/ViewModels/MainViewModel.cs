@@ -2317,7 +2317,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(GridExpandedToggleTooltip));
         OnPropertyChanged(nameof(FullGridToggleTooltip));
+        OnPropertyChanged(nameof(DeletePhotoShortcutDisplay));
     }
+
+    // Shown to the right of the photo "Delete…" context-menu item. Empty (not
+    // "unbound") when the action has no binding so the menu shows nothing.
+    public string DeletePhotoShortcutDisplay => ShortcutGesture("DeletePhoto");
 
     private static string ShortcutDisplay(string actionId)
     {
@@ -2326,6 +2331,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var (spec, unbound) = ShortcutBinder.ResolveBinding(AppSettings.Current, action);
         return unbound || spec == null ? "unbound" : spec.FormatForDisplay();
+    }
+
+    private static string ShortcutGesture(string actionId)
+    {
+        var action = ShortcutRegistry.All.FirstOrDefault(a => a.Id == actionId);
+        if (action == null) return string.Empty;
+
+        var (spec, unbound) = ShortcutBinder.ResolveBinding(AppSettings.Current, action);
+        return unbound || spec == null ? string.Empty : spec.FormatForDisplay();
     }
 
     [RelayCommand]
