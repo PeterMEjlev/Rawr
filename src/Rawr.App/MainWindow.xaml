@@ -2090,6 +2090,28 @@
                                     </Style>
                                 </ToggleButton.Style>
                             </ToggleButton>
+                            <!-- Date segmentation toggle: groups the grid into
+                                 calendar-day sections. Sticky global preference;
+                                 only changes the view when sorted by capture date. -->
+                            <ToggleButton DockPanel.Dock="Right"
+                                          IsChecked="{Binding ShowDateHeaders}"
+                                          Margin="6,0,0,0"
+                                          Padding="6,1"
+                                          FontSize="12"
+                                          MinWidth="0"
+                                          Content="&#x1F5D3;"
+                                          ToolTip="Group the grid into date sections (applies when sorted by capture date)">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+                                        <Style.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
                             <TextBlock Text="+"
                                        Foreground="{StaticResource TextDimBrush}"
                                        FontSize="12"

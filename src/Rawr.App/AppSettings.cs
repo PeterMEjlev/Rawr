@@ -67,6 +67,12 @@ public sealed class AppSettings
 
     public string DateFormat { get; set; } = "dd-MM-yyyy  HH:mm:ss";
     public bool CollapseBurstsOnOpen { get; set; } = true;
+
+    // Grid view: insert date-separator rows at calendar-day boundaries when
+    // sorted by capture date. Toggled from the grid-panel header (deliberately
+    // not surfaced in the Settings dialog); sticky global preference so it
+    // survives folder switches and restarts.
+    public bool ShowGridDateHeaders { get; set; } = true;
     public SortField DefaultSortField { get; set; } = SortField.FileName;
 
     // Sticky global preference for the toolbar "this folder / + subfolders"
@@ -266,6 +272,7 @@ public sealed class AppSettings
         PanoramaDirectionToleranceDeg = PanoramaDirectionToleranceDeg,
         DateFormat = DateFormat,
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,
+        ShowGridDateHeaders = ShowGridDateHeaders,
         DefaultSortField = DefaultSortField,
         IncludeSubfolders = IncludeSubfolders,
         QuickFilterOrder = new List<string>(QuickFilterOrder),

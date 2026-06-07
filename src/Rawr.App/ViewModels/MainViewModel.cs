@@ -838,6 +838,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSortFieldChanged(SortField value) => ApplyFilter();
     partial void OnSortDescendingChanged(bool value) => ApplyFilter();
 
+    // Grid date segmentation, toggled from the grid-panel header. Sticky global
+    // preference; only has a visible effect when sorted by capture date (see
+    // RebuildGridItems). Initial value comes from settings loaded before the VM
+    // is constructed.
+    [ObservableProperty]
+    private bool _showDateHeaders = AppSettings.Current.ShowGridDateHeaders;
+
+    partial void OnShowDateHeadersChanged(bool value)
+    {
+        AppSettings.Current.ShowGridDateHeaders = value;
+        AppSettings.Current.Save();
+        RebuildGridItems(FilteredPhotos);
+    }
+
     public ObservableRangeCollection<PhotoItem> AllPhotos { get; } = [];
     public ObservableRangeCollection<PhotoItem> FilteredPhotos { get; } = [];
 
@@ -6460,7 +6474,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void RebuildGridItems(IReadOnlyList<PhotoItem> filtered)
     {
         var items = new List<object>(filtered.Count + 16);
-        if (SortField != SortField.CaptureDate || filtered.Count == 0)
+        if (!ShowDateHeaders || SortField != SortField.CaptureDate || filtered.Count == 0)
         {
             items.AddRange(filtered);
             GridItems.ReplaceRange(items);
