@@ -42,8 +42,34 @@ public sealed partial class SubjectGroupVm : ObservableObject
     public bool HasLeaves => Leaves.Count > 0;
 
     [ObservableProperty] private int _count;
-    [ObservableProperty] private bool _isActive;
-    [ObservableProperty] private bool _isExpanded;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowActiveCue))]
+    private bool _isActive;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowActiveCue))]
+    private bool _isExpanded;
+
+    // The group chip reads as "active" when its own tag is filtered, or — while
+    // collapsed, so the leaf chips are hidden — when one of its leaves carries
+    // the active filter. Without this, collapsing a group that holds the active
+    // subject (e.g. Mountain under Nature) would hide the only blue cue.
+    public bool ShowActiveCue => IsActive || (!IsExpanded && AnyLeafActive);
+
+    private bool AnyLeafActive
+    {
+        get
+        {
+            foreach (var leaf in Leaves)
+                if (leaf.IsActive) return true;
+            return false;
+        }
+    }
+
+    // Leaves are separate objects, so RefreshSubjectChips calls this after
+    // updating their IsActive to recompute the rolled-up cue.
+    public void RefreshActiveCue() => OnPropertyChanged(nameof(ShowActiveCue));
 
     public SubjectGroupVm(SubjectTag tag, string glyph, string label, IEnumerable<SubjectChipVm> leaves)
     {

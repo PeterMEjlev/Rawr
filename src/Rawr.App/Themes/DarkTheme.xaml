@@ -1200,6 +1200,21 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
                         </Trigger>
+                        <!-- Active cue: the section is collapsed while it holds an
+                             active filter, signalled per-instance via Tag (bound to
+                             the relevant Is…SectionActive flag). Placed after the
+                             hover trigger so the accent wins even while the mouse is
+                             over the header — an active section is more important to
+                             show than hover feedback. -->
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsChecked, RelativeSource={RelativeSource Self}}" Value="False" />
+                                <Condition Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Bd" Property="TextElement.Foreground" Value="White" />
+                            <Setter TargetName="Chevron" Property="Foreground" Value="White" />
+                        </MultiDataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

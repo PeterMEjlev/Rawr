@@ -1570,7 +1570,9 @@
 
                         <!-- Rated subsection -->
                         <StackPanel Tag="Rated">
-                        <ToggleButton x:Name="RatedToggle" Content="Rated" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <ToggleButton x:Name="RatedToggle" Content="Rated"
+                                      Style="{StaticResource SidebarSubsectionToggle}"
+                                      Tag="{Binding IsRatingSectionActive}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=RatedToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1656,7 +1658,9 @@
 
                         <!-- Flagged subsection -->
                         <StackPanel Tag="Flagged">
-                        <ToggleButton x:Name="FlaggedToggle" Content="Flagged" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <ToggleButton x:Name="FlaggedToggle" Content="Flagged"
+                                      Style="{StaticResource SidebarSubsectionToggle}"
+                                      Tag="{Binding IsFlagSectionActive}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=FlaggedToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1728,7 +1732,9 @@
                              left = lower rail) so they read as "pixels pushed past the edge"
                              rather than being mistaken for color labels. -->
                         <StackPanel Tag="Exposure">
-                        <ToggleButton x:Name="ExposureToggle" Content="Exposure" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <ToggleButton x:Name="ExposureToggle" Content="Exposure"
+                                      Style="{StaticResource SidebarSubsectionToggle}"
+                                      Tag="{Binding IsExposureSectionActive}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=ExposureToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1786,7 +1792,12 @@
                              clears the filter. Unclassified photos stay out of
                              both sides of the include/exclude split. -->
                         <StackPanel Tag="Subjects">
-                        <ToggleButton x:Name="SubjectsToggle" Content="Subjects" Style="{StaticResource SidebarSubsectionToggle}" IsChecked="True" />
+                        <!-- Tag carries the section-active flag; the base style's
+                             template rolls the blue cue onto the header when the
+                             section is collapsed while a subject filter is active. -->
+                        <ToggleButton x:Name="SubjectsToggle" Content="Subjects" IsChecked="True"
+                                      Style="{StaticResource SidebarSubsectionToggle}"
+                                      Tag="{Binding IsSubjectFilterActive}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=SubjectsToggle, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel.Resources>
@@ -1835,7 +1846,7 @@
                                                         Style="{StaticResource SidebarBucketStyle}"
                                                         Command="{Binding DataContext.SetSidebarSubjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding Tag}"
-                                                        IsActive="{Binding IsActive}"
+                                                        IsActive="{Binding ShowActiveCue}"
                                                         ToolTip="Filter to photos the classifier tagged in this category">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -1884,7 +1895,9 @@
                              haven't been analysed yet don't appear in either side
                              of the chip's include/exclude split. -->
                         <StackPanel Tag="Faces">
-                        <ToggleButton x:Name="FacesToggle" Content="Faces" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <ToggleButton x:Name="FacesToggle" Content="Faces"
+                                      Style="{StaticResource SidebarSubsectionToggle}"
+                                      Tag="{Binding IsFaceSectionActive}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=FacesToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1912,7 +1925,9 @@
 
                         <!-- Labelled subsection — least frequently used, parked at the bottom. -->
                         <StackPanel Tag="Labelled">
-                        <ToggleButton x:Name="LabelledToggle" Content="Labelled" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <ToggleButton x:Name="LabelledToggle" Content="Labelled"
+                                      Style="{StaticResource SidebarSubsectionToggle}"
+                                      Tag="{Binding IsLabelSectionActive}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=LabelledToggle, Converter={StaticResource BoolToVisibility}}">
                             <controls:SidebarBucketButton Style="{StaticResource SidebarBucketStyle}"
@@ -1990,7 +2005,9 @@
 
                         <!-- ── TAGS subsection ── -->
                         <StackPanel Tag="Tags">
-                        <ToggleButton x:Name="TagsToggle" Content="Tags" Style="{StaticResource SidebarSubsectionToggle}" />
+                        <ToggleButton x:Name="TagsToggle" Content="Tags"
+                                      Style="{StaticResource SidebarSubsectionToggle}"
+                                      Tag="{Binding IsTagSectionActive}" />
                         <ItemsControl x:Name="SidebarTagsList" ItemsSource="{Binding Tags}" Margin="6,0,6,4"
                                       Visibility="{Binding IsChecked, ElementName=TagsToggle, Converter={StaticResource BoolToVisibility}}">
                             <ItemsControl.ItemTemplate>

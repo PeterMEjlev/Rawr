@@ -7119,6 +7119,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsFaceClosedEyesActive => FaceFilter == FaceFilterMode.ClosedEyes;
 
+    // ── Section-level "any active filter here" flags ──
+    // Roll the active (blue) cue up onto a sidebar section header when that
+    // section is collapsed, so the bucket carrying the filter is hidden but the
+    // user can still see the section is filtering. Refreshed alongside the
+    // per-bucket actives in RefreshFilterBuckets. Rating uses the mode rather
+    // than the per-star buckets so a non-Exact filter set via the Filter popup
+    // (e.g. "≥ 3") also lights the collapsed header.
+    public bool IsRatingSectionActive   => RatingFilterMode != RatingFilterMode.Any;
+    public bool IsFlagSectionActive     => IsFlagPickActive || IsFlagRejectActive || IsFlagUnflaggedActive;
+    public bool IsExposureSectionActive => ExposureFilter != ExposureFilterMode.Any;
+    public bool IsFaceSectionActive     => FaceFilter != FaceFilterMode.Any;
+    public bool IsLabelSectionActive    => IsLabelRedActive || IsLabelYellowActive || IsLabelGreenActive || IsLabelBlueActive || IsLabelPurpleActive;
+    public bool IsTagSectionActive      => TagFilterActiveIds.Count > 0;
+
     // Sidebar Subjects subsection. Each chip (group or leaf) toggles a single
     // tag in the multi-select set; clicking another tag adds to the union rather
     // than replacing. Counts are over classified photos only — null SubjectTags
@@ -7144,6 +7158,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 leaf.Count = CountSubject(leaf.Tag);
                 leaf.IsActive = _subjectFilters.Contains(leaf.Tag);
             }
+            // Roll any active leaf up to the (possibly collapsed) group chip.
+            g.RefreshActiveCue();
         }
     }
 
@@ -7383,6 +7399,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsExposureClippedHighlightsActive));
         OnPropertyChanged(nameof(IsExposureCrushedShadowsActive));
         OnPropertyChanged(nameof(IsFaceClosedEyesActive));
+
+        OnPropertyChanged(nameof(IsRatingSectionActive));
+        OnPropertyChanged(nameof(IsFlagSectionActive));
+        OnPropertyChanged(nameof(IsExposureSectionActive));
+        OnPropertyChanged(nameof(IsFaceSectionActive));
+        OnPropertyChanged(nameof(IsLabelSectionActive));
+        OnPropertyChanged(nameof(IsTagSectionActive));
         RefreshSubjectChips();
 
         // Tag counts are stored on the PhotoTag itself so each row can bind directly.
