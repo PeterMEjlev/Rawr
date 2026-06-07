@@ -1941,9 +1941,12 @@
                                             Command="{Binding DataContext.SetSidebarTagCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}">
                                         <controls:SidebarBucketButton.IsActive>
-                                            <MultiBinding Converter="{StaticResource Equality}">
-                                                <Binding Path="DataContext.TagFilter" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
-                                                <Binding />
+                                            <!-- SetContains, not Equality: shift-click adds extras to
+                                                 TagFilterActiveIds, so every selected tag must light up,
+                                                 not just the TagFilter anchor. -->
+                                            <MultiBinding Converter="{StaticResource SetContains}">
+                                                <Binding Path="DataContext.TagFilterActiveIds" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                <Binding Path="Id" />
                                             </MultiBinding>
                                         </controls:SidebarBucketButton.IsActive>
                                         <controls:SidebarBucketButton.Content>

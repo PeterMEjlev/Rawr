@@ -40,7 +40,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private CullingDatabase? _db;
     private XmpSidecarWriter? _xmpWriter;
 
-    // ── Recursive view (Phase 1) ──
+    // ── Recursive view ──
     // Per-subfolder DB + cache contexts. In single-folder mode this contains
     // exactly one entry (CurrentFolder); in recursive mode one per subfolder that
     // contributed at least one photo. Keyed by full folder path, case-insensitive
@@ -62,6 +62,66 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var folder = OwningFolderOf(photo);
         return _contexts.TryGetValue(folder, out var ctx) ? ctx.Cache : _cache!;
+    }
+
+    // ── Recursive view (Phase 2): tag-id translation ──
+    // In recursive view, photo.TagIds and the Tags collection use *synthetic
+    // display IDs* (deduped by tag name across subfolders). Each subfolder DB has
+    // its own local tag IDs. This map (folder → tag-name → local id) round-trips a
+    // display tag back to the right subfolder row when editing. Populated by
+    // LoadFolderCatalogRecursive and mutated as tags are created / renamed /
+    // deleted. Unused in single-folder mode (display id == local id).
+    private readonly Dictionary<string, Dictionary<string, int>> _localTagIdsByFolder =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Next synthetic display ID to mint for a tag created while in recursive view
+    // (CreateTag, macros, XMP keywords). Seeded just past the highest display ID
+    // the recursive catalog load produced.
+    private int _nextDisplayTagId = 1;
+
+    /// <summary>
+    /// Recursive view: translate a merged display tag to the local DB tag id in
+    /// <paramref name="folder"/>. When <paramref name="create"/> is true the tag
+    /// row is created in that subfolder's DB if it has never seen the name — the
+    /// lazy propagation that lets a tag exist only in the subfolders it's actually
+    /// used in. Returns -1 if the folder has no context, or when <paramref
+    /// name="create"/> is false and the subfolder doesn't have the tag.
+    /// </summary>
+    private int ResolveLocalTagId(string folder, PhotoTag displayTag, bool create)
+    {
+        if (!_contexts.TryGetValue(folder, out var ctx)) return -1;
+        if (!_localTagIdsByFolder.TryGetValue(folder, out var map))
+            _localTagIdsByFolder[folder] = map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (map.TryGetValue(displayTag.Name, out var localId))
+            return localId;
+        if (!create) return -1;
+        // The subfolder's DB has never had this tag — mint it now, preserving the
+        // system/colour metadata carried on the merged display tag.
+        var created = displayTag.IsSystem
+            ? (ctx.Db.FindSystemGroup(displayTag.Name)
+               ?? ctx.Db.CreateGroup(displayTag.Name, isSystem: true, color: displayTag.Color))
+            : ctx.Db.CreateGroup(displayTag.Name, isSystem: false, color: displayTag.Color);
+        map[displayTag.Name] = created.Id;
+        return created.Id;
+    }
+
+    /// <summary>
+    /// Write a tag assignment to the photo's owning DB, translating the display
+    /// tag to that folder's local id in recursive view. In-memory TagIds are the
+    /// caller's responsibility — this only touches the DB.
+    /// </summary>
+    private void DbAssignTag(PhotoItem photo, PhotoTag tag)
+    {
+        int localId = IsRecursiveView ? ResolveLocalTagId(OwningFolderOf(photo), tag, create: true) : tag.Id;
+        if (localId >= 0) DbFor(photo).AssignGroup(photo.FileName, localId);
+    }
+
+    private void DbUnassignTag(PhotoItem photo, PhotoTag tag)
+    {
+        // create:false — if the subfolder never had the tag there's nothing to
+        // remove, and we must not litter it with an empty group row.
+        int localId = IsRecursiveView ? ResolveLocalTagId(OwningFolderOf(photo), tag, create: false) : tag.Id;
+        if (localId >= 0) DbFor(photo).UnassignGroup(photo.FileName, localId);
     }
 
     // Counts linear-RAW saves so the on-demand decode path can prune only every
@@ -214,18 +274,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     // Sticky global toolbar toggle: when true, every folder open shows photos
-    // from the whole subtree. The choice is persisted in AppSettings so it
-    // survives folder switches and app restarts. Tag *editing* is disabled
-    // while recursive (display still works) — Phase 2 will lift that.
+    // from the whole subtree (and tags/auto-tags are edited across every
+    // subfolder DB). The choice is persisted in AppSettings so it survives folder
+    // switches and app restarts.
     [ObservableProperty] private bool _isRecursiveView = AppSettings.Current.IncludeSubfolders;
     // True iff the currently open folder has subfolders that contain media,
     // i.e. the toggle is meaningful. Drives the enabled/disabled state of the
     // toolbar button (it stays visible either way).
     [ObservableProperty] private bool _hasSubfolderMedia;
-    public bool IsTagEditingEnabled => !IsRecursiveView;
     partial void OnIsRecursiveViewChanged(bool value)
     {
-        OnPropertyChanged(nameof(IsTagEditingEnabled));
         // Skip persistence + reload when LoadFolderAsync itself adjusted the
         // flag (e.g. forcing off because the new folder has no subfolders) —
         // the persisted preference should reflect the user's intent, not the
@@ -1172,7 +1230,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         List<PhotoItem> Photos,
         List<PhotoTag> MergedTags,
         Dictionary<string, Dictionary<string, PhotoState>> SavedStateByFolder,
-        Dictionary<string, DateTime> DbMtimeByFolder);
+        Dictionary<string, DateTime> DbMtimeByFolder,
+        Dictionary<string, Dictionary<string, int>> LocalTagIdsByFolder,
+        int NextDisplayId);
 
     /// <summary>
     /// Open a single folder's CullingDatabase + PreviewCache and load the saved
@@ -1295,6 +1355,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Per-folder map of local tag ID → tag name. Combined with the global
         // name → display ID map this lets us translate local→display in one step.
         var localTagNamesByFolder = new Dictionary<string, Dictionary<int, string>>(StringComparer.OrdinalIgnoreCase);
+        // Per-folder map of tag name → local tag ID — the reverse direction, used
+        // when *editing* in recursive view (display tag → owning subfolder row).
+        var localTagIdsByFolder = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
 
         // Merge tags by name. The first occurrence (top folder if present, then
         // subfolders in scan order) wins for IsSystem/Color, with system tags
@@ -1337,9 +1400,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 dbMtimeByFolder[folder] = dbMtime;
 
                 var localNames = new Dictionary<int, string>();
+                var localIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 foreach (var t in tags)
                 {
                     localNames[t.Id] = t.Name;
+                    // First row of a given name wins the translation slot. A
+                    // same-name system+user collision within one folder is
+                    // pathological (LoadGroups returns id order, system tags are
+                    // created once via FindSystemGroup) so first-wins is safe.
+                    if (!localIds.ContainsKey(t.Name)) localIds[t.Name] = t.Id;
                     if (!mergedByName.TryGetValue(t.Name, out var existing))
                     {
                         // Keep the original ID if it doesn't clash with the running
@@ -1368,6 +1437,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     }
                 }
                 localTagNamesByFolder[folder] = localNames;
+                localTagIdsByFolder[folder] = localIds;
             }
 
             // Build photos in original (file-sorted) order so the UI's filmstrip
@@ -1401,7 +1471,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 photos.Add(photo);
             }
 
-            var result = new FolderCatalogMulti(contexts, photos, mergedTags, savedStateByFolder, dbMtimeByFolder);
+            var result = new FolderCatalogMulti(contexts, photos, mergedTags, savedStateByFolder,
+                                                dbMtimeByFolder, localTagIdsByFolder, nextDisplayId);
             contexts = null!; // ownership transferred
             return result;
         }
@@ -1563,6 +1634,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             dbMtime = multi.DbMtimeByFolder.TryGetValue(folderPath, out var mt) ? mt : DateTime.MinValue;
             savedStateByFolder = multi.SavedStateByFolder;
             dbMtimeByFolder = multi.DbMtimeByFolder;
+            // Tag-editing translation state for this recursive session.
+            _localTagIdsByFolder.Clear();
+            foreach (var kv in multi.LocalTagIdsByFolder)
+                _localTagIdsByFolder[kv.Key] = kv.Value;
+            _nextDisplayTagId = multi.NextDisplayId;
         }
         else
         {
@@ -1575,6 +1651,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _db = catalog.Database;
             _cache = catalog.Cache;
             _contexts[folderPath] = new FolderContext(folderPath, _db, _cache);
+            // Single-folder mode uses real DB ids directly — no translation map.
+            _localTagIdsByFolder.Clear();
             catalogPhotos = catalog.Photos;
             catalogTags = catalog.Tags;
             savedState = catalog.SavedState;
@@ -1944,47 +2022,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // subfolder boundaries — run the detector per owning folder so each subset
         // gets its own GroupId space. HDR/Panorama auto-tagging stays scoped per
         // subfolder too (the system tag lives in that subfolder's DB).
-        await Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            var (loose, strict) = BurstDetector.ThresholdsFromStrictness(AppSettings.Current.BurstSimilarityStrictness);
-            if (IsRecursiveView)
-            {
-                int totalBursts = 0;
-                int idOffset = 0;
-                foreach (var grp in AllPhotos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
-                {
-                    var subset = grp.ToList();
-                    int found = BurstDetector.Detect(subset,
-                        TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
-                        looseHammingThreshold: loose,
-                        strictHammingThreshold: strict);
-                    // Offset GroupId so subsets don't collide with each other.
-                    int maxId = 0;
-                    foreach (var p in subset)
-                    {
-                        if (p.GroupId > 0)
-                        {
-                            p.GroupId += idOffset;
-                            if (p.GroupId > maxId) maxId = p.GroupId;
-                        }
-                    }
-                    idOffset = maxId;
-                    totalBursts += found;
-                }
-                BurstCount = totalBursts;
-                ApplyHdrDetectionPerFolder();
-                ApplyPanoramaDetectionPerFolder();
-            }
-            else
-            {
-                BurstCount = BurstDetector.Detect(AllPhotos,
-                    TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
-                    looseHammingThreshold: loose,
-                    strictHammingThreshold: strict);
-                ApplyHdrDetection();
-                ApplyPanoramaDetection();
-            }
-        });
+        await Application.Current.Dispatcher.InvokeAsync(RunBurstAndAutoTagDetection);
 
         // Persist burst assignments and freshly-computed perceptual hashes so the
         // next session reuses them without re-decoding every thumbnail. Each
@@ -4835,6 +4873,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
 
+    /// <summary>
+    /// Find an existing tag by name (case-insensitive) or create a new one. In
+    /// single-folder mode the tag is created in the one DB and its real id is its
+    /// display id; in recursive view a synthetic display id is minted and the
+    /// per-subfolder rows are created lazily on first assignment. <paramref
+    /// name="created"/> reports whether a new tag was added to <see cref="Tags"/>.
+    /// </summary>
+    private PhotoTag GetOrCreateDisplayTag(string name, out bool created)
+    {
+        created = false;
+        var existing = Tags.FirstOrDefault(t =>
+            string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing != null) return existing;
+        var tag = IsRecursiveView
+            ? new PhotoTag { Id = _nextDisplayTagId++, Name = name }
+            : _db!.CreateGroup(name);
+        Tags.Add(tag);
+        created = true;
+        return tag;
+    }
+
     [RelayCommand]
     private void CreateTag()
     {
@@ -4847,29 +4906,51 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 MessageBoxImage.Information);
             return;
         }
-        if (IsRecursiveView)
-        {
-            StatusText = "Tag editing is disabled in recursive view. Toggle ‘Include subfolders’ off to manage tags.";
-            return;
-        }
         var name = InputDialog.Show(Application.Current.MainWindow, "New Tag", "Tag name:");
         if (string.IsNullOrWhiteSpace(name)) return;
-        var tag = _db.CreateGroup(name);
-        Tags.Add(tag);
+        name = name.Trim();
+        if (Tags.Any(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            StatusText = $"A tag named “{name}” already exists.";
+            return;
+        }
+        GetOrCreateDisplayTag(name, out _);
     }
 
     [RelayCommand]
     private void RenameTag(PhotoTag tag)
     {
         if (_db == null || tag.IsSystem) return;
-        if (IsRecursiveView)
-        {
-            StatusText = "Tag editing is disabled in recursive view.";
-            return;
-        }
         var name = InputDialog.Show(Application.Current.MainWindow, "Rename Tag", "New name:", tag.Name);
         if (string.IsNullOrWhiteSpace(name) || name == tag.Name) return;
-        _db.RenameGroup(tag.Id, name);
+        name = name.Trim();
+        // Renaming onto an existing tag name would create two display tags that
+        // translate to the same subfolder row — block it (merging isn't supported).
+        if (Tags.Any(t => !ReferenceEquals(t, tag) && string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            StatusText = $"A tag named “{name}” already exists.";
+            return;
+        }
+        if (IsRecursiveView)
+        {
+            // Rename the matching local row in every subfolder DB that has the
+            // tag, and re-key the translation map so future edits still resolve.
+            var oldName = tag.Name;
+            foreach (var ctx in _contexts.Values)
+            {
+                if (_localTagIdsByFolder.TryGetValue(ctx.FolderPath, out var map)
+                    && map.TryGetValue(oldName, out var localId))
+                {
+                    ctx.Db.RenameGroup(localId, name);
+                    map.Remove(oldName);
+                    map[name] = localId;
+                }
+            }
+        }
+        else
+        {
+            _db.RenameGroup(tag.Id, name);
+        }
         tag.Name = name;
         var idx = Tags.IndexOf(tag);
         if (idx >= 0)
@@ -4892,10 +4973,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (_db == null || tag.IsSystem) return;
         if (IsRecursiveView)
         {
-            StatusText = "Tag editing is disabled in recursive view.";
-            return;
+            // Delete the local row in every subfolder DB that has it (the FK
+            // cascade clears that DB's photo_groups links), then drop it from the
+            // translation map.
+            foreach (var ctx in _contexts.Values)
+            {
+                if (_localTagIdsByFolder.TryGetValue(ctx.FolderPath, out var map)
+                    && map.TryGetValue(tag.Name, out var localId))
+                {
+                    ctx.Db.DeleteGroup(localId);
+                    map.Remove(tag.Name);
+                }
+            }
         }
-        _db.DeleteGroup(tag.Id);
+        else
+        {
+            _db.DeleteGroup(tag.Id);
+        }
         foreach (var photo in AllPhotos.Where(p => p.TagIds.Contains(tag.Id)))
         {
             photo.TagIds.Remove(tag.Id);
@@ -4933,11 +5027,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (SelectedPhoto == null || _db == null) return;
         // System tags (HDR) are managed by RAWR's detectors and aren't user-toggleable.
         if (tag.IsSystem) return;
-        if (IsRecursiveView)
-        {
-            StatusText = "Tag editing is disabled in recursive view. Toggle ‘Include subfolders’ off to edit tags.";
-            return;
-        }
         var photos = SelectedPhotosSnapshot();
         var hasCollapsedBurstRepresentative =
             SelectedPhoto.CollapsedBurstCount > 0 || SelectedPhotos.Any(p => p.CollapsedBurstCount > 0);
@@ -4957,27 +5046,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         void ApplyAll()
         {
-            // One SQLite transaction for the whole bulk op — otherwise each
-            // photo's AssignGroup/UnassignGroup fsyncs separately and the UI
-            // visibly stalls on 20+ photos.
-            if (_db != null)
-                _db.WithTransaction(() =>
-                {
-                    foreach (var p in changedPhotos) ApplyTagEdit(p, tag, assignToAll);
-                });
-            else
-                foreach (var p in changedPhotos) ApplyTagEdit(p, tag, assignToAll);
+            // One SQLite transaction per owning DB for the whole bulk op —
+            // otherwise each photo's AssignGroup/UnassignGroup fsyncs separately
+            // and the UI visibly stalls on 20+ photos. In recursive view the
+            // changed photos may span several subfolder DBs, one transaction each.
+            ApplyTagEditsBatched(changedPhotos, tag, assignToAll);
             if (TagFilter != null || _tagFilterExtraIds.Count > 0) ApplyFilter();
         }
         void RevertAll()
         {
-            if (_db != null)
-                _db.WithTransaction(() =>
-                {
-                    foreach (var p in changedPhotos) ApplyTagEdit(p, tag, !assignToAll);
-                });
-            else
-                foreach (var p in changedPhotos) ApplyTagEdit(p, tag, !assignToAll);
+            ApplyTagEditsBatched(changedPhotos, tag, !assignToAll);
             if (TagFilter != null || _tagFilterExtraIds.Count > 0) ApplyFilter();
         }
 
@@ -5081,9 +5159,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void PersistMetadataSnapshotBatch(IList<AssignedMetadataSnapshot> snapshots)
     {
         // Group by owning subfolder so each subfolder's DB sees a single
-        // transaction. In recursive view the IDs in photo.TagIds are synthetic
-        // display IDs that don't map back to local DB IDs (Phase 2 will fix
-        // this) — for now we only persist tag *clearing*, not re-assignment.
+        // transaction. Re-assign reflects the photo's *current* TagIds (the
+        // caller mutates them before calling) — display IDs are translated back to
+        // each subfolder's local row in recursive view.
         foreach (var grp in snapshots.GroupBy(s => OwningFolderOf(s.Photo), StringComparer.OrdinalIgnoreCase))
         {
             if (!_contexts.TryGetValue(grp.Key, out var ctx)) continue;
@@ -5091,11 +5169,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 foreach (var snapshot in grp)
                 {
-                    ctx.Db.ClearGroupsForPhoto(snapshot.Photo.FileName);
-                    if (!IsRecursiveView)
+                    var photo = snapshot.Photo;
+                    ctx.Db.ClearGroupsForPhoto(photo.FileName);
+                    foreach (var tagId in photo.TagIds)
                     {
-                        foreach (var tagId in snapshot.Photo.TagIds)
-                            ctx.Db.AssignGroup(snapshot.Photo.FileName, tagId);
+                        if (IsRecursiveView)
+                        {
+                            var tag = Tags.FirstOrDefault(t => t.Id == tagId);
+                            if (tag == null) continue;
+                            int localId = ResolveLocalTagId(grp.Key, tag, create: true);
+                            if (localId >= 0) ctx.Db.AssignGroup(photo.FileName, localId);
+                        }
+                        else
+                        {
+                            ctx.Db.AssignGroup(photo.FileName, tagId);
+                        }
                     }
                 }
             });
@@ -5129,12 +5217,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (assign)
         {
             if (photo.TagIds.Add(tag.Id))
-                _db.AssignGroup(photo.FileName, tag.Id);
+                DbAssignTag(photo, tag);
         }
         else
         {
             if (photo.TagIds.Remove(tag.Id))
-                _db.UnassignGroup(photo.FileName, tag.Id);
+                DbUnassignTag(photo, tag);
         }
         UpdateTagDisplay(photo);
         ScheduleXmpWrite(photo);
@@ -5142,6 +5230,38 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(SelectedPhotoTagAssignments));
         // Refilter is the caller's responsibility — bulk tag ops batch one ApplyFilter
         // at the end of the loop to avoid clearing the multi-selection mid-flight.
+    }
+
+    /// <summary>
+    /// Apply one tag edit (assign or unassign) to many photos, batching the DB
+    /// writes per owning subfolder so each DB sees a single transaction. Routes
+    /// through <see cref="ApplyTagEdit"/> so XMP + UI updates still run per photo.
+    /// </summary>
+    private void ApplyTagEditsBatched(IList<PhotoItem> photos, PhotoTag tag, bool assign)
+    {
+        if (IsRecursiveView)
+        {
+            foreach (var grp in photos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
+            {
+                if (_contexts.TryGetValue(grp.Key, out var ctx))
+                {
+                    var members = grp.ToList();
+                    ctx.Db.WithTransaction(() => { foreach (var p in members) ApplyTagEdit(p, tag, assign); });
+                }
+                else
+                {
+                    foreach (var p in grp) ApplyTagEdit(p, tag, assign);
+                }
+            }
+        }
+        else if (_db != null)
+        {
+            _db.WithTransaction(() => { foreach (var p in photos) ApplyTagEdit(p, tag, assign); });
+        }
+        else
+        {
+            foreach (var p in photos) ApplyTagEdit(p, tag, assign);
+        }
     }
 
     [RelayCommand]
@@ -5171,26 +5291,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (photos.Count == 0) return;
 
         // Resolve / create the target tag once up front so undo can refer to it.
-        // In recursive view tag creation/assignment is skipped (Phase 2 will route
-        // these per subfolder); the macro still applies any rating/flag/colour
-        // parts so the keystroke isn't a silent no-op for those.
+        // In recursive view the display tag is minted here and its per-subfolder
+        // rows are created lazily as the macro assigns it below.
         PhotoTag? targetTag = null;
         bool tagCreatedByMacro = false;
-        if (!string.IsNullOrWhiteSpace(macro.TagName) && _db != null && !IsRecursiveView)
-        {
-            targetTag = Tags.FirstOrDefault(t =>
-                string.Equals(t.Name, macro.TagName, StringComparison.OrdinalIgnoreCase));
-            if (targetTag == null)
-            {
-                targetTag = _db.CreateGroup(macro.TagName!);
-                Tags.Add(targetTag);
-                tagCreatedByMacro = true;
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(macro.TagName) && IsRecursiveView)
-        {
-            StatusText = "Macro tag part skipped (tag editing is disabled in recursive view).";
-        }
+        if (!string.IsNullOrWhiteSpace(macro.TagName) && _db != null)
+            targetTag = GetOrCreateDisplayTag(macro.TagName!, out tagCreatedByMacro);
 
         // Snapshot per-photo prior state for the things this macro touches.
         var snapshots = photos.Select(p => new
@@ -5232,7 +5338,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     if (_db != null)
                     {
                         p.TagIds.Add(targetTag.Id);
-                        _db.AssignGroup(p.FileName, targetTag.Id);
+                        DbAssignTag(p, targetTag);
                         UpdateTagDisplay(p);
                     }
                     changed = true;
@@ -5257,7 +5363,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     if (_db != null)
                     {
                         p.TagIds.Remove(targetTag.Id);
-                        _db.UnassignGroup(p.FileName, targetTag.Id);
+                        DbUnassignTag(p, targetTag);
                         UpdateTagDisplay(p);
                     }
                 }
@@ -5498,47 +5604,87 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Phase-1 recursive-view variant: run HDR detection but only update the
-    /// transient IsHdr pill on each photo. The DB-side system-tag sync is
-    /// deferred until Phase 2 (it needs the auto-tag to be created in every
-    /// subfolder DB on demand and the tag IDs translated through the merged
-    /// display table).
+    /// Recursive view: reconcile an auto-managed system tag against a detector's
+    /// per-subfolder result — assign it to the files that should have it, unassign
+    /// from those that shouldn't — in one transaction on that subfolder's DB. The
+    /// in-memory display id is mutated on each photo; the DB write is translated to
+    /// that folder's local row by <see cref="DbAssignTag"/> / <see cref="DbUnassignTag"/>.
+    /// </summary>
+    private void SyncSystemTagForFolder(string folder, IReadOnlyList<PhotoItem> subset,
+                                        PhotoTag systemTag, HashSet<string> shouldHaveFiles)
+    {
+        int displayId = systemTag.Id;
+        var toAssign = new List<PhotoItem>();
+        var toUnassign = new List<PhotoItem>();
+        foreach (var photo in subset)
+        {
+            bool shouldHave = shouldHaveFiles.Contains(photo.FileName);
+            bool has = photo.TagIds.Contains(displayId);
+            if (shouldHave && !has) toAssign.Add(photo);
+            else if (!shouldHave && has) toUnassign.Add(photo);
+        }
+        if (toAssign.Count == 0 && toUnassign.Count == 0) return;
+
+        void Apply()
+        {
+            foreach (var p in toAssign) { p.TagIds.Add(displayId); DbAssignTag(p, systemTag); }
+            foreach (var p in toUnassign) { p.TagIds.Remove(displayId); DbUnassignTag(p, systemTag); }
+        }
+        if (_contexts.TryGetValue(folder, out var ctx)) ctx.Db.WithTransaction(Apply);
+        else Apply();
+    }
+
+    /// <summary>
+    /// Recursive-view variant of <see cref="ApplyHdrDetection"/>: runs HDR
+    /// detection per subfolder (filenames aren't unique across subfolders, so the
+    /// detector must be scoped) and syncs the auto-managed HDR system tag into each
+    /// subfolder's own DB. The display tag is minted lazily the first time any
+    /// subfolder needs it.
     /// </summary>
     private void ApplyHdrDetectionPerFolder()
     {
         if (AllPhotos.Count == 0) return;
-        if (!AppSettings.Current.HdrDetectionEnabled)
-        {
-            foreach (var p in AllPhotos) p.IsHdr = false;
-            return;
-        }
+        bool enabled = AppSettings.Current.HdrDetectionEnabled;
+
+        var hdrTag = Tags.FirstOrDefault(t => t.IsSystem && t.Name == HdrTagName);
 
         foreach (var grp in AllPhotos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
         {
             var subset = grp.ToList();
-            var hdrFiles = HdrDetector.Detect(
-                subset,
-                AppSettings.Current.HdrMinBracketSize,
-                AppSettings.Current.HdrMinExposureSpread);
-            foreach (var p in subset)
-                p.IsHdr = hdrFiles.Contains(p.FileName);
+            var hdrFiles = enabled
+                ? HdrDetector.Detect(subset,
+                    AppSettings.Current.HdrMinBracketSize,
+                    AppSettings.Current.HdrMinExposureSpread)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (hdrTag == null && hdrFiles.Count > 0)
+            {
+                hdrTag = new PhotoTag { Id = _nextDisplayTagId++, Name = HdrTagName, IsSystem = true, Color = HdrTagColor };
+                Tags.Add(hdrTag);
+            }
+            // No HDR tag exists anywhere and this folder produced none — the final
+            // UpdateTagDisplay pass clears any stale pills.
+            if (hdrTag == null) continue;
+
+            SyncSystemTagForFolder(grp.Key, subset, hdrTag, hdrFiles);
         }
+
+        // Reconcile IsHdr/IsPanorama pills from the now-correct TagIds membership.
+        foreach (var p in AllPhotos) UpdateTagDisplay(p);
     }
 
     /// <summary>
-    /// Phase-1 recursive-view variant of <see cref="ApplyPanoramaDetection"/>:
-    /// runs detection per subfolder, sets IsPanorama plus a per-subset
-    /// GroupId/BurstBadge so the burst-collapse toggle still stacks panoramas,
-    /// but skips the DB-side system-tag sync (deferred to Phase 2).
+    /// Recursive-view variant of <see cref="ApplyPanoramaDetection"/>: runs
+    /// detection per subfolder, assigns a per-subset GroupId/BurstBadge so the
+    /// burst-collapse toggle still stacks panoramas, and syncs the Panorama system
+    /// tag into each subfolder's own DB.
     /// </summary>
     private void ApplyPanoramaDetectionPerFolder()
     {
         if (AllPhotos.Count == 0) return;
-        if (!AppSettings.Current.PanoramaDetectionEnabled)
-        {
-            foreach (var p in AllPhotos) p.IsPanorama = false;
-            return;
-        }
+        bool enabled = AppSettings.Current.PanoramaDetectionEnabled;
+
+        var panoTag = Tags.FirstOrDefault(t => t.IsSystem && t.Name == PanoramaTagName);
 
         var s = AppSettings.Current;
         float minShift = Math.Clamp(1f - s.PanoramaMaxOverlapPct / 100f, 0f, 0.99f);
@@ -5551,30 +5697,42 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var grp in AllPhotos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
         {
             var subset = grp.ToList();
-            var result = PanoramaDetector.Detect(
-                subset,
-                Rawr.App.Services.PerceptualHash.StripWidth,
-                Rawr.App.Services.PerceptualHash.StripHeight,
-                minChainSize: s.PanoramaMinChainSize,
-                maxGapSeconds: s.PanoramaMaxGapSeconds,
-                minShift: minShift,
-                maxShift: maxShift,
-                maxDirectionDeltaDegrees: s.PanoramaDirectionToleranceDeg);
-
             var panoFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var seq in result.Sequences)
+            if (enabled)
             {
-                nextGroupId++;
-                for (int i = 0; i < seq.Count; i++)
+                var result = PanoramaDetector.Detect(
+                    subset,
+                    Rawr.App.Services.PerceptualHash.StripWidth,
+                    Rawr.App.Services.PerceptualHash.StripHeight,
+                    minChainSize: s.PanoramaMinChainSize,
+                    maxGapSeconds: s.PanoramaMaxGapSeconds,
+                    minShift: minShift,
+                    maxShift: maxShift,
+                    maxDirectionDeltaDegrees: s.PanoramaDirectionToleranceDeg);
+
+                foreach (var seq in result.Sequences)
                 {
-                    seq[i].GroupId = nextGroupId;
-                    seq[i].BurstBadge = $"{i + 1}/{seq.Count}";
-                    panoFiles.Add(seq[i].FileName);
+                    nextGroupId++;
+                    for (int i = 0; i < seq.Count; i++)
+                    {
+                        seq[i].GroupId = nextGroupId;
+                        seq[i].BurstBadge = $"{i + 1}/{seq.Count}";
+                        panoFiles.Add(seq[i].FileName);
+                    }
                 }
             }
-            foreach (var p in subset)
-                p.IsPanorama = panoFiles.Contains(p.FileName);
+
+            if (panoTag == null && panoFiles.Count > 0)
+            {
+                panoTag = new PhotoTag { Id = _nextDisplayTagId++, Name = PanoramaTagName, IsSystem = true, Color = PanoramaTagColor };
+                Tags.Add(panoTag);
+            }
+            if (panoTag == null) continue;
+
+            SyncSystemTagForFolder(grp.Key, subset, panoTag, panoFiles);
         }
+
+        foreach (var p in AllPhotos) UpdateTagDisplay(p);
     }
 
     [RelayCommand]
@@ -5849,20 +6007,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 if (keyword == XmpSidecar.PickKeyword)   { photo.Flag = CullFlag.Pick;   continue; }
                 if (keyword == XmpSidecar.RejectKeyword) { photo.Flag = CullFlag.Reject; continue; }
 
-                // In recursive view we skip keyword→tag creation/assignment
-                // because tag IDs are synthetic display IDs that don't map back
-                // to the photo's subfolder DB. The keyword still gets re-applied
-                // the next time the folder is opened single-folder.
-                if (IsRecursiveView) continue;
-
-                var tag = Tags.FirstOrDefault(t => string.Equals(t.Name, keyword, StringComparison.OrdinalIgnoreCase));
-                if (tag == null)
-                {
-                    tag = _db.CreateGroup(keyword);
-                    Tags.Add(tag);
-                }
+                // Auto-create the keyword as a tag if needed (a fresh display tag
+                // in recursive view) and assign it to the photo's owning DB.
+                var tag = GetOrCreateDisplayTag(keyword, out _);
                 if (photo.TagIds.Add(tag.Id))
-                    _db.AssignGroup(photo.FileName, tag.Id);
+                    DbAssignTag(photo, tag);
             }
             UpdateTagDisplay(photo);
             DbFor(photo).Save(photo);
@@ -5907,19 +6056,62 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Run burst grouping and the HDR/Panorama auto-tag detectors over the loaded
+    /// photos. In recursive view bursts must not cross subfolder boundaries — the
+    /// detector runs per owning folder with an offset GroupId space, and the
+    /// auto-tag DB sync stays scoped to each subfolder's DB. Mutates observable
+    /// PhotoItem state so it must run on the UI thread.
+    /// </summary>
+    private void RunBurstAndAutoTagDetection()
+    {
+        var (loose, strict) = BurstDetector.ThresholdsFromStrictness(AppSettings.Current.BurstSimilarityStrictness);
+        if (IsRecursiveView)
+        {
+            int totalBursts = 0;
+            int idOffset = 0;
+            foreach (var grp in AllPhotos.GroupBy(OwningFolderOf, StringComparer.OrdinalIgnoreCase))
+            {
+                var subset = grp.ToList();
+                int found = BurstDetector.Detect(subset,
+                    TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
+                    looseHammingThreshold: loose,
+                    strictHammingThreshold: strict);
+                // Offset GroupId so subsets don't collide with each other.
+                int maxId = 0;
+                foreach (var p in subset)
+                {
+                    if (p.GroupId > 0)
+                    {
+                        p.GroupId += idOffset;
+                        if (p.GroupId > maxId) maxId = p.GroupId;
+                    }
+                }
+                idOffset = maxId;
+                totalBursts += found;
+            }
+            BurstCount = totalBursts;
+            ApplyHdrDetectionPerFolder();
+            ApplyPanoramaDetectionPerFolder();
+        }
+        else
+        {
+            BurstCount = BurstDetector.Detect(AllPhotos,
+                TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
+                looseHammingThreshold: loose,
+                strictHammingThreshold: strict);
+            ApplyHdrDetection();
+            ApplyPanoramaDetection();
+        }
+    }
+
+    /// <summary>
     /// Re-runs burst detection with the current AppSettings and refreshes the view.
     /// Call after AppSettings.Current has been updated.
     /// </summary>
     public void ApplyBurstSettings()
     {
         if (AllPhotos.Count == 0) return;
-        var (loose, strict) = BurstDetector.ThresholdsFromStrictness(AppSettings.Current.BurstSimilarityStrictness);
-        BurstCount = BurstDetector.Detect(AllPhotos,
-            TimeSpan.FromSeconds(AppSettings.Current.BurstMaxGapSeconds),
-            looseHammingThreshold: loose,
-            strictHammingThreshold: strict);
-        ApplyHdrDetection();
-        ApplyPanoramaDetection();
+        RunBurstAndAutoTagDetection();
         ApplyFilter();
     }
 
