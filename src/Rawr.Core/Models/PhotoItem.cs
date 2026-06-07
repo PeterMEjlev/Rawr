@@ -106,8 +106,9 @@ public sealed partial class PhotoItem : ObservableObject
     // Results of the user-triggered face / closed-eye analysis pass.
     // Null on any of these means "not yet analysed for this photo".
     // FaceCount = number of faces detected in the cached preview JPEG.
-    // ClosedEyeCount = how many of those faces had at least one eye classified
-    // as closed (above the user's confidence threshold at analysis time).
+    // ClosedEyeCount = how many of those faces had no open eye — every analysed
+    // eye fell below the user's confidence threshold at analysis time. A single
+    // open eye clears the face (a wink isn't a closed-eyes reject).
     // MinEyeOpenScore = the worst (lowest) "open" probability seen across all
     // eyes in all faces — closer to 0 means at least one eye is confidently
     // closed. Used by the sidebar bucket gate.

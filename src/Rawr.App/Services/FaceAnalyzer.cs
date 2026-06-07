@@ -76,6 +76,15 @@ public sealed class FaceAnalyzer : IDisposable
     // by the model's aspect ratio so the eye isn't distorted on resize.
     private const float EyeCropFraction = 0.28f;
 
+    // A face turned past roughly a 3/4 view puts the eye crops on hair, ear, or
+    // the occluded far eye, so the eye classifier returns a meaningless "closed"
+    // — the main false-positive source for the Closed-eyes filter. We estimate
+    // yaw from how far the nose sits off the eye-midpoint (as a fraction of the
+    // inter-ocular distance); past this cutoff the face is still counted but its
+    // eyes aren't judged. ~0.33 ≈ a clear 3/4 turn; frontal faces sit near 0.
+    // The per-face value is shown in the debug HUD so this can be tuned by eye.
+    private const float MaxNoseOffsetForEyes = 0.33f;
+
     // Fallback dims if the eye model has no static shape in its metadata
     // (rare — most exports do). 24×40 matches PINTO0309/OCEC.
     private const int EyeFallbackW = 40;
@@ -118,6 +127,24 @@ public sealed class FaceAnalyzer : IDisposable
     /// </summary>
     public void Initialize() => EnsureInitialized();
 
+    /// <summary>
+    /// Yaw proxy from YuNet's eye + nose landmarks, expected in image space (the
+    /// caller maps them out of the squashed detector square first). Returns
+    /// |nose offset from the eye midpoint, projected onto the eye axis| ÷
+    /// inter-ocular distance: ~0 when the nose is centred between the eyes
+    /// (frontal), approaching ~0.5 as the head turns and the nose slides over the
+    /// near eye. Roll-invariant. Returns 1 (max) if the eyes coincide.
+    /// </summary>
+    private static float NoseOffset(float reX, float reY, float leX, float leY, float nX, float nY)
+    {
+        float axX = leX - reX, axY = leY - reY;
+        float eyeDist = MathF.Sqrt(axX * axX + axY * axY);
+        if (eyeDist < 1e-3f) return 1f;
+        float mX = (reX + leX) * 0.5f, mY = (reY + leY) * 0.5f;
+        float proj = ((nX - mX) * axX + (nY - mY) * axY) / eyeDist;  // signed px along the eye axis
+        return MathF.Abs(proj) / eyeDist;
+    }
+
     public FaceAnalysisResult? Analyze(byte[] previewJpeg, float closedThreshold)
     {
         EnsureInitialized();
@@ -152,12 +179,23 @@ public sealed class FaceAnalyzer : IDisposable
 
         foreach (var f in faces)
         {
+            // Skip the eye verdict for faces turned too far to read reliably —
+            // the crops would land on hair/ear/an occluded eye and the classifier
+            // would report a bogus "closed". Still counted as a face; we just
+            // can't judge its eyes. (Landmarks are mapped out of the squashed
+            // detector square so the yaw estimate uses true image geometry.)
+            if (NoseOffset(
+                    f.Landmarks[0] * scaleX, f.Landmarks[1] * scaleY,
+                    f.Landmarks[2] * scaleX, f.Landmarks[3] * scaleY,
+                    f.Landmarks[4] * scaleX, f.Landmarks[5] * scaleY) > MaxNoseOffsetForEyes)
+                continue;
+
             float faceW = f.W * scaleX;
             float baseHalf = faceW * EyeCropFraction * 0.5f;
             int halfW = Math.Max(4, (int)MathF.Round(baseHalf * halfWFactor));
             int halfH = Math.Max(4, (int)MathF.Round(baseHalf * halfHFactor));
 
-            bool faceHasClosedEye = false;
+            bool anyEyeOpen = false, anyEyeClosed = false;
             // Right and left eye landmark indices per YuNet docs.
             for (int k = 0; k < 2; k++)
             {
@@ -169,10 +207,13 @@ public sealed class FaceAnalyzer : IDisposable
 
                 float openProb = ClassifyEyeOpenProb(crop);
                 if (openProb < minOpen) minOpen = openProb;
-                if (openProb < closedThreshold) faceHasClosedEye = true;
+                if (openProb < closedThreshold) anyEyeClosed = true; else anyEyeOpen = true;
             }
 
-            if (faceHasClosedEye) closedFaces++;
+            // Closed only when *no* eye reads open: one open eye (a wink, or a
+            // squint/angle the model misreads on the other eye) shouldn't flag
+            // the whole shot as closed-eyes.
+            if (anyEyeClosed && !anyEyeOpen) closedFaces++;
         }
 
         return new FaceAnalysisResult(faces.Count, closedFaces, minOpen);
@@ -209,6 +250,15 @@ public sealed class FaceAnalyzer : IDisposable
 
         foreach (var f in faces)
         {
+            // Same yaw gate as Analyze. In the debug path we still compute the
+            // eye scores (so the HUD can show them) but a turned face doesn't
+            // count toward closed eyes or minOpen — its scores are meaningless.
+            float noseOff = NoseOffset(
+                f.Landmarks[0] * scaleX, f.Landmarks[1] * scaleY,
+                f.Landmarks[2] * scaleX, f.Landmarks[3] * scaleY,
+                f.Landmarks[4] * scaleX, f.Landmarks[5] * scaleY);
+            bool poseReliable = noseOff <= MaxNoseOffsetForEyes;
+
             float faceW = f.W * scaleX;
             float baseHalf = faceW * EyeCropFraction * 0.5f;
             int halfW = Math.Max(4, (int)MathF.Round(baseHalf * halfWFactor));
@@ -216,7 +266,7 @@ public sealed class FaceAnalyzer : IDisposable
 
             // k=0 right eye, k=1 left eye (YuNet landmark order).
             float rightOpen = float.NaN, leftOpen = float.NaN;
-            bool faceHasClosedEye = false;
+            bool anyEyeOpen = false, anyEyeClosed = false;
             for (int k = 0; k < 2; k++)
             {
                 float lx = f.Landmarks[k * 2]     * scaleX;
@@ -226,9 +276,12 @@ public sealed class FaceAnalyzer : IDisposable
 
                 float openProb = ClassifyEyeOpenProb(crop);
                 if (k == 0) rightOpen = openProb; else leftOpen = openProb;
+                if (!poseReliable) continue;  // scores shown for context, verdict skipped
                 if (openProb < minOpen) minOpen = openProb;
-                if (openProb < closedThreshold) faceHasClosedEye = true;
+                if (openProb < closedThreshold) anyEyeClosed = true; else anyEyeOpen = true;
             }
+            // Closed only when no eye reads open (see Analyze).
+            bool faceHasClosedEye = anyEyeClosed && !anyEyeOpen;
             if (faceHasClosedEye) closedFaces++;
 
             // Normalise the box from the detection square to 0–1 image space
@@ -236,7 +289,7 @@ public sealed class FaceAnalyzer : IDisposable
             // input dims maps straight back to fractions of width/height).
             list.Add(new FaceDebugFace(
                 f.X / _faceInputW, f.Y / _faceInputH, f.W / _faceInputW, f.H / _faceInputH,
-                f.Score, rightOpen, leftOpen, faceHasClosedEye));
+                f.Score, rightOpen, leftOpen, faceHasClosedEye, noseOff, !poseReliable));
         }
 
         return new FaceDebugResult(faces.Count, closedFaces, minOpen, srcW, srcH, list);
@@ -644,7 +697,8 @@ public sealed record FaceAnalysisResult(int FaceCount, int ClosedEyeCount, float
 /// (0–1) to the image; eye-open probs are 0–1, or NaN when the eye crop failed.</summary>
 public sealed record FaceDebugFace(
     float X, float Y, float W, float H,
-    float Score, float RightEyeOpen, float LeftEyeOpen, bool HasClosedEye);
+    float Score, float RightEyeOpen, float LeftEyeOpen, bool HasClosedEye,
+    float NoseOffset, bool PoseUnreliable);
 
 /// <summary>Per-face detection detail plus the source image dimensions (so the
 /// overlay can be built at the right aspect ratio).</summary>

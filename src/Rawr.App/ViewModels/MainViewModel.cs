@@ -4109,17 +4109,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // Eye-open values are shown as 0–100 to match the closed-eye threshold slider.
     private static string FormatFaceDebug(FaceDebugResult fd, int closedThrPct)
     {
+        int turned = 0;
+        foreach (var ff in fd.Faces) if (ff.PoseUnreliable) turned++;
+
         var sb = new System.Text.StringBuilder();
         sb.Append("FACES / EYES (eye-open/threshold)");
-        sb.Append('\n').Append($"faces {fd.FaceCount} · closed {fd.ClosedEyeCount} · threshold {closedThrPct}");
+        sb.Append('\n').Append($"faces {fd.FaceCount} · closed {fd.ClosedEyeCount} · turned {turned} · threshold {closedThrPct}");
 
         const int maxListed = 8;
         int shown = Math.Min(fd.Faces.Count, maxListed);
         for (int i = 0; i < shown; i++)
         {
             var f = fd.Faces[i];
+            // A turned face shows "↪" instead of a closed/open verdict — its eye
+            // scores are listed for context but don't drive the Closed-eyes tag.
+            string verdict = f.PoseUnreliable ? "  ↪ turned" : (f.HasClosedEye ? "  ✗" : "  ✓");
             sb.Append('\n').Append(
-                $"{i + 1,2} conf {Pct(f.Score),3}  R {EyeStr(f.RightEyeOpen)}  L {EyeStr(f.LeftEyeOpen)}{(f.HasClosedEye ? "  ✗" : "  ✓")}");
+                $"{i + 1,2} conf {Pct(f.Score),3}  R {EyeStr(f.RightEyeOpen)}  L {EyeStr(f.LeftEyeOpen)}  yaw {Pct(f.NoseOffset),2}{verdict}");
         }
         if (fd.Faces.Count > shown)
             sb.Append('\n').Append($"   …+{fd.Faces.Count - shown} more");
@@ -4132,7 +4138,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // Frozen vector overlay of face boxes. Built in image-pixel space so its aspect
     // matches the photo; the overlay Image uses the same Stretch=Uniform + zoom/pan
     // transform as the preview, so boxes land exactly on the faces. Green = all eyes
-    // open, orange = a closed eye. Returns null when there's nothing to draw.
+    // open, orange = a closed eye, gray = turned too far to judge (eyes not scored).
+    // Returns null when there's nothing to draw.
     internal static ImageSource? BuildFaceOverlay(FaceDebugResult fd)
     {
         if (fd.Faces.Count == 0) return null;
@@ -4143,6 +4150,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var open = new Pen(Brushes.Lime, thickness); open.Freeze();
         var closed = new Pen(Brushes.OrangeRed, thickness); closed.Freeze();
+        var turned = new Pen(Brushes.Gray, thickness); turned.Freeze();
 
         var group = new DrawingGroup();
         // Transparent full-frame rect anchors the drawing bounds to the whole photo
@@ -4151,7 +4159,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var f in fd.Faces)
         {
             var rect = new Rect(f.X * w, f.Y * h, Math.Max(0, f.W) * w, Math.Max(0, f.H) * h);
-            group.Children.Add(new GeometryDrawing(null, f.HasClosedEye ? closed : open, new RectangleGeometry(rect)));
+            var pen = f.PoseUnreliable ? turned : (f.HasClosedEye ? closed : open);
+            group.Children.Add(new GeometryDrawing(null, pen, new RectangleGeometry(rect)));
         }
 
         var image = new DrawingImage(group);
