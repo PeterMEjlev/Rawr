@@ -90,6 +90,16 @@ public sealed class WicExtractor : IPreviewExtractor
     {
         try
         {
+            // No downscale requested → the file already *is* the full-resolution
+            // image, so hand its bytes back verbatim. Re-encoding through
+            // JpegBitmapEncoder is lossy, slow on 20+ MP frames, and on large
+            // high-DPI images throws outright ("The image data generated an
+            // overflow during processing") — which silently returned null and
+            // left the preview stuck on the downsized "small" JPEG. Non-RAW
+            // stills are only ever .jpg/.jpeg here, so the bytes are valid JPEG.
+            if (maxWidth <= 0)
+                return File.ReadAllBytes(filePath);
+
             using var stream = File.OpenRead(filePath);
             var decoder = BitmapDecoder.Create(
                 stream,
@@ -97,13 +107,11 @@ public sealed class WicExtractor : IPreviewExtractor
                 BitmapCacheOption.None);
             var frame = decoder.Frames[0];
 
-            BitmapSource source = frame;
-            if (maxWidth > 0 && frame.PixelWidth > maxWidth)
-            {
-                double scale = (double)maxWidth / frame.PixelWidth;
-                source = new TransformedBitmap(frame, new System.Windows.Media.ScaleTransform(scale, scale));
-            }
+            if (frame.PixelWidth <= maxWidth)
+                return File.ReadAllBytes(filePath);
 
+            double scale = (double)maxWidth / frame.PixelWidth;
+            var source = new TransformedBitmap(frame, new System.Windows.Media.ScaleTransform(scale, scale));
             return EncodeJpeg(source);
         }
         catch

@@ -62,26 +62,32 @@ public sealed class HistogramControl : FrameworkElement
 
     private static void DrawChannel(DrawingContext dc, int[] bins, Color color, double w, double h)
     {
+        // A heavily-edited 8-bit JPEG carries posterization gaps (tone-curve/levels
+        // edits leave empty bins between spikes), which draw as an extreme comb that
+        // oscillates bin-to-bin. Smooth the curve for display the way Lightroom et al.
+        // do — the underlying HistogramData counts are left untouched.
+        var curve = Smooth(bins);
+
         // Normalize against the inner range (bins 1–254) to prevent black/white spikes
         // from compressing the mid-tone detail.
-        int max = 0;
+        double max = 0;
         for (int i = 1; i < 255; i++)
-            if (bins[i] > max) max = bins[i];
+            if (curve[i] > max) max = curve[i];
         if (max == 0)
             for (int i = 0; i < 256; i++)
-                if (bins[i] > max) max = bins[i];
+                if (curve[i] > max) max = curve[i];
         if (max == 0) return;
 
         var geo = new StreamGeometry();
         using (var ctx = geo.Open())
         {
             double x0 = 0;
-            double y0 = h - Math.Min(bins[0] / (double)max, 1.0) * h;
+            double y0 = h - Math.Min(curve[0] / max, 1.0) * h;
             ctx.BeginFigure(new Point(x0, y0), isFilled: false, isClosed: false);
             for (int i = 1; i < 256; i++)
             {
                 double x = i * w / 255.0;
-                double y = h - Math.Min(bins[i] / (double)max, 1.0) * h;
+                double y = h - Math.Min(curve[i] / max, 1.0) * h;
                 ctx.LineTo(new Point(x, y), isStroked: true, isSmoothJoin: true);
             }
         }
@@ -90,5 +96,24 @@ public sealed class HistogramControl : FrameworkElement
         var pen = new Pen(new SolidColorBrush(color), 1.0) { LineJoin = PenLineJoin.Round };
         pen.Freeze();
         dc.DrawGeometry(null, pen, geo);
+    }
+
+    // 5-bin moving average (radius 2). Tames posterization combs to roughly the
+    // smoothness of the downscaled-preview histogram without shifting the overall
+    // shape. Endpoints (pure black / white) keep their spike since the window
+    // shrinks at the edges.
+    private static double[] Smooth(int[] bins)
+    {
+        const int radius = 2;
+        var outp = new double[bins.Length];
+        for (int i = 0; i < bins.Length; i++)
+        {
+            int lo = Math.Max(0, i - radius);
+            int hi = Math.Min(bins.Length - 1, i + radius);
+            long sum = 0;
+            for (int j = lo; j <= hi; j++) sum += bins[j];
+            outp[i] = sum / (double)(hi - lo + 1);
+        }
+        return outp;
     }
 }

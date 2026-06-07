@@ -3365,7 +3365,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var fullBs = await Task.Run(() => LoadBitmapFromJpeg(fullBytes, decodePixelWidth: 0, rotationOverride: rotation), ct);
             if (fullBs == null || ct.IsCancellationRequested || SelectedPhoto != photo) return;
 
-            SetBasePreview(fullBs, "EV (JPG)");
+            SetBasePreview(fullBs, "EV (JPG large)");
             _ = ComputeHistogramAsync(photo, ct);
         }
         catch (OperationCanceledException) { /* selection moved on */ }
