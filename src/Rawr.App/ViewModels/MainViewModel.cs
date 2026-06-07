@@ -3815,8 +3815,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// User-triggered (toolbar Analyze menu): run the face detector + eye-state
-    /// classifier on every not-yet-analysed photo. Click again to cancel.
+    /// User-triggered (toolbar Analyze menu): re-run the face detector + eye-state
+    /// classifier on every photo from scratch. Click again to cancel. We always
+    /// re-analyse (rather than skipping already-analysed photos) because the user
+    /// may have changed the closed-eye threshold — applied at inference time, so
+    /// prior results can be stale — since the last pass.
     /// </summary>
     [RelayCommand]
     private async Task AnalyzeFacesAsync()
@@ -3827,7 +3830,35 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
         if (AppSettings.Current.ClosedEyeDetectionMode == ClassificationRunMode.Off) return;
-        await RunFaceAnalysisAsync(CancellationToken.None, isManual: true);
+
+        // Confirm the model is available before the rerun wipes prior results —
+        // RerunFaceAnalysisAsync clears every photo's face data first, so a failed
+        // init would discard existing results for nothing.
+        _faceAnalyzer ??= new FaceAnalyzer();
+        _faceAnalyzer.Initialize();
+        if (!_faceAnalyzer.IsAvailable)
+        {
+            StatusText = $"Face analysis unavailable: {_faceAnalyzer.UnavailableReason}";
+            return;
+        }
+
+        await RerunFaceAnalysisAsync();
+    }
+
+    /// <summary>
+    /// The exact bytes the face detector + eye classifier should run on. The
+    /// analysis pass (which writes the stored "Closed eyes" tag) and the debug
+    /// HUD MUST use this same source, or the HUD will disagree with the tag: a
+    /// different resolution makes YuNet find a different face set and feeds the
+    /// eye classifier different-quality crops. Prefer the higher-res cached
+    /// preview; fall back to the thumbnail only when no preview exists yet.
+    /// </summary>
+    private byte[]? LoadFaceAnalysisJpeg(PhotoItem photo)
+    {
+        var photoCache = CacheFor(photo);
+        return photoCache.LoadPreview(photo.FileName)
+            ?? photoCache.LoadThumbnail(photo.FileName)
+            ?? photo.ThumbnailJpeg;
     }
 
     /// <summary>
@@ -3884,13 +3915,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     if (ct.IsCancellationRequested) return;
                     try
                     {
-                        // Prefer the cached preview JPEG (fast, on-disk). Fall
-                        // back to the in-memory thumbnail if the preview hasn't
-                        // been extracted yet — the analyser handles either size.
-                        var photoCache = CacheFor(photo);
-                        byte[]? jpeg = photoCache.LoadPreview(photo.FileName)
-                                    ?? photoCache.LoadThumbnail(photo.FileName)
-                                    ?? photo.ThumbnailJpeg;
+                        // Same source as the debug HUD (see LoadFaceAnalysisJpeg)
+                        // so the stored tag and the HUD never disagree.
+                        byte[]? jpeg = LoadFaceAnalysisJpeg(photo);
                         if (jpeg == null) return;
 
                         var result = _faceAnalyzer.Analyze(jpeg, threshold);
@@ -4053,18 +4080,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             catch (Exception ex) { sb.Append("SUBJECT SCORES\nerror — ").Append(ex.Message); }
 
             // ── Faces / eyes ──
+            // The face pass prefers the higher-res preview, so the HUD must too —
+            // otherwise it analyses the (smaller) thumbnail the subject section
+            // uses and reports a different face/eye verdict than the stored tag.
             sb.Append("\n\n");
             FaceDebugResult? faceResult = null;
             try
             {
                 faces.Initialize();
+                byte[]? faceJpeg = LoadFaceAnalysisJpeg(photo);
                 if (!faces.IsAvailable)
                     sb.Append("FACES / EYES\nunavailable — ").Append(faces.UnavailableReason);
-                else if (jpeg == null)
+                else if (faceJpeg == null)
                     sb.Append("FACES / EYES\n(no cached image yet)");
                 else
                 {
-                    faceResult = faces.AnalyzeDebug(jpeg, closedThrPct / 100f);
+                    faceResult = faces.AnalyzeDebug(faceJpeg, closedThrPct / 100f);
                     if (faceResult == null) sb.Append("FACES / EYES\n(decode failed)");
                     else sb.Append(FormatFaceDebug(faceResult, closedThrPct));
                 }
@@ -4141,9 +4172,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnClassifySubjectsTotalChanged(int value) => OnPropertyChanged(nameof(ClassifySubjectsButtonLabel));
 
     /// <summary>
-    /// User-triggered (toolbar Analyze menu): classify every not-yet-classified
-    /// photo. Click again to cancel — the same dropdown entry doubles as the
-    /// cancel affordance while a pass is running.
+    /// User-triggered (toolbar Analyze menu): re-classify every photo from scratch.
+    /// Click again to cancel — the same dropdown entry doubles as the cancel
+    /// affordance while a pass is running. We always re-classify (rather than
+    /// skipping already-tagged photos) because the user may have changed a subject
+    /// threshold — applied at inference time, so prior tags can be stale — since
+    /// the last pass.
     /// </summary>
     [RelayCommand]
     private async Task ClassifySubjectsAsync()
@@ -4164,13 +4198,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (AllPhotos.All(p => p.IsVideo || p.SubjectTags != null))
-        {
-            StatusText = "All photos already classified.";
-            return;
-        }
-
-        await StartSubjectClassificationAsync(CancellationToken.None);
+        await RerunSubjectClassificationAsync();
     }
 
     /// <summary>
@@ -4194,11 +4222,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Wipe every photo's face/eye result (memory + DB) and re-run
-    /// <see cref="AnalyzeFacesAsync"/>. Used by the Settings dialog when the
-    /// user adjusts the closed-eye threshold or clicks the "Re-run" button —
-    /// the threshold is applied inside <see cref="FaceAnalyzer.Analyze"/>, so
-    /// changing it means previous results are stale.
+    /// Wipe every photo's face/eye result (memory + DB) and re-run the face pass.
+    /// Used by the Settings dialog (closed-eye threshold change or "Re-run" button)
+    /// and by the manual Analyze menu — the threshold is applied inside
+    /// <see cref="FaceAnalyzer.Analyze"/>, so changing it means previous results
+    /// are stale. Callers gate on analyser availability first; this wipes before
+    /// re-running.
     /// </summary>
     public async Task RerunFaceAnalysisAsync()
     {
@@ -4222,9 +4251,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Wipe every photo's subject-classifier result (memory + DB) and re-run
-    /// the background pass. Same rationale as <see cref="RerunFaceAnalysisAsync"/>:
-    /// the threshold is applied at inference time, so existing tag bitmasks
-    /// don't reflect a changed threshold.
+    /// the pass. Used by the Settings dialog and the manual Analyze menu. Same
+    /// rationale as <see cref="RerunFaceAnalysisAsync"/>: the threshold is applied
+    /// at inference time, so existing tag bitmasks don't reflect a changed threshold.
     /// </summary>
     public Task RerunSubjectClassificationAsync()
     {

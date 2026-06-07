@@ -54,10 +54,13 @@ public sealed class FaceAnalyzer : IDisposable
     // YuNet is anchor-free; these are the strides at which it predicts.
     private static readonly int[] YuNetStrides = { 8, 16, 32 };
 
-    // Square inference size for YuNet. 320 keeps cost low; faces still detect
-    // reliably down to ~24 px in the resized image (≈ 120 px in a 1620-px
-    // preview).
-    private const int FaceInputSize = 320;
+    // Default square inference size for YuNet when the model declares a dynamic
+    // input. 320 keeps cost low; faces still detect reliably down to ~24 px in
+    // the resized image (≈ 120 px in a 1620-px preview). Models exported with a
+    // FIXED input (e.g. the stock 2023-mar release is 640×640) override this at
+    // init from ONNX metadata — feeding the wrong size makes ORT throw
+    // "Got invalid dimensions for input" before any face is seen.
+    private const int FaceInputDefaultSize = 320;
 
     // Confidence floor for YuNet face proposals is user-tunable via
     // AppSettings.FaceDetectionConfidence (Settings → Classification); the former
@@ -86,6 +89,10 @@ public sealed class FaceAnalyzer : IDisposable
     private readonly object _initLock = new();
     private InferenceSession? _faceSession;
     private InferenceSession? _eyeSession;
+    // Face-detector input size, read from model metadata at init. Square for
+    // YuNet, but stored as W/H so a non-square export still works.
+    private int _faceInputW = FaceInputDefaultSize;
+    private int _faceInputH = FaceInputDefaultSize;
     private string? _faceInputName;
     private string? _eyeInputName;
     private string? _eyeOutputName;
@@ -95,6 +102,10 @@ public sealed class FaceAnalyzer : IDisposable
     private bool _eyeOutputIsDirectOpenProb;
     private int _eyeInputW = EyeFallbackW;
     private int _eyeInputH = EyeFallbackH;
+    // Channel count the eye model expects (NCHW dim 1). OCEC is 1 (grayscale),
+    // but some checkpoints want 3 (RGB). Read from metadata at init; feeding the
+    // wrong count makes ORT throw "Got invalid dimensions for input".
+    private int _eyeInputC = 1;
     private volatile bool _initAttempted;
 
     public bool IsAvailable { get; private set; }
@@ -118,16 +129,16 @@ public sealed class FaceAnalyzer : IDisposable
 
         // Resize to the face-detector input square via WIC (the same path used
         // for the cached previews, so quality is consistent with rest of app).
-        var resized = ResizeBgr(rgb, srcW, srcH, FaceInputSize, FaceInputSize);
+        var resized = ResizeBgr(rgb, srcW, srcH, _faceInputW, _faceInputH);
 
-        var faces = RunFaceDetection(resized, FaceInputSize, FaceInputSize);
+        var faces = RunFaceDetection(resized, _faceInputW, _faceInputH);
         if (faces.Count == 0)
             return new FaceAnalysisResult(0, 0, 1.0f);
 
-        // Map landmarks back from FaceInputSize space into the original preview
+        // Map landmarks back from detector-input space into the original preview
         // pixel space so eye crops come from the higher-resolution decode.
-        float scaleX = (float)srcW / FaceInputSize;
-        float scaleY = (float)srcH / FaceInputSize;
+        float scaleX = (float)srcW / _faceInputW;
+        float scaleY = (float)srcH / _faceInputH;
 
         // Aspect-aware crop sizing. The eye model may want a non-square input
         // (OCEC is 24×40 H×W). Cropping a rectangle that already matches the
@@ -181,13 +192,13 @@ public sealed class FaceAnalyzer : IDisposable
         var rgb = DecodeJpegToBgr(previewJpeg, out int srcW, out int srcH);
         if (rgb == null) return null;
 
-        var resized = ResizeBgr(rgb, srcW, srcH, FaceInputSize, FaceInputSize);
-        var faces = RunFaceDetection(resized, FaceInputSize, FaceInputSize);
+        var resized = ResizeBgr(rgb, srcW, srcH, _faceInputW, _faceInputH);
+        var faces = RunFaceDetection(resized, _faceInputW, _faceInputH);
         if (faces.Count == 0)
             return new FaceDebugResult(0, 0, 1.0f, srcW, srcH, Array.Empty<FaceDebugFace>());
 
-        float scaleX = (float)srcW / FaceInputSize;
-        float scaleY = (float)srcH / FaceInputSize;
+        float scaleX = (float)srcW / _faceInputW;
+        float scaleY = (float)srcH / _faceInputH;
         int longerDim = Math.Max(_eyeInputW, _eyeInputH);
         float halfWFactor = (float)_eyeInputW / longerDim;
         float halfHFactor = (float)_eyeInputH / longerDim;
@@ -220,11 +231,11 @@ public sealed class FaceAnalyzer : IDisposable
             }
             if (faceHasClosedEye) closedFaces++;
 
-            // Normalise the box from the 320² detection square to 0–1 image space
-            // (the square squashes the whole frame, so dividing by FaceInputSize maps
-            // straight back to fractions of width/height).
+            // Normalise the box from the detection square to 0–1 image space
+            // (the square squashes the whole frame, so dividing by the detector
+            // input dims maps straight back to fractions of width/height).
             list.Add(new FaceDebugFace(
-                f.X / FaceInputSize, f.Y / FaceInputSize, f.W / FaceInputSize, f.H / FaceInputSize,
+                f.X / _faceInputW, f.Y / _faceInputH, f.W / _faceInputW, f.H / _faceInputH,
                 f.Score, rightOpen, leftOpen, faceHasClosedEye));
         }
 
@@ -271,14 +282,28 @@ public sealed class FaceAnalyzer : IDisposable
                 _faceInputName = _faceSession.InputMetadata.Keys.First();
                 _eyeInputName  = _eyeSession.InputMetadata.Keys.First();
 
+                // Honour a fixed face-detector input shape. Stock YuNet exports
+                // are [1, 3, 640, 640]; feeding 320 to those throws at Run().
+                // Dynamic dims come back as -1/0 — keep the cheap 320 default.
+                var faceDims = _faceSession.InputMetadata[_faceInputName].Dimensions;
+                if (faceDims.Length >= 4)
+                {
+                    int h = faceDims[2];
+                    int w = faceDims[3];
+                    if (h > 0) _faceInputH = h;
+                    if (w > 0) _faceInputW = w;
+                }
+
                 // Read NCHW dims from the eye input metadata. Static dims are
                 // positive ints; dynamic dims (rare for these models) come back
                 // as -1 or 0 — fall back to OCEC defaults in that case.
                 var eyeDims = _eyeSession.InputMetadata[_eyeInputName].Dimensions;
                 if (eyeDims.Length >= 4)
                 {
+                    int c = eyeDims[1];
                     int h = eyeDims[2];
                     int w = eyeDims[3];
+                    if (c > 0) _eyeInputC = c;
                     if (h > 0) _eyeInputH = h;
                     if (w > 0) _eyeInputW = w;
                 }
@@ -447,15 +472,21 @@ public sealed class FaceAnalyzer : IDisposable
 
     private float ClassifyEyeOpenProb(byte[] grayCrop)
     {
-        // Eye classifier input: NCHW float32 [1, 1, H, W], pixels normalised
-        // 0..1. H/W came from the model's input metadata at init time so this
-        // works for both OCEC's 24×40 and any square legacy checkpoint.
-        int len = _eyeInputW * _eyeInputH;
-        var data = new float[len];
-        for (int i = 0; i < len; i++)
-            data[i] = grayCrop[i] / 255f;
+        // Eye classifier input: NCHW float32 [1, C, H, W], pixels normalised
+        // 0..1. C/H/W all came from the model's input metadata at init time so
+        // this works for OCEC's 1×24×40 and 3-channel (RGB) checkpoints alike.
+        // We only have a grayscale crop, so for C==3 we replicate luma across
+        // the planes — dimensionally correct and fine for an open/closed task.
+        int plane = _eyeInputW * _eyeInputH;
+        var data = new float[_eyeInputC * plane];
+        for (int i = 0; i < plane; i++)
+        {
+            float v = grayCrop[i] / 255f;
+            for (int c = 0; c < _eyeInputC; c++)
+                data[c * plane + i] = v;
+        }
 
-        var tensor = new DenseTensor<float>(data, new[] { 1, 1, _eyeInputH, _eyeInputW });
+        var tensor = new DenseTensor<float>(data, new[] { 1, _eyeInputC, _eyeInputH, _eyeInputW });
         using var results = _eyeSession!.Run(new[]
         {
             NamedOnnxValue.CreateFromTensor(_eyeInputName!, tensor)

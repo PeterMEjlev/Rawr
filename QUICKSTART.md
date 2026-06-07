@@ -6,6 +6,11 @@
 dotnet run --project src/Rawr.App -c Release
 ```
 
+## Rebuild
+```bash
+dotnet build src/Rawr.App -c Debug
+```
+
 ## First use
 
 1. `Ctrl+O` → pick a folder of RAW photos

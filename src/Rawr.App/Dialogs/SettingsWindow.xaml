@@ -668,7 +668,7 @@
                                      Margin="0,0,0,12" />
                         <TextBlock Text="Closed-eye sensitivity (%)" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="Looser"
+                            <TextBlock Text="Stricter"
                                        Foreground="{StaticResource TextDimBrush}"
                                        FontSize="10"
                                        VerticalAlignment="Center"
@@ -679,7 +679,7 @@
                                     TickFrequency="5" IsSnapToTickEnabled="True"
                                     Width="220"
                                     VerticalAlignment="Center" />
-                            <TextBlock Text="Stricter"
+                            <TextBlock Text="Looser"
                                        Foreground="{StaticResource TextDimBrush}"
                                        FontSize="10"
                                        VerticalAlignment="Center"
@@ -689,7 +689,7 @@
                             <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
                             <Button Style="{StaticResource ResetButton}" Tag="ClosedEyeThreshold" />
                         </StackPanel>
-                        <TextBlock Text="An eye counts as closed when the classifier's open-eye confidence falls below this threshold. Higher values are stricter (fewer photos flagged). Auto runs on folder open; Manual runs from the toolbar Analyze menu."
+                        <TextBlock Text="An eye counts as closed when the classifier's open-eye confidence falls below this threshold. Higher values are looser — they raise the open-eye bar, so more eyes count as closed (more photos flagged). Auto runs on folder open; Manual runs from the toolbar Analyze menu."
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"

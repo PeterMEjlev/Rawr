@@ -143,8 +143,9 @@ public sealed class AppSettings
 
     // Gate for the sidebar "Closed eyes" bucket and filter chip. An eye is
     // considered closed when the classifier's "open" probability falls below
-    // this threshold (range 0–100 == 0.0–1.0). Higher = stricter (fewer photos
-    // pass); 50 ≈ "the model thinks it's more likely closed than open".
+    // this threshold (range 0–100 == 0.0–1.0). Higher raises the open-eye bar,
+    // so more eyes count as closed (more photos flagged); 50 ≈ "the model
+    // thinks it's more likely closed than open".
     public byte ClosedEyeThreshold { get; set; } = 50;
 
     // ── Subject classifier (zero-shot CLIP) ──
