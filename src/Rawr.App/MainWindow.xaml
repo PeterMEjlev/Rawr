@@ -1521,9 +1521,55 @@
                         <!-- ── FILTERS section ── -->
                         <Border Style="{StaticResource SectionCard}">
                         <StackPanel>
-                        <TextBlock Text="QUICK FILTERS" Style="{StaticResource SectionCardHeader}" />
+                        <!-- Header row: section label + lock toggle. Locked (🔒) is
+                             the normal state; clicking it (🔓) enters reorder mode,
+                             where subsections can be dragged to a new order. Re-locking
+                             persists the order to AppSettings.QuickFilterOrder. -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="QUICK FILTERS"
+                                       Style="{StaticResource SectionCardHeader}"
+                                       Margin="0" VerticalAlignment="Center" />
+                            <ToggleButton x:Name="QuickFilterLockToggle" Grid.Column="1"
+                                          Background="Transparent" BorderThickness="0" Padding="3"
+                                          Cursor="Hand" Focusable="False" VerticalAlignment="Center"
+                                          ToolTip="Locked — click to rearrange the filter order"
+                                          Checked="QuickFilterLockToggle_Changed"
+                                          Unchecked="QuickFilterLockToggle_Changed">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                            <TextBlock x:Name="Glyph" Text="&#x1F512;" FontSize="12"
+                                                       Foreground="{StaticResource TextDimBrush}" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Glyph" Property="Text" Value="&#x1F513;" />
+                                                <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                        </Grid>
+
+                        <!-- Reorderable container. Each direct child is one subsection
+                             wrapper carrying a Tag key; drag-reorder + persistence are
+                             handled in MainWindow.xaml.cs. -->
+                        <StackPanel x:Name="QuickFilterSubsections" Background="Transparent"
+                                    PreviewMouseLeftButtonDown="QuickFilterSubsections_PreviewMouseLeftButtonDown"
+                                    PreviewMouseMove="QuickFilterSubsections_PreviewMouseMove"
+                                    PreviewMouseLeftButtonUp="QuickFilterSubsections_PreviewMouseLeftButtonUp">
 
                         <!-- Rated subsection -->
+                        <StackPanel Tag="Rated">
                         <ToggleButton x:Name="RatedToggle" Content="Rated" Style="{StaticResource SidebarSubsectionToggle}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=RatedToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1606,8 +1652,10 @@
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
+                        </StackPanel>
 
                         <!-- Flagged subsection -->
+                        <StackPanel Tag="Flagged">
                         <ToggleButton x:Name="FlaggedToggle" Content="Flagged" Style="{StaticResource SidebarSubsectionToggle}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=FlaggedToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1672,12 +1720,14 @@
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
+                        </StackPanel>
 
                         <!-- Exposure subsection — flags photos whose clipped/crushed area
                              exceeds the threshold set in Settings → Clipping. Icons are
                              directional triangles pointing at the rail (right = upper rail,
                              left = lower rail) so they read as "pixels pushed past the edge"
                              rather than being mistaken for color labels. -->
+                        <StackPanel Tag="Exposure">
                         <ToggleButton x:Name="ExposureToggle" Content="Exposure" Style="{StaticResource SidebarSubsectionToggle}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=ExposureToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1724,6 +1774,7 @@
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
+                        </StackPanel>
 
                         <!-- Subjects subsection — populated by the auto-running
                              zero-shot CLIP classifier after folder open. Built
@@ -1734,6 +1785,7 @@
                              category and clears any other; clicking it again
                              clears the filter. Unclassified photos stay out of
                              both sides of the include/exclude split. -->
+                        <StackPanel Tag="Subjects">
                         <ToggleButton x:Name="SubjectsToggle" Content="Subjects" Style="{StaticResource SidebarSubsectionToggle}" IsChecked="True" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=SubjectsToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1825,11 +1877,13 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
+                        </StackPanel>
 
                         <!-- Faces subsection — populated by the toolbar 👁 button.
                              Threshold lives in Settings → Faces. Photos that
                              haven't been analysed yet don't appear in either side
                              of the chip's include/exclude split. -->
+                        <StackPanel Tag="Faces">
                         <ToggleButton x:Name="FacesToggle" Content="Faces" Style="{StaticResource SidebarSubsectionToggle}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=FacesToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1854,8 +1908,10 @@
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
+                        </StackPanel>
 
                         <!-- Labelled subsection — least frequently used, parked at the bottom. -->
+                        <StackPanel Tag="Labelled">
                         <ToggleButton x:Name="LabelledToggle" Content="Labelled" Style="{StaticResource SidebarSubsectionToggle}" />
                         <StackPanel Margin="6,0,6,4"
                                     Visibility="{Binding IsChecked, ElementName=LabelledToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1930,8 +1986,10 @@
                                 </Grid>
                             </controls:SidebarBucketButton>
                         </StackPanel>
+                        </StackPanel>
 
                         <!-- ── TAGS subsection ── -->
+                        <StackPanel Tag="Tags">
                         <ToggleButton x:Name="TagsToggle" Content="Tags" Style="{StaticResource SidebarSubsectionToggle}" />
                         <ItemsControl x:Name="SidebarTagsList" ItemsSource="{Binding Tags}" Margin="6,0,6,4"
                                       Visibility="{Binding IsChecked, ElementName=TagsToggle, Converter={StaticResource BoolToVisibility}}">
@@ -1963,6 +2021,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </StackPanel>
+                        </StackPanel>
 
                         <!-- Combine-filters hint, parked at the bottom of the quick filters. -->
                         <TextBlock Text="Tip: Shift-click to combine filters"

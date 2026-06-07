@@ -236,6 +236,7 @@ public partial class MainWindow : Window
 
         InitializeComponent();
         WindowHelper.ApplyDarkTitleBar(this);
+        ApplyQuickFilterOrder();
 
         VideoLog($"=== Session start. FlyleafLib host init. OS={Environment.OSVersion} CLR={Environment.Version} ===");
         try
@@ -2473,4 +2474,155 @@ public partial class MainWindow : Window
 
     private void SetPlayPauseGlyph(bool playing) =>
         VideoPlayPauseButton.Content = playing ? "⏸" : "▶";
+
+    // ── Quick-filter subsection reordering ──────────────────────────────────
+    // The QUICK FILTERS sidebar lists seven subsection wrappers (each tagged
+    // "Rated"/"Flagged"/… in XAML) inside the QuickFilterSubsections panel. The
+    // 🔒/🔓 lock toggle in the section header switches an edit mode: while
+    // unlocked, dragging a subsection reorders it live; re-locking persists the
+    // order to AppSettings.QuickFilterOrder. We capture the mouse and reorder
+    // the panel's children directly rather than using OLE drag-drop, which
+    // fights the enclosing ScrollViewer.
+
+    private Point _qfDragStartPoint;
+    private FrameworkElement? _qfDragItem;
+    private bool _qfMousePressed;
+    private bool _qfDragging;
+
+    // Reorder the subsection wrappers to match the saved key order. Unknown or
+    // newly-added tags keep their XAML position after the ordered block.
+    private void ApplyQuickFilterOrder()
+    {
+        var order = AppSettings.Current.QuickFilterOrder;
+        if (order == null || order.Count == 0) return;
+
+        var panel = QuickFilterSubsections;
+        var byTag = panel.Children.Cast<FrameworkElement>()
+            .Where(c => c.Tag is string)
+            .ToDictionary(c => (string)c.Tag);
+
+        int insertAt = 0;
+        foreach (var key in order)
+        {
+            if (!byTag.TryGetValue(key, out var el)) continue;
+            int cur = panel.Children.IndexOf(el);
+            if (cur != insertAt)
+            {
+                panel.Children.RemoveAt(cur);
+                panel.Children.Insert(insertAt, el);
+            }
+            insertAt++;
+        }
+    }
+
+    private void SaveQuickFilterOrder()
+    {
+        AppSettings.Current.QuickFilterOrder = QuickFilterSubsections.Children
+            .Cast<FrameworkElement>()
+            .Select(c => c.Tag as string)
+            .Where(t => !string.IsNullOrEmpty(t))
+            .Select(t => t!)
+            .ToList();
+        AppSettings.Current.Save();
+    }
+
+    private void QuickFilterLockToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        bool editing = QuickFilterLockToggle.IsChecked == true;
+        if (editing)
+        {
+            QuickFilterSubsections.Cursor = Cursors.SizeAll;
+            QuickFilterLockToggle.ToolTip = "Reordering — click to lock the filter order";
+        }
+        else
+        {
+            EndQuickFilterDrag();
+            QuickFilterSubsections.Cursor = null;
+            QuickFilterLockToggle.ToolTip = "Locked — click to rearrange the filter order";
+            SaveQuickFilterOrder();
+        }
+    }
+
+    private void QuickFilterSubsections_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Locked → leave the buttons to behave normally (collapse / filter).
+        if (QuickFilterLockToggle.IsChecked != true) return;
+
+        var item = FindQuickFilterChild(e.OriginalSource as DependencyObject);
+        if (item == null) return;
+
+        _qfDragItem = item;
+        _qfDragStartPoint = e.GetPosition(QuickFilterSubsections);
+        _qfMousePressed = true;
+        QuickFilterSubsections.CaptureMouse();
+        // Swallow the press so the underlying toggle / bucket button doesn't fire
+        // while we're rearranging.
+        e.Handled = true;
+    }
+
+    private void QuickFilterSubsections_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_qfMousePressed || _qfDragItem == null) return;
+
+        var pos = e.GetPosition(QuickFilterSubsections);
+        if (!_qfDragging)
+        {
+            if (Math.Abs(pos.Y - _qfDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+                return;
+            _qfDragging = true;
+            _qfDragItem.Opacity = 0.6;
+        }
+
+        ReorderToPointer(pos.Y);
+    }
+
+    private void QuickFilterSubsections_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        => EndQuickFilterDrag();
+
+    // Move the dragged wrapper to the slot whose midpoint the pointer has passed.
+    private void ReorderToPointer(double y)
+    {
+        if (_qfDragItem == null) return;
+
+        var panel = QuickFilterSubsections;
+        int count = panel.Children.Count;
+        int desired = count - 1;
+        for (int i = 0; i < count; i++)
+        {
+            var c = (FrameworkElement)panel.Children[i];
+            double top = c.TranslatePoint(new Point(0, 0), panel).Y;
+            if (y < top + c.ActualHeight / 2) { desired = i; break; }
+        }
+
+        int old = panel.Children.IndexOf(_qfDragItem);
+        if (old < 0 || old == desired) return;
+
+        panel.Children.RemoveAt(old);
+        if (desired > old) desired--;                 // compensate for the removal shift
+        desired = Math.Clamp(desired, 0, panel.Children.Count);
+        panel.Children.Insert(desired, _qfDragItem);
+    }
+
+    private void EndQuickFilterDrag()
+    {
+        if (_qfDragItem != null) _qfDragItem.Opacity = 1.0;
+        _qfDragItem = null;
+        _qfMousePressed = false;
+        _qfDragging = false;
+        if (QuickFilterSubsections.IsMouseCaptured)
+            QuickFilterSubsections.ReleaseMouseCapture();
+    }
+
+    // Walk up from the event source to the immediate child of QuickFilterSubsections.
+    private FrameworkElement? FindQuickFilterChild(DependencyObject? source)
+    {
+        var cur = source;
+        while (cur != null)
+        {
+            if (cur is FrameworkElement fe && ReferenceEquals(fe.Parent, QuickFilterSubsections))
+                return fe;
+            cur = VisualTreeHelper.GetParent(cur);
+        }
+        return null;
+    }
 }

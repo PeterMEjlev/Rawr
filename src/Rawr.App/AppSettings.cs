@@ -74,6 +74,14 @@ public sealed class AppSettings
     // restarts.
     public bool IncludeSubfolders { get; set; } = true;
 
+    // User-chosen display order of the QUICK FILTERS sidebar subsections, stored
+    // as a list of subsection keys (the Tag on each wrapper in MainWindow.xaml:
+    // "Rated", "Flagged", "Exposure", "Subjects", "Faces", "Labelled", "Tags").
+    // Empty = keep the XAML default order. Unknown/new keys not in the list fall
+    // back to their original XAML position, appended after the ordered ones, so
+    // adding a subsection later doesn't require a migration.
+    public List<string> QuickFilterOrder { get; set; } = new();
+
     // User-facing "strictness" (10–100), driven by the Settings slider. Maps
     // onto the adaptive threshold multipliers in FocusPeakingOptions — higher
     // shifts every confidence band up (fewer, sharper peaks).
@@ -260,6 +268,7 @@ public sealed class AppSettings
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,
         DefaultSortField = DefaultSortField,
         IncludeSubfolders = IncludeSubfolders,
+        QuickFilterOrder = new List<string>(QuickFilterOrder),
         FocusPeakingThreshold = FocusPeakingThreshold,
         FocusPeaking = FocusPeaking.Clone(),
         ClippingMode = ClippingMode,
