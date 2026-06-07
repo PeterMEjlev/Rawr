@@ -129,7 +129,7 @@ public sealed class WicExtractor : IPreviewExtractor
 
     private static byte[] EncodeJpeg(BitmapSource source)
     {
-        var encoder = new JpegBitmapEncoder { QualityLevel = 85 };
+        var encoder = new JpegBitmapEncoder { QualityLevel = Math.Clamp(Rawr.Core.RawrTuning.CacheJpegQuality, 1, 100) };
         encoder.Frames.Add(BitmapFrame.Create(source));
         using var ms = new MemoryStream();
         encoder.Save(ms);

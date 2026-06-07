@@ -12,7 +12,11 @@ namespace Rawr.App.Converters;
 /// </summary>
 public sealed class JpegBytesToImageConverter : IValueConverter
 {
-    private const int DefaultDecodePixelWidth = 240;
+    // Settable (not const) so the app can sync it from
+    // AppSettings.GridThumbnailRenderWidth at startup / on settings save — the
+    // grid binding and the panel's preload warming both flow through here. 240
+    // matches the former constant.
+    internal static int DefaultDecodePixelWidth = 240;
 
     /// <summary>Target decode width in pixels. 0 = full resolution.</summary>
     public int DecodePixelWidth { get; set; } = DefaultDecodePixelWidth;
@@ -50,10 +54,14 @@ public sealed class JpegBytesToImageConverter : IValueConverter
         return Preload(bytes, DecodePixelWidth);
     }
 
-    public static BitmapSource? Preload(byte[]? bytes, int decodePixelWidth = DefaultDecodePixelWidth)
+    public static BitmapSource? Preload(byte[]? bytes, int decodePixelWidth = -1)
     {
         if (bytes is not { Length: > 0 })
             return null;
+
+        // -1 = "use the configured grid render width"; 0 stays meaningful (full res).
+        if (decodePixelWidth < 0)
+            decodePixelWidth = DefaultDecodePixelWidth;
 
         var key = new CacheKey(bytes, Math.Max(0, decodePixelWidth));
 

@@ -16,7 +16,7 @@ public partial class App : Application
     {
         MessageBox.Show(
             e.Exception.ToString(),
-            "RAWR — Unhandled UI exception",
+            "RAWR - Unhandled UI exception",
             MessageBoxButton.OK,
             MessageBoxImage.Error);
         e.Handled = true;
@@ -28,7 +28,7 @@ public partial class App : Application
         {
             MessageBox.Show(
                 ex.ToString(),
-                "RAWR — Fatal exception",
+                "RAWR - Fatal exception",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }

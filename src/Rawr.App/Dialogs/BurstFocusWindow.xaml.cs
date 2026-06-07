@@ -81,9 +81,37 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             ? captureTime.ToString(AppSettings.Current.DateFormat)
             : "";
 
+    // Subject-classifier debug HUD (Settings → General → Debug). Mirrors the main
+    // preview's overlay for the burst frame currently in focus. Null = hidden.
+    private string? _subjectDebugText;
+    public string? SubjectDebugText
+    {
+        get => _subjectDebugText;
+        private set
+        {
+            if (_subjectDebugText == value) return;
+            _subjectDebugText = value;
+            OnPropertyChanged(nameof(SubjectDebugText));
+        }
+    }
+
+    private ImageSource? _faceDebugOverlay;
+    public ImageSource? FaceDebugOverlay
+    {
+        get => _faceDebugOverlay;
+        private set
+        {
+            if (_faceDebugOverlay == value) return;
+            _faceDebugOverlay = value;
+            OnPropertyChanged(nameof(FaceDebugOverlay));
+        }
+    }
+    private CancellationTokenSource? _subjectDebugCts;
+
     private const double MinZoom = 1.0;
-    private const double MaxZoom = 64.0;
-    private const double ZoomStep = 1.2;
+    // Backed by AppSettings (General → Zoom); defaults match the former constants.
+    private static double MaxZoom => Math.Max(MinZoom, AppSettings.Current.MaxZoom);
+    private static double ZoomStep => Math.Max(1.01, AppSettings.Current.ZoomStep);
 
     private readonly MainViewModel _vm;
     private readonly List<PhotoItem> _photos;
@@ -188,7 +216,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         WindowHelper.ApplyDarkTitleBar(this);
 
         Strip.ItemsSource = _photos;
-        HeaderText.Text = $"Burst — {_photos.Count} photos";
+        HeaderText.Text = $"Burst - {_photos.Count} photos";
 
         _peek = new PixelPeekController(PreviewHost, PreviewImageElement,
             loadHighResAsync: LoadFullJpegIfNeededAsync);
@@ -246,11 +274,13 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
         if (index < 0 || index >= _photos.Count) return;
         _currentIndex = index;
         CurrentPhoto = _photos[index];
+        _ = RefreshSubjectDebugAsync(_photos[index]);
         Strip.SelectedIndex = index;
         CenterStripSelection();
         HistogramData = null;
         FocusPeakingOverlay = null;
         ClippingOverlay = null;
+        FaceDebugOverlay = null;   // cleared now; RefreshSubjectDebugAsync repopulates it
         if (!keepZoom)
             ResetZoom();
         else
@@ -389,7 +419,7 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             FlagBadge.Visibility = Visibility.Visible;
             FlagText.Text = photo.Flag == CullFlag.Pick ? "PICK" : "REJECT";
         }
-        Title = $"Burst — {photo.FileName}  ({_currentIndex + 1}/{_photos.Count})";
+        Title = $"Burst - {photo.FileName}  ({_currentIndex + 1}/{_photos.Count})";
     }
 
     // Chrome-free view mirroring the main window's "F" fullscreen: drop the
@@ -523,6 +553,32 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
             rect.Right - rect.Left,
             rect.Bottom - rect.Top,
             SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+
+    private async Task RefreshSubjectDebugAsync(PhotoItem photo)
+    {
+        _subjectDebugCts?.Cancel();
+        if (!AppSettings.Current.ShowSubjectClassifierScores)
+        {
+            SubjectDebugText = null;
+            FaceDebugOverlay = null;
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _subjectDebugCts = cts;
+        try
+        {
+            var d = await _vm.ComputeDebugAsync(photo, cts.Token);
+            // Ignore if a newer frame superseded this one mid-inference.
+            if (cts.IsCancellationRequested || _currentIndex < 0 || _photos[_currentIndex] != photo) return;
+            SubjectDebugText = d.Text;
+            // Build the WPF overlay on the UI thread; guard so a failure never hides text.
+            try { FaceDebugOverlay = d.Faces != null ? MainViewModel.BuildFaceOverlay(d.Faces) : null; }
+            catch { FaceDebugOverlay = null; }
+        }
+        catch (OperationCanceledException) { }
+        catch { /* best-effort debug overlay */ }
     }
 
     private async Task LoadPreviewAsync(PhotoItem photo)

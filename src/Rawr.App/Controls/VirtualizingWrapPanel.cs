@@ -15,10 +15,13 @@ namespace Rawr.App.Controls;
 /// </summary>
 public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
 {
-    private const int CacheRowsBefore = 3;
-    private const int CacheRowsAfter = 6;
-    private const int PreloadRowsBefore = 4;
-    private const int PreloadRowsAfter = 12;
+    // Backed by AppSettings (Performance tab) so power users can trade RAM for
+    // scroll smoothness. Defaults match the former constants. Clamped to >= 0 so a
+    // stray negative in settings.json can't invert the materialization window.
+    private static int CacheRowsBefore => Math.Max(0, AppSettings.Current.GridCacheRowsBefore);
+    private static int CacheRowsAfter => Math.Max(0, AppSettings.Current.GridCacheRowsAfter);
+    private static int PreloadRowsBefore => Math.Max(0, AppSettings.Current.GridPreloadRowsBefore);
+    private static int PreloadRowsAfter => Math.Max(0, AppSettings.Current.GridPreloadRowsAfter);
 
     public static readonly DependencyProperty ItemWidthProperty =
         DependencyProperty.Register(
@@ -475,7 +478,7 @@ public sealed class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
         var cts = new CancellationTokenSource();
         _preloadCts = cts;
 
-        var parallelism = Math.Max(2, Math.Min(4, Environment.ProcessorCount / 2));
+        var parallelism = AppSettings.CappedParallelism(Math.Max(2, Math.Min(4, Environment.ProcessorCount / 2)));
         _ = Task.Run(() =>
         {
             try

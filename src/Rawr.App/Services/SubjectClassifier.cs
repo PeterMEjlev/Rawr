@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Media;
@@ -151,6 +153,59 @@ public sealed class SubjectClassifier : IDisposable
     }
 
     /// <summary>
+    /// Diagnostic: run the same pipeline as <see cref="Classify"/> but return a
+    /// human-readable dump of the raw softmax confidences — every top-level group
+    /// (with the <c>background</c> anchor) plus the leaf softmax for any group that
+    /// passed its gate, with a ✓ next to categories that cleared their threshold.
+    /// Backs the "show subject scores" debug overlay. Returns null if the
+    /// classifier isn't available or the JPEG can't be decoded.
+    /// </summary>
+    public string? DebugScores(byte[] jpeg, Func<SubjectTag, float> groupThresholdFor)
+    {
+        EnsureInitialized();
+        if (!IsAvailable) return null;
+
+        var imageEmbed = ComputeImageEmbedding(jpeg);
+        if (imageEmbed == null) return null;
+
+        var (topProbs, bgProb) = SoftmaxWithBackground(SubjectTaxonomy.Groups.Select(g => g.Group), imageEmbed);
+
+        var sb = new StringBuilder();
+        sb.Append("SUBJECT SCORES (score/threshold)");
+        foreach (var g in SubjectTaxonomy.Groups.OrderByDescending(g => topProbs.GetValueOrDefault(g.Group)))
+        {
+            float p = topProbs.GetValueOrDefault(g.Group);
+            float thr = groupThresholdFor(g.Group);
+            sb.Append('\n').Append(FormatScore(g.Group.ToString(), p, thr, p >= thr, indent: false));
+
+            if (p < thr || g.Leaves.Count == 0) continue;
+            // Leaves compete in their own softmax against the fixed leaf gate, not
+            // the per-group threshold — show that gate so the column reads honestly.
+            var leafProbs = SoftmaxOver(g.Leaves, imageEmbed);
+            foreach (var leaf in g.Leaves.OrderByDescending(l => leafProbs.GetValueOrDefault(l)))
+            {
+                float lp = leafProbs.GetValueOrDefault(leaf);
+                sb.Append('\n').Append(FormatScore(leaf.ToString(), lp, LeafProbThreshold, lp >= LeafProbThreshold, indent: true));
+            }
+        }
+        // Background anchor has no threshold — show its score alone.
+        sb.Append('\n').Append(FormatScore(BackgroundTagName, bgProb, threshold: null, applied: false, indent: false));
+        return sb.ToString();
+    }
+
+    // Scores are shown on the 0–100 scale that matches the threshold sliders:
+    // "55/40 ✓" = 55% softmax probability against a 40% gate that it cleared.
+    private static string FormatScore(string label, float prob, float? threshold, bool applied, bool indent)
+    {
+        string name = (indent ? "  " : "") + label;
+        int score = (int)Math.Round(prob * 100f);
+        string val = threshold.HasValue
+            ? $"{score}/{(int)Math.Round(threshold.Value * 100f)}"
+            : score.ToString(CultureInfo.InvariantCulture);
+        return $"{name,-15} {val,-7}{(applied ? "✓" : "")}";
+    }
+
+    /// <summary>
     /// Decode, preprocess and run the image encoder, returning the
     /// L2-normalised image embedding (or null if the JPEG can't be decoded /
     /// the model output is shorter than the embedding dim).
@@ -215,6 +270,41 @@ public sealed class SubjectClassifier : IDisposable
         foreach (var (flag, logit) in logits)
             result[flag] = (float)(Math.Exp(logit - max) / denom);
         return result;
+    }
+
+    /// <summary>
+    /// Like <see cref="SoftmaxOver"/> but also returns the background anchor's
+    /// probability, so the debug overlay can show where the "none-of-the-above"
+    /// mass went. Kept separate so the hot classify path stays untouched.
+    /// </summary>
+    private (Dictionary<SubjectTag, float> Probs, float Background) SoftmaxWithBackground(
+        IEnumerable<SubjectTag> flags, float[] imageEmbed)
+    {
+        var logits = new List<(SubjectTag Flag, float Logit)>();
+        float max = float.NegativeInfinity;
+        foreach (var f in flags)
+        {
+            if (!_embeddings.TryGetValue(f, out var e)) continue;
+            float logit = Dot(imageEmbed, e) * LogitScale;
+            logits.Add((f, logit));
+            if (logit > max) max = logit;
+        }
+
+        float bgLogit = _background != null ? Dot(imageEmbed, _background) * LogitScale : float.NegativeInfinity;
+        if (_background != null && bgLogit > max) max = bgLogit;
+
+        var result = new Dictionary<SubjectTag, float>(logits.Count);
+        if (logits.Count == 0) return (result, 0f);
+
+        double denom = 0;
+        foreach (var (_, logit) in logits) denom += Math.Exp(logit - max);
+        if (_background != null) denom += Math.Exp(bgLogit - max);
+        if (denom <= 0) return (result, 0f);
+
+        foreach (var (flag, logit) in logits)
+            result[flag] = (float)(Math.Exp(logit - max) / denom);
+        float bg = _background != null ? (float)(Math.Exp(bgLogit - max) / denom) : 0f;
+        return (result, bg);
     }
 
     // ── Initialisation ──

@@ -203,14 +203,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // Photos within this radius of the current selection keep their PreviewJpeg /
     // FullJpeg bytes in memory for instant browsing. Photos outside the window are
     // evicted on selection change to keep memory bounded.
-    private const int KeepRadius = 2;
+    // Backed by AppSettings (Performance tab) so power users can tune the
+    // memory/responsiveness trade-offs. Defaults match the former constants.
+    private static int KeepRadius => AppSettings.Current.PreviewRetentionRadius;
     private readonly HashSet<PhotoItem> _retainedPreviewPhotos = [];
-    private const int SessionSaveDebounceMs = 600;
-    private const int CachedRawDecodeSettleDelayMs = 45;
-    private const int RawDecodeSettleDelayMs = 180;
-    private const int FullJpegPreloadSettleDelayMs = 350;
-    private const int RawPrefetchSettleDelayMs = 650;
-    private const int VideoProxyPrefetchSettleDelayMs = 700;
+    private static int SessionSaveDebounceMs => AppSettings.Current.SessionSaveDebounceMs;
+    private static int CachedRawDecodeSettleDelayMs => AppSettings.Current.CachedRawDecodeSettleDelayMs;
+    private static int RawDecodeSettleDelayMs => AppSettings.Current.RawDecodeSettleDelayMs;
+    private static int FullJpegPreloadSettleDelayMs => AppSettings.Current.FullJpegPreloadSettleDelayMs;
+    private static int RawPrefetchSettleDelayMs => AppSettings.Current.RawPrefetchSettleDelayMs;
+    private static int VideoProxyPrefetchSettleDelayMs => AppSettings.Current.VideoProxyPrefetchSettleDelayMs;
 
     private sealed record FolderCatalog(
         CullingDatabase Database,
@@ -1935,7 +1937,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Cap at ProcessorCount/2 to leave headroom for the UI thread + decode.
         int done = 0;
         int total = photos.Count;
-        int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2));
+        int parallelism = AppSettings.CappedParallelism(Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2)));
 
         SetBackgroundActivity("previews", $"Generating previews 0/{total}");
 
@@ -2143,6 +2145,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Skip when value is null — that's almost always the transient clear during
         // folder load or filter rebuild, not a real "user deselected everything".
         if (value != null) QueueSessionSave();
+
+        // Debug overlay: refresh the per-category subject scores for the new anchor
+        // (no-op / clear when the toggle is off).
+        if (value != null) RefreshSubjectDebug();
+        else SubjectDebugText = null;
     }
 
     private void OnSelectedPhotoPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -2360,7 +2367,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public string SelectedPhotoCaptureDateFormatted =>
         SelectedPhoto?.Metadata?.CaptureTime.HasValue == true
             ? SelectedPhoto.Metadata.CaptureTime.Value.ToString(AppSettings.Current.DateFormat)
-            : "—";
+            : "-";
 
     public void NotifyDateFormatChanged() =>
         OnPropertyChanged(nameof(SelectedPhotoCaptureDateFormatted));
@@ -2385,7 +2392,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // Toolbar / popup button tooltips that surface the (rebindable) shortcut next
     // to a description. Built from ShortcutGesture so they track custom bindings;
     // refreshed via NotifyShortcutDisplayChanged after the Settings dialog applies.
-    public string OpenTagsTooltip          => AppendGesture("Create and filter by tags  —  Shift+1 through Shift+0 to assign tags to selected photo", "OpenTags");
+    public string OpenTagsTooltip          => AppendGesture("Create and filter by tags  -  Shift+1 through Shift+0 to assign tags to selected photo", "OpenTags");
     public string SyncXmpTooltip => AppendGesture(
         "Write Lightroom-compatible XMP sidecars for every photo in this folder (rating, label, keywords, pick/reject).",
         "SyncXmp");
@@ -2555,7 +2562,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return rotated;
     }
 
-    private const double ExposureStepEv = 1.0 / 3.0;
+    private static double ExposureStepEv => AppSettings.Current.ExposureStepEv;
 
     [RelayCommand] private void IncreaseExposure() =>
         ExposureCompensation = Math.Round(Math.Clamp(ExposureCompensation + ExposureStepEv, -5.0, 5.0), 10);
@@ -2767,7 +2774,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var threshold = AppSettings.Current.ClippingThreshold;
         var snapshot = AllPhotos.Where(p => p.ThumbnailJpeg != null).ToList();
-        int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2));
+        int parallelism = AppSettings.CappedParallelism(Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2)));
 
         await Task.Run(() =>
         {
@@ -3484,7 +3491,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         if (targets.Count == 0) return;
 
-        int parallelism = Math.Max(1, Math.Min(targets.Count, 2));
+        int parallelism = AppSettings.CappedParallelism(Math.Max(1, Math.Min(targets.Count, 2)));
         using var gate = new SemaphoreSlim(parallelism);
 
         var tasks = new List<Task>(targets.Count);
@@ -3702,7 +3709,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // One less than ProcessorCount so the UI thread + on-demand decode stay
         // responsive while the bulk job runs.
-        int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount - 1));
+        int parallelism = AppSettings.CappedParallelism(Math.Max(2, Math.Min(8, Environment.ProcessorCount - 1)));
 
         try
         {
@@ -3864,7 +3871,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Convert the user-facing 0–100 threshold into a 0–1 probability in one
         // place; ONNX session is reentrant so we can fan out across cores.
         float threshold = AppSettings.Current.ClosedEyeThreshold / 100f;
-        int parallelism = Math.Max(2, Math.Min(8, Environment.ProcessorCount - 1));
+        int parallelism = AppSettings.CappedParallelism(Math.Max(2, Math.Min(8, Environment.ProcessorCount - 1)));
 
         try
         {
@@ -3950,6 +3957,176 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _classifySubjectsTotal;
     [ObservableProperty] private bool _isClassifyingSubjects;
     private CancellationTokenSource? _classifySubjectsCts;
+
+    // Debug overlay (Settings → General → Debug): live per-category softmax scores
+    // for the selected photo. Null = hidden. Recomputed on selection change and
+    // when the toggle flips; gated on AppSettings.ShowSubjectClassifierScores.
+    [ObservableProperty] private string? _subjectDebugText;
+    // Vector overlay (frozen DrawingImage) of detected-face boxes for the HUD.
+    [ObservableProperty] private ImageSource? _faceDebugOverlay;
+    private CancellationTokenSource? _subjectDebugCts;
+
+    /// <summary>
+    /// Recompute (or clear) the classifier debug overlay (subject scores + face
+    /// boxes) for the current photo. Safe to call from the UI thread; inference
+    /// runs on the thread pool.
+    /// </summary>
+    public void RefreshSubjectDebug() => _ = UpdateSubjectDebugAsync();
+
+    private async Task UpdateSubjectDebugAsync()
+    {
+        _subjectDebugCts?.Cancel();
+
+        var photo = SelectedPhoto;
+        if (!AppSettings.Current.ShowSubjectClassifierScores || photo == null || photo.IsVideo)
+        {
+            SubjectDebugText = null;
+            FaceDebugOverlay = null;
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _subjectDebugCts = cts;
+        try
+        {
+            var d = await ComputeDebugAsync(photo, cts.Token);
+            if (cts.IsCancellationRequested || !ReferenceEquals(SelectedPhoto, photo)) return;
+            SubjectDebugText = d.Text;
+            // Build the WPF overlay on the UI thread (Drawing objects misbehave off
+            // it) and guard it so a failure here never hides the text.
+            try { FaceDebugOverlay = d.Faces != null ? BuildFaceOverlay(d.Faces) : null; }
+            catch { FaceDebugOverlay = null; }
+        }
+        catch (OperationCanceledException) { /* superseded by a newer selection */ }
+        catch { /* the debug overlay is best-effort */ }
+    }
+
+    /// <summary>Result of <see cref="ComputeDebugAsync"/>: the HUD text and the raw
+    /// face-detection data (the vector overlay is built from it on the UI thread).</summary>
+    public sealed record SubjectFaceDebug(string? Text, FaceDebugResult? Faces);
+
+    /// <summary>
+    /// Compute the classifier debug dump (subject scores + face/eye detail) and a
+    /// face-box overlay for a specific photo. Shared by the main preview and the
+    /// burst focus window. Returns empty when the toggle is off or the photo isn't
+    /// classifiable; otherwise short status strings even on failure. Inference runs
+    /// on the thread pool; classifiers are created on the calling (UI) thread to
+    /// avoid racing their lazy init.
+    /// </summary>
+    public async Task<SubjectFaceDebug> ComputeDebugAsync(PhotoItem? photo, CancellationToken ct)
+    {
+        if (!AppSettings.Current.ShowSubjectClassifierScores || photo == null || photo.IsVideo)
+            return new SubjectFaceDebug(null, null);
+
+        _subjectClassifier ??= new SubjectClassifier();
+        _faceAnalyzer ??= new FaceAnalyzer();
+        var subjects = _subjectClassifier;
+        var faces = _faceAnalyzer;
+        int closedThrPct = AppSettings.Current.ClosedEyeThreshold;
+
+        return await Task.Run(() =>
+        {
+            byte[]? jpeg = null;
+            try
+            {
+                var photoCache = CacheFor(photo);
+                jpeg = photoCache.LoadThumbnail(photo.FileName)
+                       ?? photo.ThumbnailJpeg
+                       ?? photoCache.LoadPreview(photo.FileName);
+            }
+            catch { /* fall through — sections report "no cached image yet" */ }
+
+            var sb = new System.Text.StringBuilder();
+
+            // ── Subjects ── (each section guarded so one model throwing can't blank the HUD)
+            try
+            {
+                subjects.Initialize();
+                if (!subjects.IsAvailable)
+                    sb.Append("SUBJECT SCORES\nunavailable — ").Append(subjects.UnavailableReason);
+                else if (jpeg == null)
+                    sb.Append("SUBJECT SCORES\n(no cached image yet)");
+                else
+                    sb.Append(subjects.DebugScores(jpeg, t => AppSettings.Current.GetSubjectGroupThreshold(t) / 100f)
+                              ?? "SUBJECT SCORES\n(decode failed)");
+            }
+            catch (Exception ex) { sb.Append("SUBJECT SCORES\nerror — ").Append(ex.Message); }
+
+            // ── Faces / eyes ──
+            sb.Append("\n\n");
+            FaceDebugResult? faceResult = null;
+            try
+            {
+                faces.Initialize();
+                if (!faces.IsAvailable)
+                    sb.Append("FACES / EYES\nunavailable — ").Append(faces.UnavailableReason);
+                else if (jpeg == null)
+                    sb.Append("FACES / EYES\n(no cached image yet)");
+                else
+                {
+                    faceResult = faces.AnalyzeDebug(jpeg, closedThrPct / 100f);
+                    if (faceResult == null) sb.Append("FACES / EYES\n(decode failed)");
+                    else sb.Append(FormatFaceDebug(faceResult, closedThrPct));
+                }
+            }
+            catch (Exception ex) { sb.Append("FACES / EYES\nerror — ").Append(ex.Message); }
+
+            return new SubjectFaceDebug(sb.ToString(), faceResult);
+        }, ct);
+    }
+
+    // Eye-open values are shown as 0–100 to match the closed-eye threshold slider.
+    private static string FormatFaceDebug(FaceDebugResult fd, int closedThrPct)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("FACES / EYES (eye-open/threshold)");
+        sb.Append('\n').Append($"faces {fd.FaceCount} · closed {fd.ClosedEyeCount} · threshold {closedThrPct}");
+
+        const int maxListed = 8;
+        int shown = Math.Min(fd.Faces.Count, maxListed);
+        for (int i = 0; i < shown; i++)
+        {
+            var f = fd.Faces[i];
+            sb.Append('\n').Append(
+                $"{i + 1,2} conf {Pct(f.Score),3}  R {EyeStr(f.RightEyeOpen)}  L {EyeStr(f.LeftEyeOpen)}{(f.HasClosedEye ? "  ✗" : "  ✓")}");
+        }
+        if (fd.Faces.Count > shown)
+            sb.Append('\n').Append($"   …+{fd.Faces.Count - shown} more");
+        return sb.ToString();
+
+        static string Pct(float v) => float.IsNaN(v) ? "--" : ((int)Math.Round(v * 100f)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string EyeStr(float open) => float.IsNaN(open) ? "--" : $"{Pct(open)}/{closedThrPct}";
+    }
+
+    // Frozen vector overlay of face boxes. Built in image-pixel space so its aspect
+    // matches the photo; the overlay Image uses the same Stretch=Uniform + zoom/pan
+    // transform as the preview, so boxes land exactly on the faces. Green = all eyes
+    // open, orange = a closed eye. Returns null when there's nothing to draw.
+    internal static ImageSource? BuildFaceOverlay(FaceDebugResult fd)
+    {
+        if (fd.Faces.Count == 0) return null;
+
+        double w = Math.Max(1, fd.ImageWidth);
+        double h = Math.Max(1, fd.ImageHeight);
+        double thickness = Math.Max(w, h) / 260.0;
+
+        var open = new Pen(Brushes.Lime, thickness); open.Freeze();
+        var closed = new Pen(Brushes.OrangeRed, thickness); closed.Freeze();
+
+        var group = new DrawingGroup();
+        // Transparent full-frame rect anchors the drawing bounds to the whole photo
+        // so Stretch=Uniform aligns the boxes instead of fitting to their extent.
+        group.Children.Add(new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, w, h))));
+        foreach (var f in fd.Faces)
+        {
+            var rect = new Rect(f.X * w, f.Y * h, Math.Max(0, f.W) * w, Math.Max(0, f.H) * h);
+            group.Children.Add(new GeometryDrawing(null, f.HasClosedEye ? closed : open, new RectangleGeometry(rect)));
+        }
+
+        var image = new DrawingImage(group);
+        image.Freeze();
+        return image;
+    }
 
     public string ClassifySubjectsButtonLabel => IsClassifyingSubjects
         ? $"⏹ Cancel  ({ClassifySubjectsProgress}/{ClassifySubjectsTotal})"
@@ -4106,7 +4283,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Lower parallelism than face analysis — folder-open path is already
         // hot, and this is a courtesy background pass, not a button press.
-        int parallelism = Math.Max(1, Math.Min(4, Environment.ProcessorCount / 2));
+        int parallelism = AppSettings.CappedParallelism(Math.Max(1, Math.Min(4, Environment.ProcessorCount / 2)));
 
         try
         {
@@ -4219,12 +4396,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // Default screen-size decode for the main preview. LibRaw always extracts the
     // full sensor-sized JPEG (~6000x4000); decoding at this width uses the JPEG
     // codec's fast 1/2/1/4/1/8 native scaling, which is far faster than full decode.
-    private const int PreviewDecodeWidth = 1920;
+    // Backed by AppSettings (Performance tab); defaults match the former constants.
+    private static int PreviewDecodeWidth => AppSettings.Current.PreviewDecodeWidth;
 
     // Target width for the cached linear-RAW preview buffer. ~2x display width gives
     // headroom for moderate zoom while keeping dither at display-relevant frequency.
-    private const int LinearRawPreviewWidth = 2400;
-    private const int ThumbnailDecodeWidth = 320;
+    private static int LinearRawPreviewWidth => AppSettings.Current.LinearRawPreviewWidth;
+    private static int ThumbnailDecodeWidth => AppSettings.Current.ThumbnailDecodeWidth;
 
     /// <summary>
     /// Downscale a JPEG to <paramref name="maxWidth"/> and bake any EXIF orientation into
@@ -4260,7 +4438,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 source = rotated;
             }
 
-            var encoder = new JpegBitmapEncoder { QualityLevel = 85 };
+            var encoder = new JpegBitmapEncoder { QualityLevel = Math.Clamp((int)AppSettings.Current.CacheJpegQuality, 1, 100) };
             encoder.Frames.Add(BitmapFrame.Create(source));
             using var outMs = new MemoryStream();
             encoder.Save(outMs);
@@ -4272,10 +4450,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static BitmapSource? LoadBitmapFromJpeg(byte[] jpeg, int decodePixelWidth = PreviewDecodeWidth, double? rotationOverride = null)
+    private static BitmapSource? LoadBitmapFromJpeg(byte[] jpeg, int decodePixelWidth = -1, double? rotationOverride = null)
     {
         try
         {
+            // -1 = "use the configured preview decode width"; 0 stays meaningful (full res).
+            if (decodePixelWidth < 0)
+                decodePixelWidth = PreviewDecodeWidth;
+
             // Read EXIF orientation from headers — cheap, no pixel decode.
             // Callers can override when they've resolved rotation from another source
             // (e.g., a fallback thumb's EXIF when this JPEG's EXIF is missing).

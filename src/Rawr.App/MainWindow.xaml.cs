@@ -28,8 +28,9 @@ namespace Rawr.App;
 public partial class MainWindow : Window
 {
     private const double MinZoom = 1.0;
-    private const double MaxZoom = 64.0;
-    private const double ZoomStep = 1.2;
+    // Backed by AppSettings (General → Zoom); defaults match the former constants.
+    private static double MaxZoom => Math.Max(MinZoom, AppSettings.Current.MaxZoom);
+    private static double ZoomStep => Math.Max(1.01, AppSettings.Current.ZoomStep);
     // Per-card diagonal offset for the burst stack-of-cards frame in the detail preview.
     private const double BurstStackStep = 6.0;
     // Minimum breathing room kept between the topmost stack card and the top bar.
@@ -233,6 +234,7 @@ public partial class MainWindow : Window
         // Load persisted settings before InputBindings are applied so user-customised
         // keyboard shortcuts are in place by the time the window is shown.
         AppSettings.Current = AppSettings.Load();
+        ApplyGridRenderWidth();
 
         InitializeComponent();
         WindowHelper.ApplyDarkTitleBar(this);
@@ -1694,7 +1696,7 @@ public partial class MainWindow : Window
             {
                 var ejected = MediaCardWatcher.TryEject(dlg.SourceDriveLetter!);
                 summary += ejected
-                    ? "\n\nCard ejected — safe to remove."
+                    ? "\n\nCard ejected - safe to remove."
                     : "\n\nCould not eject the card automatically.";
             }
 
@@ -1772,6 +1774,18 @@ public partial class MainWindow : Window
 
     // ── Settings ──
 
+    // Sync the grid thumbnail in-memory decode width from settings into the
+    // shared converter resource and the static default the panel's preload
+    // warming uses. Both must move together or warmed cache entries (keyed by
+    // decode width) won't match what the grid binding requests.
+    private static void ApplyGridRenderWidth()
+    {
+        int w = Math.Max(0, AppSettings.Current.GridThumbnailRenderWidth);
+        Rawr.App.Converters.JpegBytesToImageConverter.DefaultDecodePixelWidth = w;
+        if (Application.Current?.Resources["ThumbBytesToImage"] is Rawr.App.Converters.JpegBytesToImageConverter c)
+            c.DecodePixelWidth = w;
+    }
+
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new Dialogs.SettingsWindow(AppSettings.Current) { Owner = this };
@@ -1780,6 +1794,7 @@ public partial class MainWindow : Window
         var prev = AppSettings.Current;
         AppSettings.Current = dlg.Result;
         AppSettings.Current.Save();
+        ApplyGridRenderWidth();
 
         ApplyShortcuts(AppSettings.Current);
 
@@ -1789,6 +1804,8 @@ public partial class MainWindow : Window
         vm.NotifyShortcutDisplayChanged();
         // Refresh the Analyze button / dropdown visibility for any mode changes.
         vm.NotifyClassificationModesChanged();
+        // Show/hide (or recompute) the subject-score debug overlay for the toggle.
+        vm.RefreshSubjectDebug();
 
         bool burstSettingsChanged =
             prev.BurstMaxGapSeconds != AppSettings.Current.BurstMaxGapSeconds ||
@@ -2532,13 +2549,13 @@ public partial class MainWindow : Window
         if (editing)
         {
             QuickFilterSubsections.Cursor = Cursors.SizeAll;
-            QuickFilterLockToggle.ToolTip = "Reordering — click to lock the filter order";
+            QuickFilterLockToggle.ToolTip = "Reordering - click to lock the filter order";
         }
         else
         {
             EndQuickFilterDrag();
             QuickFilterSubsections.Cursor = null;
-            QuickFilterLockToggle.ToolTip = "Locked — click to rearrange the filter order";
+            QuickFilterLockToggle.ToolTip = "Locked - click to rearrange the filter order";
             SaveQuickFilterOrder();
         }
     }

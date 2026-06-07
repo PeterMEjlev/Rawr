@@ -18,9 +18,13 @@ internal readonly record struct VideoProxyProgress(double Fraction, string Text)
 internal static class VideoProxyCache
 {
     private const int ProxyVersion = 4;
-    private const int TargetMaxWidth = 720;
-    private const int TargetFps = 24;
-    private const int TargetCrf = 30;
+
+    // Backed by AppSettings (Video tab). IsFresh records these in the proxy
+    // manifest and rebuilds when they change, so editing them transparently
+    // re-encodes proxies at the new quality. Defaults match the former constants.
+    private static int TargetMaxWidth => AppSettings.Current.VideoProxyMaxWidth;
+    private static int TargetFps => AppSettings.Current.VideoProxyFps;
+    private static int TargetCrf => AppSettings.Current.VideoProxyCrf;
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly SemaphoreSlim EncodeGate = new(1, 1);

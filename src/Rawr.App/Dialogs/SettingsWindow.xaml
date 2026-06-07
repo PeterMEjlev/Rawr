@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
         Height="640"
-        Width="760"
+        Width="874"
         MinHeight="440"
         MinWidth="720"
         ResizeMode="CanResize"
@@ -152,7 +152,61 @@
                                            Foreground="{StaticResource TextDimBrush}"
                                            FontSize="10"
                                            TextWrapping="Wrap"
+                                           Margin="0,0,0,12" />
+
+                                <TextBlock Text="Maximum zoom level" Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <ComboBox x:Name="MaxZoomCombo" MinWidth="110" VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="MaxZoom" />
+                                </StackPanel>
+                                <TextBlock Text="Upper limit for scroll-wheel and keyboard zoom in the main preview and burst focus view."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12" />
+
+                                <TextBlock Text="Zoom step per scroll notch" Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <Slider x:Name="ZoomStepSlider"
+                                            Minimum="1.05" Maximum="2.0"
+                                            SmallChange="0.05" LargeChange="0.1"
+                                            TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                            Width="280"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=ZoomStepSlider, Path=Value, StringFormat={}{0:F2}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Text="×" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="ZoomStep" />
+                                </StackPanel>
+                                <TextBlock Text="How much each mouse-wheel notch multiplies the zoom. Higher zooms in faster."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
                                            Margin="0,0,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Exposure -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="EXPOSURE" Style="{StaticResource SectionCardHeader}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="Exposure adjustment step" VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="ExposureStepEv" />
+                                </StackPanel>
+                                <RadioButton x:Name="ExposureStepThird"
+                                             Content="⅓ EV per press"
+                                             GroupName="ExposureStep"
+                                             Margin="0,0,0,4" />
+                                <RadioButton x:Name="ExposureStepHalf"
+                                             Content="½ EV per press"
+                                             GroupName="ExposureStep"
+                                             Margin="0,0,0,0" />
+                                <TextBlock Text="Step size applied by the increase / decrease exposure shortcuts in the preview."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0" />
                             </StackPanel>
                         </Border>
 
@@ -221,6 +275,24 @@
                                     <ComboBox x:Name="SortFieldBox" MinWidth="160" VerticalAlignment="Center" />
                                     <Button Style="{StaticResource ResetButton}" Tag="DefaultSortField" />
                                 </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Debug -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="DEBUG" Style="{StaticResource SectionCardHeader}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <CheckBox x:Name="ShowSubjectScoresCheck"
+                                              Content="Show classifier debug on the selected photo (subject scores + face / eye boxes)"
+                                              VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="ShowSubjectClassifierScores" />
+                                </StackPanel>
+                                <TextBlock Text="Overlays the subject classifier's per-category confidence and the face detector's results: boxes around detected faces (green = eyes open, orange = a closed eye) plus per-face eye-open scores, with the closed-eye threshold. Diagnostic only — needs the subject and/or face models installed."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,0" />
                             </StackPanel>
                         </Border>
 
@@ -621,6 +693,34 @@
                                    Foreground="{StaticResource TextDimBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"
+                                   Margin="0,0,0,12" />
+                        <TextBlock Text="Face detection confidence (%)" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Looser"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
+                            <Slider x:Name="FaceConfidenceSlider"
+                                    Minimum="20" Maximum="90"
+                                    SmallChange="1" LargeChange="5"
+                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Width="220"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="Stricter"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
+                            <TextBox Style="{StaticResource SliderValueBox}"
+                                     Text="{Binding ElementName=FaceConfidenceSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="%" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                            <Button Style="{StaticResource ResetButton}" Tag="FaceDetectionConfidence" />
+                        </StackPanel>
+                        <TextBlock Text="Minimum confidence for the detector to accept a face. Lower finds more (and smaller) faces but risks false positives on busy scenes; higher is stricter. Re-run analysis after changing."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
                                    Margin="0,0,0,8" />
                         <Button x:Name="RerunFaceAnalysisButton"
                                 Content="↻ Re-run face analysis on this folder"
@@ -789,7 +889,7 @@
                                               VerticalAlignment="Center" />
                                     <Button Style="{StaticResource ResetButton}" Tag="AutoPlayVideo" />
                                 </StackPanel>
-                                <TextBlock Text="When off, videos load with the first frame visible but stay paused — press Space to play."
+                                <TextBlock Text="When off, videos load with the first frame visible but stay paused - press Space to play."
                                            Foreground="{StaticResource TextDimBrush}"
                                            FontSize="10"
                                            TextWrapping="Wrap"
@@ -810,6 +910,460 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+
+                        <!-- Smooth-scrub proxy quality -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="SMOOTH-SCRUB PROXY" Style="{StaticResource SectionCardHeader}" />
+                                <TextBlock Text="Heavy clips (4K / high-bitrate) get a smaller transcoded proxy so scrubbing stays smooth. Changing these rebuilds proxies on next view — larger / higher-fps / lower-CRF gives better quality but is slower to build and uses more disk."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Max width" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" x:Name="VideoProxyMaxWidthCombo"
+                                              HorizontalAlignment="Left" MinWidth="150" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Style="{StaticResource ResetButton}" Tag="VideoProxyMaxWidth" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Frame rate" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" x:Name="VideoProxyFpsCombo"
+                                              HorizontalAlignment="Left" MinWidth="110" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Style="{StaticResource ResetButton}" Tag="VideoProxyFps" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Quality (CRF)" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" x:Name="VideoProxyCrfSlider"
+                                            Minimum="18" Maximum="40" SmallChange="1" LargeChange="4"
+                                            TickFrequency="1" IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=VideoProxyCrfSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Column="3" Text="CRF" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Grid.Column="4" Style="{StaticResource ResetButton}" Tag="VideoProxyCrf" />
+                                </Grid>
+                                <TextBlock Text="CRF: lower = higher quality and larger files (18 ≈ visually lossless, 30 = default)."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ── PERFORMANCE TAB ── -->
+            <TabItem Header="Performance">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              PreviewMouseWheel="TabScroll_PreviewMouseWheel">
+                    <StackPanel Margin="16,14">
+
+                        <TextBlock Text="Power-user knobs. The defaults match RAWR's built-in behaviour, so leave them alone unless you want to trade disk / RAM / CPU against speed and quality. Hover a label for what it does."
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,12" />
+
+                        <!-- Cache & preview -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="CACHE &amp; PREVIEW" Style="{StaticResource SectionCardHeader}" />
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Cache JPEG quality" VerticalAlignment="Center"
+                                               ToolTip="JPEG quality (1–100) for cached thumbnails and previews. Higher = sharper cached previews and a larger .rawr/cache folder." />
+                                    <Slider Grid.Column="1" x:Name="CacheJpegQualitySlider"
+                                            Minimum="50" Maximum="100" SmallChange="1" LargeChange="5"
+                                            TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=CacheJpegQualitySlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Column="3" Text=" " VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Grid.Column="4" Style="{StaticResource ResetButton}" Tag="CacheJpegQuality" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Preview decode width" VerticalAlignment="Center"
+                                               ToolTip="Decode width of the main embedded-JPEG preview. Higher = crisper at zoom on hi-DPI screens, slower to decode and more RAM." />
+                                    <ComboBox Grid.Column="1" x:Name="PreviewDecodeWidthCombo"
+                                              HorizontalAlignment="Left" MinWidth="150" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Style="{StaticResource ResetButton}" Tag="PreviewDecodeWidth" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Linear-RAW preview width" VerticalAlignment="Center"
+                                               ToolTip="Width of the cached 16-bit linear-RAW buffer used for clipping / exposure. Higher = more zoom headroom, larger .bin cache. Existing cached entries refresh over time." />
+                                    <ComboBox Grid.Column="1" x:Name="LinearRawPreviewWidthCombo"
+                                              HorizontalAlignment="Left" MinWidth="130" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Style="{StaticResource ResetButton}" Tag="LinearRawPreviewWidth" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Thumbnail cache width" VerticalAlignment="Center"
+                                               ToolTip="On-disk cached thumbnail JPEG width. Affects grid sharpness and cache size." />
+                                    <ComboBox Grid.Column="1" x:Name="ThumbnailDecodeWidthCombo"
+                                              HorizontalAlignment="Left" MinWidth="110" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Style="{StaticResource ResetButton}" Tag="ThumbnailDecodeWidth" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Grid render width" VerticalAlignment="Center"
+                                               ToolTip="In-memory decode width for grid thumbnail cells. Lower = less RAM and faster scroll; higher = sharper tiles. Takes full effect on the next folder load." />
+                                    <ComboBox Grid.Column="1" x:Name="GridThumbnailRenderWidthCombo"
+                                              HorizontalAlignment="Left" MinWidth="110" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Style="{StaticResource ResetButton}" Tag="GridThumbnailRenderWidth" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Memory -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="MEMORY" Style="{StaticResource SectionCardHeader}" />
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Undo history depth" VerticalAlignment="Center"
+                                               ToolTip="How many edits the undo/redo stack keeps." />
+                                    <Slider Grid.Column="1" x:Name="UndoHistoryDepthSlider"
+                                            Minimum="10" Maximum="500" SmallChange="10" LargeChange="50"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=UndoHistoryDepthSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <Button Grid.Column="3" Style="{StaticResource ResetButton}" Tag="UndoHistoryDepth" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Preview retention radius" VerticalAlignment="Center"
+                                               ToolTip="Photos kept fully in memory on each side of the selection for instant back/forth browsing. Higher = snappier, more RAM." />
+                                    <Slider Grid.Column="1" x:Name="PreviewRetentionRadiusSlider"
+                                            Minimum="0" Maximum="10" SmallChange="1" LargeChange="2"
+                                            TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=PreviewRetentionRadiusSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <Button Grid.Column="3" Style="{StaticResource ResetButton}" Tag="PreviewRetentionRadius" />
+                                </Grid>
+
+                                <!-- Off-screen thumbnail preloading: one preset sets the four row counts below. -->
+                                <TextBlock Text="Off-screen thumbnail preloading" Margin="0,4,0,4" />
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Optimize for" VerticalAlignment="Center"
+                                               ToolTip="How aggressively off-screen thumbnails are decoded ahead of the viewport. 'Smoother / Smoothest scrolling' preloads more (more CPU/RAM); 'Lower memory use' preloads less." />
+                                    <ComboBox Grid.Column="1" x:Name="PreloadPresetCombo"
+                                              HorizontalAlignment="Left" MinWidth="170" VerticalAlignment="Center" />
+                                </Grid>
+                                <CheckBox x:Name="PreloadAdvancedToggle"
+                                          Content="Show individual row counts"
+                                          Margin="0,2,0,8"
+                                          Checked="PreloadAdvancedToggle_Changed"
+                                          Unchecked="PreloadAdvancedToggle_Changed" />
+                                <StackPanel x:Name="PreloadAdvancedPanel" Visibility="Collapsed">
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Grid cache rows (above)" VerticalAlignment="Center"
+                                               ToolTip="Off-screen rows kept materialized above the viewport." />
+                                    <Slider Grid.Column="1" x:Name="GridCacheRowsBeforeSlider"
+                                            Minimum="0" Maximum="20" SmallChange="1" LargeChange="2"
+                                            TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=GridCacheRowsBeforeSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <Button Grid.Column="3" Style="{StaticResource ResetButton}" Tag="GridCacheRowsBefore" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Grid cache rows (below)" VerticalAlignment="Center"
+                                               ToolTip="Off-screen rows kept materialized below the viewport." />
+                                    <Slider Grid.Column="1" x:Name="GridCacheRowsAfterSlider"
+                                            Minimum="0" Maximum="40" SmallChange="1" LargeChange="4"
+                                            TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=GridCacheRowsAfterSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <Button Grid.Column="3" Style="{StaticResource ResetButton}" Tag="GridCacheRowsAfter" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Grid preload rows (above)" VerticalAlignment="Center"
+                                               ToolTip="Rows above the viewport whose thumbnails are decoded ahead of time." />
+                                    <Slider Grid.Column="1" x:Name="GridPreloadRowsBeforeSlider"
+                                            Minimum="0" Maximum="20" SmallChange="1" LargeChange="2"
+                                            TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=GridPreloadRowsBeforeSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <Button Grid.Column="3" Style="{StaticResource ResetButton}" Tag="GridPreloadRowsBefore" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Grid preload rows (below)" VerticalAlignment="Center"
+                                               ToolTip="Rows below the viewport whose thumbnails are decoded ahead of time. Higher = smoother fast scroll, more CPU/RAM." />
+                                    <Slider Grid.Column="1" x:Name="GridPreloadRowsAfterSlider"
+                                            Minimum="0" Maximum="60" SmallChange="1" LargeChange="4"
+                                            TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=GridPreloadRowsAfterSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <Button Grid.Column="3" Style="{StaticResource ResetButton}" Tag="GridPreloadRowsAfter" />
+                                </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Responsiveness -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="RESPONSIVENESS (PREVIEW LOAD DELAYS)" Style="{StaticResource SectionCardHeader}" />
+                                <TextBlock Text="How long the selection must settle before each decode / prefetch fires. 'Faster previews' decodes sooner as you move between shots (more CPU work); 'Lower CPU use' waits a little longer to skip wasted decodes when scrubbing quickly."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10" />
+
+                                <!-- One preset sets every delay below. -->
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Optimize for" VerticalAlignment="Center"
+                                               ToolTip="Bias preview loading toward faster previews (more CPU) or lower CPU use. Sets every individual delay below." />
+                                    <ComboBox Grid.Column="1" x:Name="ResponsivenessPresetCombo"
+                                              HorizontalAlignment="Left" MinWidth="170" VerticalAlignment="Center" />
+                                </Grid>
+                                <CheckBox x:Name="ResponsivenessAdvancedToggle"
+                                          Content="Show individual delays"
+                                          Margin="0,2,0,8"
+                                          Checked="ResponsivenessAdvancedToggle_Changed"
+                                          Unchecked="ResponsivenessAdvancedToggle_Changed" />
+                                <StackPanel x:Name="ResponsivenessAdvancedPanel" Visibility="Collapsed">
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Cached-RAW decode" VerticalAlignment="Center"
+                                               ToolTip="Delay before decoding a RAW whose linear buffer is already cached (fast path)." />
+                                    <Slider Grid.Column="1" x:Name="CachedRawDecodeSettleDelaySlider"
+                                            Minimum="0" Maximum="500" SmallChange="5" LargeChange="25"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=CachedRawDecodeSettleDelaySlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Column="3" Text="ms" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Grid.Column="4" Style="{StaticResource ResetButton}" Tag="CachedRawDecodeSettleDelayMs" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="RAW decode" VerticalAlignment="Center"
+                                               ToolTip="Delay before decoding a RAW that isn't cached yet." />
+                                    <Slider Grid.Column="1" x:Name="RawDecodeSettleDelaySlider"
+                                            Minimum="0" Maximum="1000" SmallChange="10" LargeChange="50"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=RawDecodeSettleDelaySlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Column="3" Text="ms" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Grid.Column="4" Style="{StaticResource ResetButton}" Tag="RawDecodeSettleDelayMs" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Full-JPEG preload" VerticalAlignment="Center"
+                                               ToolTip="Delay before preloading the full-resolution JPEG for the current photo." />
+                                    <Slider Grid.Column="1" x:Name="FullJpegPreloadSettleDelaySlider"
+                                            Minimum="0" Maximum="2000" SmallChange="10" LargeChange="100"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=FullJpegPreloadSettleDelaySlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Column="3" Text="ms" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Grid.Column="4" Style="{StaticResource ResetButton}" Tag="FullJpegPreloadSettleDelayMs" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="RAW prefetch" VerticalAlignment="Center"
+                                               ToolTip="Delay before prefetching neighbouring RAWs around the selection." />
+                                    <Slider Grid.Column="1" x:Name="RawPrefetchSettleDelaySlider"
+                                            Minimum="0" Maximum="3000" SmallChange="10" LargeChange="100"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=RawPrefetchSettleDelaySlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Column="3" Text="ms" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Grid.Column="4" Style="{StaticResource ResetButton}" Tag="RawPrefetchSettleDelayMs" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Video proxy prefetch" VerticalAlignment="Center"
+                                               ToolTip="Delay before prefetching a smooth-scrub proxy for the selected video." />
+                                    <Slider Grid.Column="1" x:Name="VideoProxyPrefetchSettleDelaySlider"
+                                            Minimum="0" Maximum="3000" SmallChange="10" LargeChange="100"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=VideoProxyPrefetchSettleDelaySlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Column="3" Text="ms" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Grid.Column="4" Style="{StaticResource ResetButton}" Tag="VideoProxyPrefetchSettleDelayMs" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Session-save debounce" VerticalAlignment="Center"
+                                               ToolTip="Debounce before the per-folder &quot;resume where I left off&quot; state is written to disk." />
+                                    <Slider Grid.Column="1" x:Name="SessionSaveDebounceSlider"
+                                            Minimum="100" Maximum="3000" SmallChange="10" LargeChange="100"
+                                            VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="2" Style="{StaticResource SliderValueBox}"
+                                             Text="{Binding ElementName=SessionSaveDebounceSlider, Path=Value, StringFormat={}{0:F0}, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Column="3" Text="ms" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="2,0,4,0" />
+                                    <Button Grid.Column="4" Style="{StaticResource ResetButton}" Tag="SessionSaveDebounceMs" />
+                                </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Background work -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="BACKGROUND WORK" Style="{StaticResource SectionCardHeader}" />
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Max background threads" VerticalAlignment="Center"
+                                               ToolTip="Upper bound on worker threads for folder scan, preview generation and analysis. Auto uses a per-core formula." />
+                                    <ComboBox Grid.Column="1" x:Name="MaxBackgroundThreadsCombo"
+                                              HorizontalAlignment="Left" MinWidth="110" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Style="{StaticResource ResetButton}" Tag="MaxBackgroundThreads" />
+                                </Grid>
+                                <TextBlock Text="0 = automatic. Lower this to keep the machine cool / responsive during big imports; raise it on a many-core workstation."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,0" />
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

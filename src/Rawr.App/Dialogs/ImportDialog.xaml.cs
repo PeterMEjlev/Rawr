@@ -216,7 +216,7 @@ public partial class ImportDialog : Window
 
         _ = Task.Run(async () =>
         {
-            using var sem = new SemaphoreSlim(Math.Max(2, Environment.ProcessorCount / 2));
+            using var sem = new SemaphoreSlim(AppSettings.CappedParallelism(Math.Max(2, Environment.ProcessorCount / 2)));
             var tasks = snapshot.Select(async file =>
             {
                 if (ct.IsCancellationRequested) return;

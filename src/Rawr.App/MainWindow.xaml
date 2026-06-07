@@ -9,7 +9,7 @@
         xmlns:controls="clr-namespace:Rawr.App.Controls"
         xmlns:flyleaf="clr-namespace:FlyleafLib.Controls.WPF;assembly=FlyleafLib"
         mc:Ignorable="d"
-        Title="RAWR — RAW Photo Culling"
+        Title="RAWR - RAW Photo Culling"
         Icon="Assets/rawr.ico"
         Height="800" Width="1280"
         WindowState="Maximized"
@@ -66,7 +66,7 @@
                                   IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}"
                                   PreviewMouseLeftButtonDown="FilterToggleButton_PreviewMouseLeftButtonDown"
                                   PreviewMouseLeftButtonUp="FilterToggleButton_PreviewMouseLeftButtonUp"
-                                  ToolTip="Filter photos by rating, flag, color, burst, or tag  —  Ctrl+Shift+X to clear all filters">
+                                  ToolTip="Filter photos by rating, flag, color, burst, or tag  -  Ctrl+Shift+X to clear all filters">
                         <ToggleButton.Style>
                             <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                                 <Style.Triggers>
@@ -846,12 +846,12 @@
                         <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
                             <!-- Default (unchecked = expanded): pressing collapses -->
                             <Setter Property="Content" Value="⊟" />
-                            <Setter Property="ToolTip" Value="G — collapse bursts to a single tile" />
+                            <Setter Property="ToolTip" Value="G - collapse bursts to a single tile" />
                             <Style.Triggers>
                                 <!-- Checked (collapsed): pressing expands -->
                                 <Trigger Property="IsChecked" Value="True">
                                     <Setter Property="Content" Value="⊞" />
-                                    <Setter Property="ToolTip" Value="G — expand burst tiles" />
+                                    <Setter Property="ToolTip" Value="G - expand burst tiles" />
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
@@ -932,7 +932,7 @@
                                                            FontSize="10"
                                                            Margin="4,0,0,0"
                                                            VerticalAlignment="Center"
-                                                           ToolTip="Automatically managed by RAWR — can't be renamed or deleted">
+                                                           ToolTip="Automatically managed by RAWR - can't be renamed or deleted">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Visibility" Value="Collapsed" />
@@ -1274,7 +1274,7 @@
 
                                 <Separator Margin="0,2,0,8" />
                                 <Button Content="📋 Copy…" Command="{Binding CopyPickedCommand}"
-                                        HorizontalAlignment="Stretch" ToolTip="Ctrl+C — copy matching photos to a folder" />
+                                        HorizontalAlignment="Stretch" ToolTip="Ctrl+C - copy matching photos to a folder" />
 
                             </StackPanel>
                         </Border>
@@ -1536,7 +1536,7 @@
                             <ToggleButton x:Name="QuickFilterLockToggle" Grid.Column="1"
                                           Background="Transparent" BorderThickness="0" Padding="3"
                                           Cursor="Hand" Focusable="False" VerticalAlignment="Center"
-                                          ToolTip="Locked — click to rearrange the filter order"
+                                          ToolTip="Locked - click to rearrange the filter order"
                                           Checked="QuickFilterLockToggle_Changed"
                                           Unchecked="QuickFilterLockToggle_Changed">
                                 <ToggleButton.Template>
@@ -2369,7 +2369,7 @@
                                                     BorderThickness="1"
                                                     Padding="6,2" Margin="6,6,0,0"
                                                     CornerRadius="4"
-                                                    ToolTip="Burst — double-click to focus"
+                                                    ToolTip="Burst - double-click to focus"
                                                     Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="&#x29C9;"
@@ -2577,6 +2577,48 @@
                                 </TransformGroup>
                             </Image.RenderTransform>
                         </Image>
+
+                        <!-- Detected-face boxes (debug). Shares the preview transform
+                             so boxes track zoom/pan; green = eyes open, orange = closed eye. -->
+                        <Image x:Name="FaceDebugOverlayImage"
+                               Source="{Binding FaceDebugOverlay}"
+                               Stretch="Uniform"
+                               SnapsToDevicePixels="True"
+                               Margin="8,16,8,8"
+                               RenderTransformOrigin="0,0"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding FaceDebugOverlay, Converter={StaticResource NullToVisibility}}">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="{Binding ScaleX, ElementName=PreviewScale}"
+                                                    ScaleY="{Binding ScaleY, ElementName=PreviewScale}" />
+                                    <TranslateTransform X="{Binding X, ElementName=PreviewTranslate}"
+                                                        Y="{Binding Y, ElementName=PreviewTranslate}" />
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
+
+                        <!-- Subject-classifier score HUD (Settings → General → Debug).
+                             A fixed top-left overlay (does not zoom/pan with the photo),
+                             shown only when SubjectDebugText is non-null. Top margin
+                             clears the "BURST" badge (Margin 16 + ~39px tall) that sits
+                             at the top-left of the preview for burst photos. -->
+                        <Border HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Margin="16,64,0,0"
+                                Background="#C8000000"
+                                BorderBrush="#40FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8,6"
+                                IsHitTestVisible="False"
+                                Visibility="{Binding SubjectDebugText, Converter={StaticResource NullToVisibility}}">
+                            <TextBlock Text="{Binding SubjectDebugText}"
+                                       Foreground="#FFE6E6E6"
+                                       FontFamily="Consolas"
+                                       FontSize="11"
+                                       TextWrapping="NoWrap" />
+                        </Border>
                     </Grid>
                 </Border>
 
@@ -3218,7 +3260,7 @@
                                             BorderThickness="1"
                                             Padding="6,2" Margin="6,6,0,0"
                                             CornerRadius="4"
-                                            ToolTip="Burst — double-click to focus"
+                                            ToolTip="Burst - double-click to focus"
                                             Visibility="{Binding CollapsedBurstCount, Converter={StaticResource NullToVisibility}}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#x29C9;"

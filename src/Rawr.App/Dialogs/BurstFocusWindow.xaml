@@ -135,6 +135,46 @@
                                 </TransformGroup>
                             </Image.RenderTransform>
                         </Image>
+
+                        <!-- Detected-face boxes (debug). Shares the preview transform
+                             so boxes track zoom/pan; green = eyes open, orange = closed eye. -->
+                        <Image x:Name="FaceDebugOverlayImage"
+                               Source="{Binding FaceDebugOverlay, RelativeSource={RelativeSource AncestorType=Window}}"
+                               Stretch="Uniform"
+                               SnapsToDevicePixels="True"
+                               Margin="8"
+                               RenderTransformOrigin="0,0"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding FaceDebugOverlay, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource NullToVisibility}}">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="{Binding ScaleX, ElementName=PreviewScale}"
+                                                    ScaleY="{Binding ScaleY, ElementName=PreviewScale}" />
+                                    <TranslateTransform X="{Binding X, ElementName=PreviewTranslate}"
+                                                        Y="{Binding Y, ElementName=PreviewTranslate}" />
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
+
+                        <!-- Subject-classifier score HUD (Settings → General → Debug).
+                             Fixed top-left overlay; shown only when SubjectDebugText
+                             is non-null. -->
+                        <Border HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Margin="14,14,0,0"
+                                Background="#C8000000"
+                                BorderBrush="#40FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8,6"
+                                IsHitTestVisible="False"
+                                Visibility="{Binding SubjectDebugText, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource NullToVisibility}}">
+                            <TextBlock Text="{Binding SubjectDebugText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       Foreground="#FFE6E6E6"
+                                       FontFamily="Consolas"
+                                       FontSize="11"
+                                       TextWrapping="NoWrap" />
+                        </Border>
                     </Grid>
                 </Border>
 

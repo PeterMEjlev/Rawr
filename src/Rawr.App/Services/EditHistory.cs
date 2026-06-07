@@ -21,7 +21,8 @@ public sealed record EditOp(
 /// </summary>
 public sealed class EditHistory
 {
-    private const int MaxDepth = 100;
+    // Backed by AppSettings (Performance tab); default 100 matches the former constant.
+    private static int MaxDepth => Math.Max(1, AppSettings.Current.UndoHistoryDepth);
 
     private readonly Stack<EditOp> _undo = new();
     private readonly Stack<EditOp> _redo = new();

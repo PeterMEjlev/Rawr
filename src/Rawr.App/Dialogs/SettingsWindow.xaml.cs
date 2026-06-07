@@ -111,6 +111,48 @@ public partial class SettingsWindow : Window
         VideoSeekStepSlider.Value = Math.Clamp(current.VideoSeekStepSeconds, 1, 30);
         AutoPlayVideoCheck.IsChecked = current.AutoPlayVideo;
         UseEmbeddedJpegOnlyCheck.IsChecked = current.UseEmbeddedJpegOnly;
+        ShowSubjectScoresCheck.IsChecked = current.ShowSubjectClassifierScores;
+
+        // Zoom / exposure (General tab)
+        LoadValueCombo(MaxZoomCombo, current.MaxZoom, MaxZoomOptions);
+        ZoomStepSlider.Value = Math.Clamp(current.ZoomStep, 1.05, 2.0);
+        SetExposureStep(current.ExposureStepEv);
+
+        // Face detection confidence (Classification tab)
+        FaceConfidenceSlider.Value = Math.Clamp((int)current.FaceDetectionConfidence, 20, 90);
+
+        // Video proxy (Video tab)
+        LoadValueCombo(VideoProxyMaxWidthCombo, current.VideoProxyMaxWidth, ProxyMaxWidthOptions);
+        LoadValueCombo(VideoProxyFpsCombo, current.VideoProxyFps, ProxyFpsOptions);
+        VideoProxyCrfSlider.Value = Math.Clamp(current.VideoProxyCrf, 18, 40);
+
+        // Performance tab — cache & preview
+        CacheJpegQualitySlider.Value = Math.Clamp((int)current.CacheJpegQuality, 50, 100);
+        LoadValueCombo(PreviewDecodeWidthCombo, current.PreviewDecodeWidth, PreviewWidthOptions);
+        LoadValueCombo(LinearRawPreviewWidthCombo, current.LinearRawPreviewWidth, LinearRawWidthOptions);
+        LoadValueCombo(ThumbnailDecodeWidthCombo, current.ThumbnailDecodeWidth, ThumbnailWidthOptions);
+        LoadValueCombo(GridThumbnailRenderWidthCombo, current.GridThumbnailRenderWidth, GridRenderWidthOptions);
+        // Performance tab — memory
+        UndoHistoryDepthSlider.Value = Math.Clamp(current.UndoHistoryDepth, 10, 500);
+        PreviewRetentionRadiusSlider.Value = Math.Clamp(current.PreviewRetentionRadius, 0, 10);
+        GridCacheRowsBeforeSlider.Value = Math.Clamp(current.GridCacheRowsBefore, 0, 20);
+        GridCacheRowsAfterSlider.Value = Math.Clamp(current.GridCacheRowsAfter, 0, 40);
+        GridPreloadRowsBeforeSlider.Value = Math.Clamp(current.GridPreloadRowsBefore, 0, 20);
+        GridPreloadRowsAfterSlider.Value = Math.Clamp(current.GridPreloadRowsAfter, 0, 60);
+        // Performance tab — responsiveness
+        CachedRawDecodeSettleDelaySlider.Value = Math.Clamp(current.CachedRawDecodeSettleDelayMs, 0, 500);
+        RawDecodeSettleDelaySlider.Value = Math.Clamp(current.RawDecodeSettleDelayMs, 0, 1000);
+        FullJpegPreloadSettleDelaySlider.Value = Math.Clamp(current.FullJpegPreloadSettleDelayMs, 0, 2000);
+        RawPrefetchSettleDelaySlider.Value = Math.Clamp(current.RawPrefetchSettleDelayMs, 0, 3000);
+        VideoProxyPrefetchSettleDelaySlider.Value = Math.Clamp(current.VideoProxyPrefetchSettleDelayMs, 0, 3000);
+        SessionSaveDebounceSlider.Value = Math.Clamp(current.SessionSaveDebounceMs, 100, 3000);
+        // Performance tab — background work
+        LoadValueCombo(MaxBackgroundThreadsCombo, current.MaxBackgroundThreads, ThreadsOptions);
+
+        // Performance presets: build the combos, select the preset matching the
+        // values just loaded into the advanced sliders (or "Custom"), and wire the
+        // two-way sync. Must run after the advanced sliders are populated.
+        InitPerformancePresets();
 
         // HDR detection
         HdrEnabledCheck.IsChecked = current.HdrDetectionEnabled;
@@ -392,6 +434,7 @@ public partial class SettingsWindow : Window
         s.VideoSeekStepSeconds = (int)VideoSeekStepSlider.Value;
         s.AutoPlayVideo       = AutoPlayVideoCheck.IsChecked == true;
         s.UseEmbeddedJpegOnly = UseEmbeddedJpegOnlyCheck.IsChecked == true;
+        s.ShowSubjectClassifierScores = ShowSubjectScoresCheck.IsChecked == true;
         s.HdrDetectionEnabled = HdrEnabledCheck.IsChecked == true;
         s.HdrMinBracketSize   = (int)HdrMinBracketSizeSlider.Value;
         s.HdrMinExposureSpread = (float)HdrExposureSpreadSlider.Value;
@@ -402,6 +445,40 @@ public partial class SettingsWindow : Window
         s.PanoramaMaxOverlapPct = (int)PanoMaxOverlapSlider.Value;
         s.PanoramaDirectionToleranceDeg = (int)PanoDirectionSlider.Value;
         s.KeyBindings         = new Dictionary<string, string>(_editedBindings);
+
+        // Zoom / exposure
+        s.MaxZoom             = ReadValueCombo(MaxZoomCombo, _original.MaxZoom);
+        s.ZoomStep            = ZoomStepSlider.Value;
+        s.ExposureStepEv      = ReadExposureStep();
+        // Face detection
+        s.FaceDetectionConfidence = (byte)FaceConfidenceSlider.Value;
+        // Video proxy
+        s.VideoProxyMaxWidth  = (int)ReadValueCombo(VideoProxyMaxWidthCombo, _original.VideoProxyMaxWidth);
+        s.VideoProxyFps       = (int)ReadValueCombo(VideoProxyFpsCombo, _original.VideoProxyFps);
+        s.VideoProxyCrf       = (int)VideoProxyCrfSlider.Value;
+        // Performance — cache & preview
+        s.CacheJpegQuality    = (byte)CacheJpegQualitySlider.Value;
+        s.PreviewDecodeWidth  = (int)ReadValueCombo(PreviewDecodeWidthCombo, _original.PreviewDecodeWidth);
+        s.LinearRawPreviewWidth = (int)ReadValueCombo(LinearRawPreviewWidthCombo, _original.LinearRawPreviewWidth);
+        s.ThumbnailDecodeWidth = (int)ReadValueCombo(ThumbnailDecodeWidthCombo, _original.ThumbnailDecodeWidth);
+        s.GridThumbnailRenderWidth = (int)ReadValueCombo(GridThumbnailRenderWidthCombo, _original.GridThumbnailRenderWidth);
+        // Performance — memory
+        s.UndoHistoryDepth    = (int)UndoHistoryDepthSlider.Value;
+        s.PreviewRetentionRadius = (int)PreviewRetentionRadiusSlider.Value;
+        s.GridCacheRowsBefore = (int)GridCacheRowsBeforeSlider.Value;
+        s.GridCacheRowsAfter  = (int)GridCacheRowsAfterSlider.Value;
+        s.GridPreloadRowsBefore = (int)GridPreloadRowsBeforeSlider.Value;
+        s.GridPreloadRowsAfter = (int)GridPreloadRowsAfterSlider.Value;
+        // Performance — responsiveness
+        s.CachedRawDecodeSettleDelayMs = (int)CachedRawDecodeSettleDelaySlider.Value;
+        s.RawDecodeSettleDelayMs = (int)RawDecodeSettleDelaySlider.Value;
+        s.FullJpegPreloadSettleDelayMs = (int)FullJpegPreloadSettleDelaySlider.Value;
+        s.RawPrefetchSettleDelayMs = (int)RawPrefetchSettleDelaySlider.Value;
+        s.VideoProxyPrefetchSettleDelayMs = (int)VideoProxyPrefetchSettleDelaySlider.Value;
+        s.SessionSaveDebounceMs = (int)SessionSaveDebounceSlider.Value;
+        // Performance — background work
+        s.MaxBackgroundThreads = (int)ReadValueCombo(MaxBackgroundThreadsCombo, _original.MaxBackgroundThreads);
+
         s.Macros              = _editedMacros.Select(m => new KeyboardMacro
         {
             Id = m.Id,
@@ -442,6 +519,8 @@ public partial class SettingsWindow : Window
             case "ReverseFilmstripScroll":   ReverseFilmstripScrollCheck.IsChecked = d.ReverseFilmstripScroll; break;
             // Preview
             case "UseEmbeddedJpegOnly":      UseEmbeddedJpegOnlyCheck.IsChecked = d.UseEmbeddedJpegOnly; break;
+            // Debug
+            case "ShowSubjectClassifierScores": ShowSubjectScoresCheck.IsChecked = d.ShowSubjectClassifierScores; break;
             // Sorting
             case "DefaultSortField":
                 SortFieldBox.SelectedIndex = Math.Max(0, Array.FindIndex(SortOptions, o => o.Value == d.DefaultSortField));
@@ -489,6 +568,38 @@ public partial class SettingsWindow : Window
             // Video
             case "VideoSeekStepSeconds":     VideoSeekStepSlider.Value = d.VideoSeekStepSeconds; break;
             case "AutoPlayVideo":            AutoPlayVideoCheck.IsChecked = d.AutoPlayVideo; break;
+            // Zoom / exposure
+            case "MaxZoom":                  LoadValueCombo(MaxZoomCombo, d.MaxZoom, MaxZoomOptions); break;
+            case "ZoomStep":                 ZoomStepSlider.Value = d.ZoomStep; break;
+            case "ExposureStepEv":           SetExposureStep(d.ExposureStepEv); break;
+            // Faces
+            case "FaceDetectionConfidence":  FaceConfidenceSlider.Value = d.FaceDetectionConfidence; break;
+            // Video proxy
+            case "VideoProxyMaxWidth":       LoadValueCombo(VideoProxyMaxWidthCombo, d.VideoProxyMaxWidth, ProxyMaxWidthOptions); break;
+            case "VideoProxyFps":            LoadValueCombo(VideoProxyFpsCombo, d.VideoProxyFps, ProxyFpsOptions); break;
+            case "VideoProxyCrf":            VideoProxyCrfSlider.Value = d.VideoProxyCrf; break;
+            // Performance — cache & preview
+            case "CacheJpegQuality":         CacheJpegQualitySlider.Value = d.CacheJpegQuality; break;
+            case "PreviewDecodeWidth":       LoadValueCombo(PreviewDecodeWidthCombo, d.PreviewDecodeWidth, PreviewWidthOptions); break;
+            case "LinearRawPreviewWidth":    LoadValueCombo(LinearRawPreviewWidthCombo, d.LinearRawPreviewWidth, LinearRawWidthOptions); break;
+            case "ThumbnailDecodeWidth":     LoadValueCombo(ThumbnailDecodeWidthCombo, d.ThumbnailDecodeWidth, ThumbnailWidthOptions); break;
+            case "GridThumbnailRenderWidth": LoadValueCombo(GridThumbnailRenderWidthCombo, d.GridThumbnailRenderWidth, GridRenderWidthOptions); break;
+            // Performance — memory
+            case "UndoHistoryDepth":         UndoHistoryDepthSlider.Value = d.UndoHistoryDepth; break;
+            case "PreviewRetentionRadius":   PreviewRetentionRadiusSlider.Value = d.PreviewRetentionRadius; break;
+            case "GridCacheRowsBefore":      GridCacheRowsBeforeSlider.Value = d.GridCacheRowsBefore; break;
+            case "GridCacheRowsAfter":       GridCacheRowsAfterSlider.Value = d.GridCacheRowsAfter; break;
+            case "GridPreloadRowsBefore":    GridPreloadRowsBeforeSlider.Value = d.GridPreloadRowsBefore; break;
+            case "GridPreloadRowsAfter":     GridPreloadRowsAfterSlider.Value = d.GridPreloadRowsAfter; break;
+            // Performance — responsiveness
+            case "CachedRawDecodeSettleDelayMs":   CachedRawDecodeSettleDelaySlider.Value = d.CachedRawDecodeSettleDelayMs; break;
+            case "RawDecodeSettleDelayMs":         RawDecodeSettleDelaySlider.Value = d.RawDecodeSettleDelayMs; break;
+            case "FullJpegPreloadSettleDelayMs":   FullJpegPreloadSettleDelaySlider.Value = d.FullJpegPreloadSettleDelayMs; break;
+            case "RawPrefetchSettleDelayMs":       RawPrefetchSettleDelaySlider.Value = d.RawPrefetchSettleDelayMs; break;
+            case "VideoProxyPrefetchSettleDelayMs": VideoProxyPrefetchSettleDelaySlider.Value = d.VideoProxyPrefetchSettleDelayMs; break;
+            case "SessionSaveDebounceMs":          SessionSaveDebounceSlider.Value = d.SessionSaveDebounceMs; break;
+            // Performance — background work
+            case "MaxBackgroundThreads":     LoadValueCombo(MaxBackgroundThreadsCombo, d.MaxBackgroundThreads, ThreadsOptions); break;
         }
     }
 
@@ -517,6 +628,214 @@ public partial class SettingsWindow : Window
         ClosedEyeModeManual.IsChecked == true ? ClassificationRunMode.Manual
       : ClosedEyeModeOff.IsChecked == true    ? ClassificationRunMode.Off
       : ClassificationRunMode.Auto;
+
+    // ── Exposure-step radio group (⅓ EV vs ½ EV) ──
+
+    private void SetExposureStep(double ev)
+    {
+        // Snap whatever's persisted to the nearest of the two offered choices.
+        bool half = Math.Abs(ev - 0.5) < Math.Abs(ev - (1.0 / 3.0));
+        ExposureStepHalf.IsChecked = half;
+        ExposureStepThird.IsChecked = !half;
+    }
+
+    private double ReadExposureStep() =>
+        ExposureStepHalf.IsChecked == true ? 0.5 : 1.0 / 3.0;
+
+    // ── Value combos (discrete / preset numeric settings) ──
+    // Numeric value is stored in each ComboBoxItem.Tag (double) so selection maps
+    // straight back to a number. A current value that isn't one of the presets
+    // (e.g. hand-edited settings.json) is preserved as a synthesised first item so
+    // loading never silently rounds it.
+
+    private static readonly (string Label, double Value)[] MaxZoomOptions =
+        [("8×", 8), ("16×", 16), ("32×", 32), ("64×", 64), ("128×", 128), ("256×", 256)];
+    private static readonly (string Label, double Value)[] ProxyMaxWidthOptions =
+        [("640 (360p)", 640), ("854 (480p)", 854), ("960 (540p)", 960), ("1280 (720p)", 1280), ("1600", 1600), ("1920 (1080p)", 1920)];
+    private static readonly (string Label, double Value)[] ProxyFpsOptions =
+        [("24", 24), ("25", 25), ("30", 30), ("48", 48), ("50", 50), ("60", 60)];
+    private static readonly (string Label, double Value)[] ThreadsOptions =
+        [("Auto", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("6", 6), ("8", 8), ("12", 12), ("16", 16), ("24", 24), ("32", 32)];
+    private static readonly (string Label, double Value)[] PreviewWidthOptions =
+        [("1280 (720p)", 1280), ("1920 (1080p)", 1920), ("2560 (1440p)", 2560), ("3840 (4K)", 3840)];
+    private static readonly (string Label, double Value)[] LinearRawWidthOptions =
+        [("1600", 1600), ("2000", 2000), ("2400", 2400), ("3000", 3000), ("4000", 4000)];
+    private static readonly (string Label, double Value)[] ThumbnailWidthOptions =
+        [("160", 160), ("256", 256), ("320", 320), ("512", 512), ("640", 640)];
+    private static readonly (string Label, double Value)[] GridRenderWidthOptions =
+        [("160", 160), ("240", 240), ("320", 320), ("480", 480)];
+
+    private static void LoadValueCombo(ComboBox combo, double value, (string Label, double Value)[] options)
+    {
+        combo.Items.Clear();
+        ComboBoxItem? selected = null;
+        foreach (var (label, v) in options)
+        {
+            var item = new ComboBoxItem { Content = label, Tag = v };
+            combo.Items.Add(item);
+            if (Math.Abs(v - value) < 0.0001) selected = item;
+        }
+        if (selected == null)
+        {
+            selected = new ComboBoxItem
+            {
+                Content = value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                Tag = value,
+            };
+            combo.Items.Insert(0, selected);
+        }
+        combo.SelectedItem = selected;
+    }
+
+    private static double ReadValueCombo(ComboBox combo, double fallback) =>
+        combo.SelectedItem is ComboBoxItem { Tag: double d } ? d : fallback;
+
+    // ── Performance presets (one combo drives a group of advanced sliders) ──
+    // The advanced sliders remain the source of truth (Save reads them); the preset
+    // combo is a convenience that writes into them, and any manual slider edit flips
+    // the combo to "Custom".
+
+    private const string CustomPresetLabel = "Custom";
+
+    // (label, cached, raw, fullJpeg, rawPrefetch, videoProxy, session) — milliseconds.
+    // Labels name the concrete goal so the direction is unambiguous; ordered
+    // low→high resource use (longest delays / least CPU → shortest delays / snappiest).
+    private static readonly (string Label, int Cached, int Raw, int FullJpeg, int RawPrefetch, int VideoProxy, int Session)[] ResponsivenessPresets =
+    [
+        ("Lower CPU use",   90, 350, 700, 1200, 1300, 1000),
+        ("Balanced",        45, 180, 350,  650,  700,  600),
+        ("Faster previews", 20,  90, 180,  350,  400,  400),
+    ];
+
+    // (label, cacheBefore, cacheAfter, preloadBefore, preloadAfter) — rows.
+    // Ordered low→high resource use (least preloading / least RAM → most preloading).
+    private static readonly (string Label, int CacheB, int CacheA, int PreB, int PreA)[] PreloadPresets =
+    [
+        ("Lower memory use",    1,  2,  2,  4),
+        ("Balanced",            3,  6,  4, 12),
+        ("Smoother scrolling",  5, 10,  8, 24),
+        ("Smoothest scrolling", 8, 16, 12, 40),
+    ];
+
+    private bool _syncingPerfPresets;
+
+    private void InitPerformancePresets()
+    {
+        foreach (var p in ResponsivenessPresets) ResponsivenessPresetCombo.Items.Add(p.Label);
+        ResponsivenessPresetCombo.Items.Add(CustomPresetLabel);
+        foreach (var p in PreloadPresets) PreloadPresetCombo.Items.Add(p.Label);
+        PreloadPresetCombo.Items.Add(CustomPresetLabel);
+
+        SyncResponsivenessPresetSelection();
+        SyncPreloadPresetSelection();
+
+        // Wire change handlers only after the initial selection so the slider loads
+        // above don't spuriously flip the combo to "Custom".
+        ResponsivenessPresetCombo.SelectionChanged += ResponsivenessPreset_SelectionChanged;
+        PreloadPresetCombo.SelectionChanged += PreloadPreset_SelectionChanged;
+
+        foreach (var slider in new[]
+                 {
+                     CachedRawDecodeSettleDelaySlider, RawDecodeSettleDelaySlider,
+                     FullJpegPreloadSettleDelaySlider, RawPrefetchSettleDelaySlider,
+                     VideoProxyPrefetchSettleDelaySlider, SessionSaveDebounceSlider,
+                 })
+            slider.ValueChanged += (_, _) => { if (!_syncingPerfPresets) SelectCustom(ResponsivenessPresetCombo); };
+
+        foreach (var slider in new[]
+                 {
+                     GridCacheRowsBeforeSlider, GridCacheRowsAfterSlider,
+                     GridPreloadRowsBeforeSlider, GridPreloadRowsAfterSlider,
+                 })
+            slider.ValueChanged += (_, _) => { if (!_syncingPerfPresets) SelectCustom(PreloadPresetCombo); };
+
+        // Start expanded only when the saved values don't map to a named preset, so
+        // a "Custom" configuration is visible without the user hunting for it.
+        ResponsivenessAdvancedToggle.IsChecked = (string?)ResponsivenessPresetCombo.SelectedItem == CustomPresetLabel;
+        PreloadAdvancedToggle.IsChecked = (string?)PreloadPresetCombo.SelectedItem == CustomPresetLabel;
+    }
+
+    private static void SelectCustom(ComboBox combo)
+    {
+        if ((string?)combo.SelectedItem != CustomPresetLabel)
+            combo.SelectedItem = CustomPresetLabel;
+    }
+
+    private void SyncResponsivenessPresetSelection()
+    {
+        string label = CustomPresetLabel;
+        foreach (var p in ResponsivenessPresets)
+        {
+            if ((int)CachedRawDecodeSettleDelaySlider.Value == p.Cached
+                && (int)RawDecodeSettleDelaySlider.Value == p.Raw
+                && (int)FullJpegPreloadSettleDelaySlider.Value == p.FullJpeg
+                && (int)RawPrefetchSettleDelaySlider.Value == p.RawPrefetch
+                && (int)VideoProxyPrefetchSettleDelaySlider.Value == p.VideoProxy
+                && (int)SessionSaveDebounceSlider.Value == p.Session)
+            {
+                label = p.Label;
+                break;
+            }
+        }
+        ResponsivenessPresetCombo.SelectedItem = label;
+    }
+
+    private void SyncPreloadPresetSelection()
+    {
+        string label = CustomPresetLabel;
+        foreach (var p in PreloadPresets)
+        {
+            if ((int)GridCacheRowsBeforeSlider.Value == p.CacheB
+                && (int)GridCacheRowsAfterSlider.Value == p.CacheA
+                && (int)GridPreloadRowsBeforeSlider.Value == p.PreB
+                && (int)GridPreloadRowsAfterSlider.Value == p.PreA)
+            {
+                label = p.Label;
+                break;
+            }
+        }
+        PreloadPresetCombo.SelectedItem = label;
+    }
+
+    private void ResponsivenessPreset_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingPerfPresets) return;
+        if (ResponsivenessPresetCombo.SelectedItem is not string label) return;
+        var p = Array.Find(ResponsivenessPresets, x => x.Label == label);
+        if (p.Label is null) return; // "Custom" — leave the sliders untouched.
+
+        _syncingPerfPresets = true;
+        CachedRawDecodeSettleDelaySlider.Value = p.Cached;
+        RawDecodeSettleDelaySlider.Value = p.Raw;
+        FullJpegPreloadSettleDelaySlider.Value = p.FullJpeg;
+        RawPrefetchSettleDelaySlider.Value = p.RawPrefetch;
+        VideoProxyPrefetchSettleDelaySlider.Value = p.VideoProxy;
+        SessionSaveDebounceSlider.Value = p.Session;
+        _syncingPerfPresets = false;
+    }
+
+    private void PreloadPreset_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingPerfPresets) return;
+        if (PreloadPresetCombo.SelectedItem is not string label) return;
+        var p = Array.Find(PreloadPresets, x => x.Label == label);
+        if (p.Label is null) return;
+
+        _syncingPerfPresets = true;
+        GridCacheRowsBeforeSlider.Value = p.CacheB;
+        GridCacheRowsAfterSlider.Value = p.CacheA;
+        GridPreloadRowsBeforeSlider.Value = p.PreB;
+        GridPreloadRowsAfterSlider.Value = p.PreA;
+        _syncingPerfPresets = false;
+    }
+
+    private void ResponsivenessAdvancedToggle_Changed(object sender, RoutedEventArgs e) =>
+        ResponsivenessAdvancedPanel.Visibility =
+            ResponsivenessAdvancedToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+
+    private void PreloadAdvancedToggle_Changed(object sender, RoutedEventArgs e) =>
+        PreloadAdvancedPanel.Visibility =
+            PreloadAdvancedToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
 
     // The two re-run buttons reuse Save_Click so the latest threshold (and
     // any other settings edits in the dialog) get persisted before the
@@ -631,7 +950,7 @@ public partial class SettingsWindow : Window
             Margin = new Thickness(0, 0, 6, 0),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             Tag = macro.Id,
-            ToolTip = "Click to record a new key combination — Esc cancels, Backspace clears",
+            ToolTip = "Click to record a new key combination - Esc cancels, Backspace clears",
         };
         keyButton.Click += MacroKeyButton_Click;
         Grid.SetColumn(keyButton, 3);

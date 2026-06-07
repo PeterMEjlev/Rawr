@@ -59,10 +59,10 @@ public sealed class FaceAnalyzer : IDisposable
     // preview).
     private const int FaceInputSize = 320;
 
-    // Confidence floor for YuNet face proposals. YuNet's "score" is the
-    // geometric mean of cls and IoU branches; 0.6 is a common default that
-    // suppresses false positives on busy scenes.
-    private const float FaceScoreThreshold = 0.6f;
+    // Confidence floor for YuNet face proposals is user-tunable via
+    // AppSettings.FaceDetectionConfidence (Settings → Classification); the former
+    // 0.6 default lives there now. YuNet's "score" is the geometric mean of the
+    // cls and IoU branches; 0.6 suppresses false positives on busy scenes.
     private const float FaceNmsIoUThreshold = 0.3f;
 
     // Eye crop is sized as a fraction of the face's longer side. YuNet eye
@@ -165,6 +165,70 @@ public sealed class FaceAnalyzer : IDisposable
         }
 
         return new FaceAnalysisResult(faces.Count, closedFaces, minOpen);
+    }
+
+    /// <summary>
+    /// Diagnostic variant of <see cref="Analyze"/> that keeps the per-face
+    /// geometry and eye-open probabilities (normalised to the image, 0–1) so the
+    /// debug overlay can draw boxes and list scores. Mirrors <see cref="Analyze"/>'s
+    /// pipeline; kept separate so the bulk path stays allocation-light.
+    /// </summary>
+    public FaceDebugResult? AnalyzeDebug(byte[] previewJpeg, float closedThreshold)
+    {
+        EnsureInitialized();
+        if (!IsAvailable) return null;
+
+        var rgb = DecodeJpegToBgr(previewJpeg, out int srcW, out int srcH);
+        if (rgb == null) return null;
+
+        var resized = ResizeBgr(rgb, srcW, srcH, FaceInputSize, FaceInputSize);
+        var faces = RunFaceDetection(resized, FaceInputSize, FaceInputSize);
+        if (faces.Count == 0)
+            return new FaceDebugResult(0, 0, 1.0f, srcW, srcH, Array.Empty<FaceDebugFace>());
+
+        float scaleX = (float)srcW / FaceInputSize;
+        float scaleY = (float)srcH / FaceInputSize;
+        int longerDim = Math.Max(_eyeInputW, _eyeInputH);
+        float halfWFactor = (float)_eyeInputW / longerDim;
+        float halfHFactor = (float)_eyeInputH / longerDim;
+
+        float minOpen = 1.0f;
+        int closedFaces = 0;
+        var list = new List<FaceDebugFace>(faces.Count);
+
+        foreach (var f in faces)
+        {
+            float faceW = f.W * scaleX;
+            float baseHalf = faceW * EyeCropFraction * 0.5f;
+            int halfW = Math.Max(4, (int)MathF.Round(baseHalf * halfWFactor));
+            int halfH = Math.Max(4, (int)MathF.Round(baseHalf * halfHFactor));
+
+            // k=0 right eye, k=1 left eye (YuNet landmark order).
+            float rightOpen = float.NaN, leftOpen = float.NaN;
+            bool faceHasClosedEye = false;
+            for (int k = 0; k < 2; k++)
+            {
+                float lx = f.Landmarks[k * 2]     * scaleX;
+                float ly = f.Landmarks[k * 2 + 1] * scaleY;
+                var crop = CropGray(rgb, srcW, srcH, (int)lx, (int)ly, halfW, halfH);
+                if (crop == null) continue;
+
+                float openProb = ClassifyEyeOpenProb(crop);
+                if (k == 0) rightOpen = openProb; else leftOpen = openProb;
+                if (openProb < minOpen) minOpen = openProb;
+                if (openProb < closedThreshold) faceHasClosedEye = true;
+            }
+            if (faceHasClosedEye) closedFaces++;
+
+            // Normalise the box from the 320² detection square to 0–1 image space
+            // (the square squashes the whole frame, so dividing by FaceInputSize maps
+            // straight back to fractions of width/height).
+            list.Add(new FaceDebugFace(
+                f.X / FaceInputSize, f.Y / FaceInputSize, f.W / FaceInputSize, f.H / FaceInputSize,
+                f.Score, rightOpen, leftOpen, faceHasClosedEye));
+        }
+
+        return new FaceDebugResult(faces.Count, closedFaces, minOpen, srcW, srcH, list);
     }
 
     // ── Initialisation ──
@@ -279,6 +343,11 @@ public sealed class FaceAnalyzer : IDisposable
         // but the 2023-mar release uses the named-by-stride convention.
         var byName = results.ToDictionary(r => r.Name, r => r.AsTensor<float>());
 
+        // User-tunable confidence floor (Settings → Classification). Snapshot once
+        // — it's read against every anchor in the loops below.
+        float faceScoreThreshold = Math.Clamp(AppSettings.Current.FaceDetectionConfidence / 100f, 0f, 1f);
+        float faceScoreThresholdSq = faceScoreThreshold * faceScoreThreshold;
+
         var raw = new List<DetectedFace>();
         foreach (var stride in YuNetStrides)
         {
@@ -305,7 +374,7 @@ public sealed class FaceAnalyzer : IDisposable
                 float clsP = Sigmoidish(clsArr[idx]);
                 float objP = Sigmoidish(objArr[idx]);
                 float scoreSq = clsP * objP;
-                if (scoreSq < FaceScoreThreshold * FaceScoreThreshold) continue;
+                if (scoreSq < faceScoreThresholdSq) continue;
 
                 int gx = idx % gridW;
                 int gy = idx / gridW;
@@ -539,3 +608,15 @@ public sealed class FaceAnalyzer : IDisposable
 }
 
 public sealed record FaceAnalysisResult(int FaceCount, int ClosedEyeCount, float MinEyeOpenScore);
+
+/// <summary>One detected face for the debug overlay. Box coords are normalised
+/// (0–1) to the image; eye-open probs are 0–1, or NaN when the eye crop failed.</summary>
+public sealed record FaceDebugFace(
+    float X, float Y, float W, float H,
+    float Score, float RightEyeOpen, float LeftEyeOpen, bool HasClosedEye);
+
+/// <summary>Per-face detection detail plus the source image dimensions (so the
+/// overlay can be built at the right aspect ratio).</summary>
+public sealed record FaceDebugResult(
+    int FaceCount, int ClosedEyeCount, float MinEyeOpenScore,
+    int ImageWidth, int ImageHeight, IReadOnlyList<FaceDebugFace> Faces);

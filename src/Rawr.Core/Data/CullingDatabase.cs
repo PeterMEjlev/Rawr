@@ -12,6 +12,16 @@ public sealed class CullingDatabase : IDisposable
 {
     private readonly SqliteConnection _db;
 
+    // A single SqliteConnection is not thread-safe, but this instance is shared
+    // across concurrent background passes (the face-analysis and subject-
+    // classifier saves both fire after every folder load and write the same
+    // per-folder DBs) plus UI-thread reads. Without serialization their
+    // BeginTransaction/ExecuteNonQuery calls collide on the connection and the
+    // final save hangs — leaving "Analysing faces N/N" stuck forever. Monitor is
+    // reentrant per-thread, so WithTransaction's nested public calls on the same
+    // thread don't self-deadlock.
+    private readonly object _gate = new();
+
     private CullingDatabase(SqliteConnection db)
     {
         _db = db;
@@ -148,6 +158,8 @@ public sealed class CullingDatabase : IDisposable
     /// </summary>
     public Dictionary<string, PhotoState> LoadAll()
     {
+        lock (_gate)
+        {
         var result = new Dictionary<string, PhotoState>(StringComparer.OrdinalIgnoreCase);
 
         using var cmd = _db.CreateCommand();
@@ -185,10 +197,13 @@ public sealed class CullingDatabase : IDisposable
         }
 
         return result;
+        }
     }
 
     public void Save(PhotoItem photo)
     {
+        lock (_gate)
+        {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
             INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score, subject_tags)
@@ -221,16 +236,20 @@ public sealed class CullingDatabase : IDisposable
         cmd.Parameters.AddWithValue("$minOpen", (object?)photo.MinEyeOpenScore ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$subject", photo.SubjectTags.HasValue ? (object)(int)photo.SubjectTags.Value : DBNull.Value);
         cmd.ExecuteNonQuery();
+        }
     }
 
     public void SaveBatch(IEnumerable<PhotoItem> photos)
     {
+        lock (_gate)
+        {
         using var tx = _db.BeginTransaction();
         foreach (var photo in photos)
         {
             Save(photo);
         }
         tx.Commit();
+        }
     }
 
     /// <summary>
@@ -240,15 +259,20 @@ public sealed class CullingDatabase : IDisposable
     /// </summary>
     public void WithTransaction(Action body)
     {
+        lock (_gate)
+        {
         using var tx = _db.BeginTransaction();
         body();
         tx.Commit();
+        }
     }
 
     // ── Custom groups ──
 
     public List<PhotoTag> LoadGroups()
     {
+        lock (_gate)
+        {
         var result = new List<PhotoTag>();
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "SELECT id, name, is_system, color FROM custom_groups ORDER BY id";
@@ -264,10 +288,13 @@ public sealed class CullingDatabase : IDisposable
             });
         }
         return result;
+        }
     }
 
     public PhotoTag CreateGroup(string name, bool isSystem = false, string? color = null)
     {
+        lock (_gate)
+        {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "INSERT INTO custom_groups (name, is_system, color) VALUES ($name, $sys, $color) RETURNING id";
         cmd.Parameters.AddWithValue("$name", name);
@@ -275,6 +302,7 @@ public sealed class CullingDatabase : IDisposable
         cmd.Parameters.AddWithValue("$color", (object?)color ?? DBNull.Value);
         var id = Convert.ToInt32(cmd.ExecuteScalar());
         return new PhotoTag { Id = id, Name = name, IsSystem = isSystem, Color = color };
+        }
     }
 
     /// <summary>
@@ -284,6 +312,8 @@ public sealed class CullingDatabase : IDisposable
     /// </summary>
     public PhotoTag? FindSystemGroup(string name)
     {
+        lock (_gate)
+        {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "SELECT id, name, is_system, color FROM custom_groups WHERE is_system = 1 AND name = $name LIMIT 1";
         cmd.Parameters.AddWithValue("$name", name);
@@ -296,27 +326,36 @@ public sealed class CullingDatabase : IDisposable
             IsSystem = reader.GetInt32(2) != 0,
             Color = reader.IsDBNull(3) ? null : reader.GetString(3),
         };
+        }
     }
 
     public void DeleteGroup(int id)
     {
+        lock (_gate)
+        {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "DELETE FROM custom_groups WHERE id = $id AND is_system = 0";
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
+        }
     }
 
     public void RenameGroup(int id, string name)
     {
+        lock (_gate)
+        {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "UPDATE custom_groups SET name = $name WHERE id = $id AND is_system = 0";
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$name", name);
         cmd.ExecuteNonQuery();
+        }
     }
 
     public Dictionary<string, HashSet<int>> LoadAllPhotoGroups()
     {
+        lock (_gate)
+        {
         var result = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "SELECT file_name, group_id FROM photo_groups";
@@ -329,36 +368,48 @@ public sealed class CullingDatabase : IDisposable
             set.Add(reader.GetInt32(1));
         }
         return result;
+        }
     }
 
     public void AssignGroup(string fileName, int groupId)
     {
+        lock (_gate)
+        {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "INSERT OR IGNORE INTO photo_groups (file_name, group_id) VALUES ($name, $group)";
         cmd.Parameters.AddWithValue("$name", fileName);
         cmd.Parameters.AddWithValue("$group", groupId);
         cmd.ExecuteNonQuery();
+        }
     }
 
     public void UnassignGroup(string fileName, int groupId)
     {
+        lock (_gate)
+        {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "DELETE FROM photo_groups WHERE file_name = $name AND group_id = $group";
         cmd.Parameters.AddWithValue("$name", fileName);
         cmd.Parameters.AddWithValue("$group", groupId);
         cmd.ExecuteNonQuery();
+        }
     }
 
     public void ClearGroupsForPhoto(string fileName)
     {
+        lock (_gate)
+        {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "DELETE FROM photo_groups WHERE file_name = $name";
         cmd.Parameters.AddWithValue("$name", fileName);
         cmd.ExecuteNonQuery();
+        }
     }
 
     public void DeletePhoto(string fileName)
     {
+        lock (_gate)
+        {
         using var tx = _db.BeginTransaction();
 
         using var cmd1 = _db.CreateCommand();
@@ -374,11 +425,15 @@ public sealed class CullingDatabase : IDisposable
         cmd2.ExecuteNonQuery();
 
         tx.Commit();
+        }
     }
 
     public void Dispose()
     {
-        _db.Dispose();
+        lock (_gate)
+        {
+            _db.Dispose();
+        }
     }
 }
 

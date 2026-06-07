@@ -34,7 +34,37 @@ public sealed class ImportTypeRule
 
 public sealed class AppSettings
 {
-    public static AppSettings Current { get; set; } = new();
+    private static AppSettings _current = new();
+
+    // Assigning Current is the single choke point where the cross-project
+    // runtime tunables get pushed down to Rawr.Core/Rawr.Raw (which can't see
+    // this class). Startup and the Settings dialog both reassign Current, so the
+    // encoders always read the latest values.
+    public static AppSettings Current
+    {
+        get => _current;
+        set { _current = value; _current.PushRuntimeTuning(); }
+    }
+
+    /// <summary>
+    /// Copy the settings that low-level projects consume into <see cref="Rawr.Core.RawrTuning"/>.
+    /// </summary>
+    public void PushRuntimeTuning()
+    {
+        Rawr.Core.RawrTuning.CacheJpegQuality = Math.Clamp((int)CacheJpegQuality, 1, 100);
+    }
+
+    /// <summary>
+    /// Apply the user's background-thread cap to a site's natural parallelism.
+    /// <see cref="MaxBackgroundThreads"/> of 0 means "auto" (use the site's own
+    /// per-core formula); any positive value is an upper bound. Never returns &lt; 1.
+    /// </summary>
+    public static int CappedParallelism(int auto)
+    {
+        int cap = Current.MaxBackgroundThreads;
+        int v = cap > 0 ? Math.Min(auto, cap) : auto;
+        return Math.Max(1, v);
+    }
 
     public int BurstMaxGapSeconds { get; set; } = 2;
 
@@ -218,6 +248,93 @@ public sealed class AppSettings
     // as one undoable step.
     public List<KeyboardMacro> Macros { get; set; } = new();
 
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Power-user performance / cache tunables.
+    //  These were hardcoded constants; exposed here (and in the Settings dialog's
+    //  Performance tab) so power users can trade disk/RAM/CPU against speed and
+    //  quality. Out-of-the-box defaults match the previous constants exactly, so
+    //  leaving them untouched changes nothing.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ── Cache & preview ──
+    // JPEG quality (1–100) for cache-written thumbnails/previews. Higher = sharper
+    // cached previews, larger .rawr/cache. Pushed to Rawr.Core.RawrTuning so the
+    // Rawr.Raw extractors (which can't see this class) pick it up.
+    public byte CacheJpegQuality { get; set; } = 85;
+
+    // Screen-size decode width for the main embedded-JPEG preview. Lower = faster
+    // decode / less RAM; higher = crisper at zoom on hi-DPI displays.
+    public int PreviewDecodeWidth { get; set; } = 1920;
+
+    // Target width for the cached linear-RAW preview buffer (.rawr/cache/*_linearraw.bin).
+    // Changing this only affects newly-decoded entries; existing cached buffers
+    // keep their stored width until they're evicted/refreshed.
+    public int LinearRawPreviewWidth { get; set; } = 2400;
+
+    // On-disk cached thumbnail JPEG width.
+    public int ThumbnailDecodeWidth { get; set; } = 320;
+
+    // In-memory decode width for grid thumbnail cells (applied to the shared
+    // ThumbBytesToImage converter). Lower = less RAM and faster scroll; higher =
+    // sharper grid tiles. Takes full effect on the next folder load / as cells recycle.
+    public int GridThumbnailRenderWidth { get; set; } = 240;
+
+    // Upper bound on background worker threads for folder scan / preview gen /
+    // analysis passes. 0 = auto (each pass uses its own per-core formula).
+    public int MaxBackgroundThreads { get; set; } = 0;
+
+    // ── Memory ──
+    public int UndoHistoryDepth { get; set; } = 100;
+
+    // How many photos on each side of the selection keep their full preview in
+    // memory for instant back/forth browsing. Higher = snappier, more RAM.
+    public int PreviewRetentionRadius { get; set; } = 2;
+
+    // Grid virtualization windows, in rows. "Cache" rows stay materialized
+    // off-screen; "preload" rows have their thumbnails decoded ahead of time.
+    public int GridCacheRowsBefore { get; set; } = 3;
+    public int GridCacheRowsAfter { get; set; } = 6;
+    public int GridPreloadRowsBefore { get; set; } = 4;
+    public int GridPreloadRowsAfter { get; set; } = 12;
+
+    // ── Responsiveness (preview-load settle delays, ms) ──
+    // How long selection must settle before the corresponding decode/prefetch
+    // fires. Lower = more eager loading while arrowing through shots (good on
+    // fast NVMe/CPU); higher = fewer wasted decodes while scrubbing quickly.
+    public int CachedRawDecodeSettleDelayMs { get; set; } = 45;
+    public int RawDecodeSettleDelayMs { get; set; } = 180;
+    public int FullJpegPreloadSettleDelayMs { get; set; } = 350;
+    public int RawPrefetchSettleDelayMs { get; set; } = 650;
+    public int VideoProxyPrefetchSettleDelayMs { get; set; } = 700;
+    // Debounce before the per-folder session.json ("resume where I left off") is written.
+    public int SessionSaveDebounceMs { get; set; } = 600;
+
+    // ── Video proxy (smooth-scrub transcode for heavy clips) ──
+    // Changing any of these invalidates existing proxies (they're rebuilt on next
+    // view). Larger width / higher fps / lower CRF = better proxy quality, slower
+    // to build and larger on disk.
+    public int VideoProxyMaxWidth { get; set; } = 720;
+    public int VideoProxyFps { get; set; } = 24;
+    public int VideoProxyCrf { get; set; } = 30;
+
+    // ── Zoom & exposure ──
+    public double MaxZoom { get; set; } = 64.0;
+    public double ZoomStep { get; set; } = 1.2;
+    // EV step for the exposure-compensation shortcuts (typically 1/3 or 1/2 EV).
+    public double ExposureStepEv { get; set; } = 1.0 / 3.0;
+
+    // ── Faces ──
+    // YuNet face-detection confidence floor, 0–100 (maps to 0.0–1.0). Lower
+    // catches more (and smaller) faces at the cost of false positives; higher is
+    // stricter. Distinct from ClosedEyeThreshold (which gates the eye-state CNN).
+    public byte FaceDetectionConfidence { get; set; } = 60;
+
+    // ── Diagnostics ──
+    // Debug overlay: when on, the selected photo shows the subject classifier's
+    // raw softmax confidence per category (including the ones below threshold),
+    // recomputed live. Off by default; purely diagnostic.
+    public bool ShowSubjectClassifierScores { get; set; } = false;
+
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RAWR", "settings.json");
 
@@ -299,6 +416,32 @@ public sealed class AppSettings
         ImportJpegRule = ImportJpegRule.Clone(),
         ImportVideoRule = ImportVideoRule.Clone(),
         KeyBindings = new Dictionary<string, string>(KeyBindings),
+        CacheJpegQuality = CacheJpegQuality,
+        PreviewDecodeWidth = PreviewDecodeWidth,
+        LinearRawPreviewWidth = LinearRawPreviewWidth,
+        ThumbnailDecodeWidth = ThumbnailDecodeWidth,
+        GridThumbnailRenderWidth = GridThumbnailRenderWidth,
+        MaxBackgroundThreads = MaxBackgroundThreads,
+        UndoHistoryDepth = UndoHistoryDepth,
+        PreviewRetentionRadius = PreviewRetentionRadius,
+        GridCacheRowsBefore = GridCacheRowsBefore,
+        GridCacheRowsAfter = GridCacheRowsAfter,
+        GridPreloadRowsBefore = GridPreloadRowsBefore,
+        GridPreloadRowsAfter = GridPreloadRowsAfter,
+        CachedRawDecodeSettleDelayMs = CachedRawDecodeSettleDelayMs,
+        RawDecodeSettleDelayMs = RawDecodeSettleDelayMs,
+        FullJpegPreloadSettleDelayMs = FullJpegPreloadSettleDelayMs,
+        RawPrefetchSettleDelayMs = RawPrefetchSettleDelayMs,
+        VideoProxyPrefetchSettleDelayMs = VideoProxyPrefetchSettleDelayMs,
+        SessionSaveDebounceMs = SessionSaveDebounceMs,
+        VideoProxyMaxWidth = VideoProxyMaxWidth,
+        VideoProxyFps = VideoProxyFps,
+        VideoProxyCrf = VideoProxyCrf,
+        MaxZoom = MaxZoom,
+        ZoomStep = ZoomStep,
+        ExposureStepEv = ExposureStepEv,
+        FaceDetectionConfidence = FaceDetectionConfidence,
+        ShowSubjectClassifierScores = ShowSubjectClassifierScores,
         Macros = Macros.Select(m => new KeyboardMacro
         {
             Id = m.Id,

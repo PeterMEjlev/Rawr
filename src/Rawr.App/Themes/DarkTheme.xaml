@@ -58,7 +58,7 @@
         <Setter Property="Background"  Value="{StaticResource IncludeBgBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource IncludeBorderBrush}" />
         <Setter Property="Foreground"  Value="{StaticResource IncludeForegroundBrush}" />
-        <Setter Property="ToolTip" Value="Include — click to invert: show photos that DON'T match" />
+        <Setter Property="ToolTip" Value="Include - click to invert: show photos that DON'T match" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
@@ -96,7 +96,7 @@
                 <Setter Property="Background"  Value="{StaticResource ExcludeBgBrush}" />
                 <Setter Property="BorderBrush" Value="{StaticResource ExcludeBorderBrush}" />
                 <Setter Property="Foreground"  Value="{StaticResource ExcludeForegroundBrush}" />
-                <Setter Property="ToolTip" Value="Exclude — click to revert: show photos that DO match" />
+                <Setter Property="ToolTip" Value="Exclude - click to revert: show photos that DO match" />
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource IncludeBgHoverBrush}" />
