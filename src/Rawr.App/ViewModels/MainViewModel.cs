@@ -2370,11 +2370,29 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(GridExpandedToggleTooltip));
         OnPropertyChanged(nameof(FullGridToggleTooltip));
         OnPropertyChanged(nameof(DeletePhotoShortcutDisplay));
+        OnPropertyChanged(nameof(SyncXmpTooltip));
+        OnPropertyChanged(nameof(SortDirectionTooltip));
+        OnPropertyChanged(nameof(DeleteAllRejectedTooltip));
+        OnPropertyChanged(nameof(CreateTagTooltip));
+        OnPropertyChanged(nameof(VideoMuteTooltip));
+        OnPropertyChanged(nameof(OpenTagsTooltip));
     }
 
     // Shown to the right of the photo "Delete…" context-menu item. Empty (not
     // "unbound") when the action has no binding so the menu shows nothing.
     public string DeletePhotoShortcutDisplay => ShortcutGesture("DeletePhoto");
+
+    // Toolbar / popup button tooltips that surface the (rebindable) shortcut next
+    // to a description. Built from ShortcutGesture so they track custom bindings;
+    // refreshed via NotifyShortcutDisplayChanged after the Settings dialog applies.
+    public string OpenTagsTooltip          => AppendGesture("Create and filter by tags  —  Shift+1 through Shift+0 to assign tags to selected photo", "OpenTags");
+    public string SyncXmpTooltip => AppendGesture(
+        "Write Lightroom-compatible XMP sidecars for every photo in this folder (rating, label, keywords, pick/reject).",
+        "SyncXmp");
+    public string SortDirectionTooltip      => AppendGesture("Reverse sort order", "ToggleSortDirection");
+    public string DeleteAllRejectedTooltip  => AppendGesture("Move all rejected photos to the Recycle Bin", "DeleteAllRejected");
+    public string CreateTagTooltip          => AppendGesture("Create new tag", "CreateTag");
+    public string VideoMuteTooltip          => AppendGesture("Mute / Unmute", "ToggleVideoMute");
 
     private static string ShortcutDisplay(string actionId)
     {
@@ -2392,6 +2410,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var (spec, unbound) = ShortcutBinder.ResolveBinding(AppSettings.Current, action);
         return unbound || spec == null ? string.Empty : spec.FormatForDisplay();
+    }
+
+    // Appends "  (Ctrl+S)" to a description, or returns it unchanged when the
+    // action is unbound, so a tooltip never shows an empty pair of parentheses.
+    private static string AppendGesture(string text, string actionId)
+    {
+        var gesture = ShortcutGesture(actionId);
+        return string.IsNullOrEmpty(gesture) ? text : $"{text}  ({gesture})";
     }
 
     [RelayCommand]

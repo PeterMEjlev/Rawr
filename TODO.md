@@ -1,6 +1,6 @@
 ### **SONNET:
 
-- ## Update the SHORTCUTS panel with new shortcuts
+
 
 - ## be able to change timeline size in full screen
 
@@ -10,6 +10,7 @@
 
 ## OPUS:
 - ## Allow user to manually add location metadata to selected photos (using the map function)
+
 
 
 

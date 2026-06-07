@@ -47,7 +47,7 @@
                 <Button DockPanel.Dock="Left" Content="📥 Import…" Click="OnImportFromCard" Margin="0,0,8,0"
                         ToolTip="Import photos and videos from a connected SD / CF card." />
                 <Button DockPanel.Dock="Left" Content="📝 Sync XMP" Command="{Binding SyncAllXmpCommand}" Margin="0,0,8,0"
-                        ToolTip="Write Lightroom-compatible XMP sidecars for every photo in this folder (rating, label, keywords, pick/reject)." />
+                        ToolTip="{Binding SyncXmpTooltip}" />
                 <Button DockPanel.Dock="Left" Content="🗺 Map" Click="OnOpenMap" Margin="0,0,8,0"
                         ToolTip="Plot photos with GPS data on a map and filter by region." />
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
@@ -816,7 +816,7 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <Button Content="+" Command="{Binding CreateTagCommand}" ToolTip="Create new tag" Margin="0,0,0,3" />
+                                    <Button Content="+" Command="{Binding CreateTagCommand}" ToolTip="{Binding CreateTagTooltip}" Margin="0,0,0,3" />
                                 </WrapPanel>
 
                                 <Separator Margin="0,2,0,8" />
@@ -873,7 +873,7 @@
                                   PreviewMouseLeftButtonDown="TagsToggleButton_PreviewMouseLeftButtonDown"
                                   PreviewMouseLeftButtonUp="TagsToggleButton_PreviewMouseLeftButtonUp"
                                   Content="🏷 Tags"
-                                  ToolTip="Create and filter by tags  —  Shift+1 through Shift+0 to assign tags to selected photo" />
+                                  ToolTip="{Binding OpenTagsTooltip}" />
                     <Popup x:Name="TagsPopup"
                            StaysOpen="False"
                            Placement="Bottom"
@@ -951,7 +951,7 @@
                                 </ItemsControl>
                                 <Separator Margin="0,4,0,8" />
                                 <Button Content="+ New Tag" Command="{Binding CreateTagCommand}"
-                                        HorizontalAlignment="Stretch" />
+                                        HorizontalAlignment="Stretch" ToolTip="{Binding CreateTagTooltip}" />
                             </StackPanel>
                         </Border>
                     </Popup>
@@ -977,7 +977,7 @@
                     <ComboBoxItem Content="Burst"  Tag="{x:Static vm:SortField.Burst}" />
                     <ComboBoxItem Content="Type"   Tag="{x:Static vm:SortField.ImageType}" />
                 </ComboBox>
-                <Button DockPanel.Dock="Left" Content="{Binding SortDirectionLabel}" Command="{Binding ToggleSortDirectionCommand}" Margin="0,0,8,0" ToolTip="Reverse sort order" />
+                <Button DockPanel.Dock="Left" Content="{Binding SortDirectionLabel}" Command="{Binding ToggleSortDirectionCommand}" Margin="0,0,8,0" ToolTip="{Binding SortDirectionTooltip}" />
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
@@ -1280,7 +1280,7 @@
                         </Border>
                     </Popup>
                 </Grid>
-<Button DockPanel.Dock="Left" Content="🗑 Delete Rejected…" Command="{Binding DeleteAllRejectedCommand}" Margin="0,0,4,0" ToolTip="Move all rejected photos to the Recycle Bin" />
+<Button DockPanel.Dock="Left" Content="🗑 Delete Rejected…" Command="{Binding DeleteAllRejectedCommand}" Margin="0,0,4,0" ToolTip="{Binding DeleteAllRejectedTooltip}" />
 
                 <Border DockPanel.Dock="Left" Width="1" Background="{StaticResource BorderBrush}" Margin="4,4" />
 
@@ -2928,7 +2928,7 @@
                                 Width="32"
                                 Margin="8,0,0,0"
                                 Click="VideoMute_Click"
-                                ToolTip="Mute / Unmute" />
+                                ToolTip="{Binding VideoMuteTooltip}" />
                         <ComboBox x:Name="VideoSpeedBox"
                                   DockPanel.Dock="Right"
                                   Width="72"

@@ -29,6 +29,7 @@ public static class ShortcutRegistry
             // File ops
             new("OpenFolder",     "Open folder",        CatFile, Key.O, ModifierKeys.Control, Vm(vm => vm.OpenFolderCommand)),
 new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control, Vm(vm => vm.CopyPickedCommand)),
+            new("SyncXmp",        "Sync XMP sidecars",  CatFile, Key.S, ModifierKeys.Control, Vm(vm => vm.SyncAllXmpCommand)),
 
             // Navigation
             new("NextPhoto",     "Next photo",          CatNav, Key.Right, ModifierKeys.None,    Vm(vm => vm.NextPhotoCommand)),
@@ -71,6 +72,7 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
 
             // Edit
             new("DeletePhoto", "Delete photo", CatEdit, Key.Delete, ModifierKeys.None, Vm(vm => vm.DeletePhotoCommand)),
+            new("DeleteAllRejected", "Delete all rejected photos", CatEdit, Key.Delete, ModifierKeys.Control, Vm(vm => vm.DeleteAllRejectedCommand)),
             new("Undo",        "Undo last edit", CatEdit, Key.Z, ModifierKeys.Control, Vm(vm => vm.UndoCommand)),
             new("Redo",        "Redo last edit", CatEdit, Key.Y, ModifierKeys.Control, Vm(vm => vm.RedoCommand)),
 
@@ -84,6 +86,7 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("CycleOverlay",       "Cycle preview overlay (off → focus peaking → clipping)", CatView, Key.None, ModifierKeys.None, Vm(vm => vm.CycleOverlayCommand)),
             new("ToggleBurstCollapse","Toggle burst collapse",CatView, Key.G, ModifierKeys.None, Vm(vm => vm.ToggleBurstCollapseCommand)),
             new("ToggleGridExpanded", "Expand grid (hide preview)", CatView, Key.OemPipe, ModifierKeys.None, Vm(vm => vm.ToggleGridExpandedCommand)),
+            new("ToggleSortDirection","Toggle sort direction",     CatView, Key.S, ModifierKeys.None, Vm(vm => vm.ToggleSortDirectionCommand)),
             new("ViewPhotoFullscreen","View photo fullscreen",  CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ViewPhotoFullscreenCommand)),
             new("ToggleVideoMute",    "Toggle video mute",      CatVideo, Key.M,    ModifierKeys.None, w => w.ToggleVideoMuteCommand),
             new("IncreaseVideoSpeed", "Increase video speed",   CatVideo, Key.Up,   ModifierKeys.Control, w => w.IncreaseVideoSpeedCommand),
@@ -96,6 +99,11 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             // Filters
             new("ClearFilters", "Clear all filters", CatFilt, Key.X, ModifierKeys.Control | ModifierKeys.Shift, Vm(vm => vm.ClearFiltersCommand)),
         };
+
+        // Create-new-tag — same as the tag menu's "+ new tag" button. Grouped with
+        // the tag-assignment entries below so the Shortcuts panel shows one Tags section.
+        list.Add(new ShortcutAction(
+            "CreateTag", "Create new tag", CatTag, Key.T, ModifierKeys.Shift, Vm(vm => vm.CreateTagCommand)));
 
         // Tag assignment Shift+1..0 -> indices 0..9 (matches existing Lightroom-ish layout).
         var tagKeys = new[] { Key.D1, Key.D2, Key.D3, Key.D4, Key.D5, Key.D6, Key.D7, Key.D8, Key.D9, Key.D0 };
