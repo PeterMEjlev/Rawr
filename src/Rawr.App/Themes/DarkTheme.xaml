@@ -117,6 +117,11 @@
     <SolidColorBrush x:Key="BurstStackBackBorderBrush" Color="#FF2E323B" />
     <!-- Detail-preview burst stack: white outlined cards peeking behind the photo -->
     <SolidColorBrush x:Key="BurstPreviewStackOutlineBrush" Color="#CCFFFFFF" />
+    <!-- User-customisable burst-label background (thumbnails / preview / fullscreen).
+         Colour is overwritten at startup and on settings change from
+         AppSettings.BurstLabelColor via ThemeColors.ApplyBurstLabelColor; the value
+         here is the default and must match ThemeColors.DefaultBurstLabelColor. -->
+    <SolidColorBrush x:Key="BurstLabelBrush" Color="#CC1A1A1A" />
 
     <!-- Scrollbar thumb brushes -->
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#FF3D414A" />

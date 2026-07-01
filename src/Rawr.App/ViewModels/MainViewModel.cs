@@ -352,6 +352,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _filmstripItemWidth = 140.0; // derived in code-behind from filmstrip height
     [ObservableProperty] private bool _showGrid = true;
     [ObservableProperty] private bool _showFilmstrip = true;
+    // Filmstrip visibility while in photo-fullscreen is tracked separately from the
+    // windowed ShowFilmstrip so hiding/showing it in one view never affects the other.
+    [ObservableProperty] private bool _showFilmstripFullscreen = true;
     [ObservableProperty] private bool _showSecondMonitor;
     [ObservableProperty] private bool _isPhotoFullscreen;
 
@@ -2383,6 +2386,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CreateTagTooltip));
         OnPropertyChanged(nameof(VideoMuteTooltip));
         OnPropertyChanged(nameof(OpenTagsTooltip));
+        OnPropertyChanged(nameof(FilmstripToggleTooltip));
     }
 
     // Shown to the right of the photo "Delete…" context-menu item. Empty (not
@@ -2400,6 +2404,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public string DeleteAllRejectedTooltip  => AppendGesture("Move all rejected photos to the Recycle Bin", "DeleteAllRejected");
     public string CreateTagTooltip          => AppendGesture("Create new tag", "CreateTag");
     public string VideoMuteTooltip          => AppendGesture("Mute / Unmute", "ToggleVideoMute");
+    public string FilmstripToggleTooltip    => AppendGesture("Show or hide the filmstrip in the windowed view (fullscreen keeps its own filmstrip toggle)", "ToggleFilmstrip");
 
     private static string ShortcutDisplay(string actionId)
     {
@@ -2435,6 +2440,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void ToggleGridExpanded() => IsGridExpanded = !IsGridExpanded;
+
+    // Toggles the filmstrip for whichever view is active. Fullscreen has its own
+    // independent visibility state (ShowFilmstripFullscreen) so the F6 shortcut, the
+    // fullscreen ✕ / ▲ affordances, and the splitter double-click only affect the
+    // fullscreen strip and leave the windowed view's filmstrip untouched.
+    [RelayCommand]
+    private void ToggleFilmstrip()
+    {
+        if (IsPhotoFullscreen) ShowFilmstripFullscreen = !ShowFilmstripFullscreen;
+        else ShowFilmstrip = !ShowFilmstrip;
+    }
 
     [RelayCommand]
     private void RotatePhoto()

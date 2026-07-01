@@ -1307,7 +1307,8 @@
                             <StackPanel>
                                 <TextBlock Text="PANELS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6" />
                                 <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}" Margin="0,0,0,4" />
-                                <CheckBox Content="Filmstrip" IsChecked="{Binding ShowFilmstrip}" />
+                                <CheckBox Content="Filmstrip" IsChecked="{Binding ShowFilmstrip}"
+                                          ToolTip="{Binding FilmstripToggleTooltip}" />
                                 <Separator Margin="0,8,0,8" />
                                 <TextBlock Text="MONITORS" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6" />
                                 <CheckBox Content="Second-monitor preview"
@@ -2333,7 +2334,7 @@
                                             </StackPanel>
                                             <!-- Burst position badge: only shown when expanded -->
                                             <Border HorizontalAlignment="Left" VerticalAlignment="Top"
-                                                    Background="#CC9C27B0"
+                                                    Background="{DynamicResource BurstLabelBrush}"
                                                     Padding="4,1" Margin="6,4,0,0"
                                                     CornerRadius="2"
                                                     ToolTip="Part of a burst group">
@@ -2739,10 +2740,12 @@
                 </StackPanel>
 
                 <!-- Burst-group indicator (top-left of preview) — stack-of-cards
-                     icon, "BURST" label and total photo count. -->
+                     icon, "BURST" label and this photo's position in the burst
+                     (e.g. "2/5"). Shown in both the normal and fullscreen preview;
+                     background colour is the user-customisable BurstLabelBrush. -->
                 <Border HorizontalAlignment="Left"
                         VerticalAlignment="Top"
-                        Background="#80000000"
+                        Background="{DynamicResource BurstLabelBrush}"
                         Padding="10,5"
                         CornerRadius="3"
                         Margin="16,16,0,0"
@@ -2761,7 +2764,7 @@
                                    FontWeight="Bold"
                                    VerticalAlignment="Center"
                                    Margin="8,0,0,0" />
-                        <TextBlock Text="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource BurstBadgeToTotal}}"
+                        <TextBlock Text="{Binding SelectedPhoto.BurstBadge}"
                                    Foreground="White"
                                    FontSize="{StaticResource BurstBadgeFontSize}"
                                    FontWeight="SemiBold"
@@ -2771,59 +2774,30 @@
                 </Border>
 
                 <!-- Fullscreen-only preview badges. These sit above the normal
-                     overlays so burst groups and preview source are obvious while
-                     all the surrounding chrome is hidden. -->
+                     overlays so the preview source is obvious while all the
+                     surrounding chrome is hidden. (The burst indicator above is
+                     shared with the normal preview, so there's no fullscreen-only
+                     burst badge here.) The top margin drops to clear the shared
+                     burst indicator only when a burst is present, so the source
+                     badge hugs the top-left for ordinary photos. -->
                 <StackPanel HorizontalAlignment="Left"
                             VerticalAlignment="Top"
-                            Margin="16,16,0,0"
                             IsHitTestVisible="False">
-                    <Border Background="#F5FFC83D"
-                            BorderBrush="#FFFFFFFF"
-                            BorderThickness="2"
-                            Padding="16,8"
-                            CornerRadius="4"
-                            ToolTip="Part of a burst group">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding IsPhotoFullscreen}" Value="True" />
-                                            <Condition Binding="{Binding SelectedPhoto.GroupId, Converter={StaticResource NullToVisibility}}" Value="Visible" />
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="BURST"
-                                       Foreground="#FF111318"
-                                       FontSize="14"
-                                       FontWeight="Black"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,8,0" />
-                            <TextBlock Text="&#x29C9;"
-                                       Foreground="#FF111318"
-                                       FontSize="34"
-                                       FontWeight="Bold"
-                                       VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding SelectedPhoto.BurstBadge, Converter={StaticResource BurstBadgeToTotal}}"
-                                       Foreground="#FF111318"
-                                       FontSize="24"
-                                       FontWeight="Black"
-                                       VerticalAlignment="Center"
-                                       Margin="6,0,0,0" />
-                        </StackPanel>
-                    </Border>
-
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Margin" Value="16,16,0,0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedPhoto.GroupId, Converter={StaticResource NullToVisibility}}" Value="Visible">
+                                    <Setter Property="Margin" Value="16,58,0,0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <Border Background="#E6000000"
                             BorderBrush="#66FFFFFF"
                             BorderThickness="1"
                             Padding="10,4"
                             CornerRadius="3"
-                            Margin="0,6,0,0"
                             ToolTip="Current fullscreen preview source">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -2893,6 +2867,44 @@
                                Foreground="{StaticResource TextBrush}"
                                FontSize="11" />
                 </Border>
+
+                <!-- "Show filmstrip" pull-tab (bottom-centre). Appears whenever the
+                     filmstrip for the current view is hidden — in fullscreen or the
+                     windowed view — so the user can bring it back by pointer without
+                     knowing the F6 shortcut. ToggleFilmstrip targets the active view. -->
+                <Button Grid.Row="0"
+                        HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                        Margin="0,0,0,10"
+                        Height="20" Padding="16,0"
+                        FontSize="11"
+                        Content="&#x25B2;"
+                        Command="{Binding ToggleFilmstripCommand}"
+                        ToolTip="Show the filmstrip (F6)">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Opacity" Value="0.85" />
+                            <Style.Triggers>
+                                <!-- Fullscreen view: fullscreen filmstrip hidden. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsPhotoFullscreen}" Value="True" />
+                                        <Condition Binding="{Binding ShowFilmstripFullscreen}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                                <!-- Windowed view: windowed filmstrip hidden. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsPhotoFullscreen}" Value="False" />
+                                        <Condition Binding="{Binding ShowFilmstrip}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
 
                 <!-- Exposure compensation slider (visible only for photos) -->
                 <Border x:Name="ExposureCompensationBar"
@@ -3046,13 +3058,16 @@
                       ResizeDirection="Rows"
                       ResizeBehavior="PreviousAndNext"
                       Background="{StaticResource BorderBrush}"
-                      Cursor="SizeNS" />
+                      Cursor="SizeNS"
+                      ToolTip="Drag to resize the filmstrip - double-click to hide it (F6)"
+                      PreviewMouseLeftButtonDown="FilmstripSplitter_PreviewMouseLeftButtonDown" />
 
         <!-- ================ FILMSTRIP ================ -->
         <Border Grid.Row="3"
                 Background="{StaticResource BgFilmstripBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,1">
+            <Grid>
             <ListBox x:Name="Filmstrip"
                      ItemsSource="{Binding FilteredPhotos}"
                      SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
@@ -3224,7 +3239,7 @@
                                     </StackPanel>
                                     <!-- Burst position badge: only shown when expanded -->
                                     <Border HorizontalAlignment="Left" VerticalAlignment="Top"
-                                            Background="#CC9C27B0"
+                                            Background="{DynamicResource BurstLabelBrush}"
                                             Padding="4,1" Margin="6,4,0,0"
                                             CornerRadius="2"
                                             ToolTip="Part of a burst group">
@@ -3299,6 +3314,21 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
+
+            <!-- Fullscreen-only "close filmstrip" button. Outside fullscreen the
+                 View popup carries the Filmstrip toggle, but that popup is hidden
+                 while immersed, so this gives a pointer-only way to dismiss the
+                 strip (mirrors the F6 shortcut and the splitter double-click). -->
+            <Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,4,6,0"
+                    Width="22" Height="22"
+                    Padding="0"
+                    FontSize="12"
+                    Content="&#x2715;"
+                    Command="{Binding ToggleFilmstripCommand}"
+                    ToolTip="Hide the filmstrip (F6)"
+                    Visibility="{Binding IsPhotoFullscreen, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
         </Border>
 
         <!-- ================ STATUS BAR ================ -->

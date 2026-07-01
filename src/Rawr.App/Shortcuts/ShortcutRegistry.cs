@@ -88,6 +88,7 @@ new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control
             new("ToggleGridExpanded", "Expand grid (hide preview)", CatView, Key.OemPipe, ModifierKeys.None, Vm(vm => vm.ToggleGridExpandedCommand)),
             new("ToggleSortDirection","Toggle sort direction",     CatView, Key.S, ModifierKeys.None, Vm(vm => vm.ToggleSortDirectionCommand)),
             new("ViewPhotoFullscreen","View photo fullscreen",  CatView, Key.F,    ModifierKeys.None, Vm(vm => vm.ViewPhotoFullscreenCommand)),
+            new("ToggleFilmstrip",    "Show/hide filmstrip",    CatView, Key.F6,   ModifierKeys.None, Vm(vm => vm.ToggleFilmstripCommand)),
             new("ToggleVideoMute",    "Toggle video mute",      CatVideo, Key.M,    ModifierKeys.None, w => w.ToggleVideoMuteCommand),
             new("IncreaseVideoSpeed", "Increase video speed",   CatVideo, Key.Up,   ModifierKeys.Control, w => w.IncreaseVideoSpeedCommand),
             new("DecreaseVideoSpeed", "Decrease video speed",   CatVideo, Key.Down, ModifierKeys.Control, w => w.DecreaseVideoSpeedCommand),

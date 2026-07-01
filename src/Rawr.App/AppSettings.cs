@@ -98,6 +98,12 @@ public sealed class AppSettings
     public string DateFormat { get; set; } = "dd-MM-yyyy  HH:mm:ss";
     public bool CollapseBurstsOnOpen { get; set; } = true;
 
+    // User-customisable colour (ARGB hex, e.g. "#CC1A1A1A") for the burst label
+    // shown on thumbnails, the preview, and the fullscreen preview. Default is a
+    // neutral dark grey matching the other thumbnail badges. Consumed via the
+    // live-updated "BurstLabelBrush" application resource (see ThemeColors).
+    public string BurstLabelColor { get; set; } = ThemeColors.DefaultBurstLabelColor;
+
     // Grid view: insert date-separator rows at calendar-day boundaries when
     // sorted by capture date. Toggled from the grid-panel header (deliberately
     // not surfaced in the Settings dialog); sticky global preference so it
@@ -390,6 +396,7 @@ public sealed class AppSettings
         PanoramaDirectionToleranceDeg = PanoramaDirectionToleranceDeg,
         DateFormat = DateFormat,
         CollapseBurstsOnOpen = CollapseBurstsOnOpen,
+        BurstLabelColor = BurstLabelColor,
         ShowGridDateHeaders = ShowGridDateHeaders,
         DefaultSortField = DefaultSortField,
         IncludeSubfolders = IncludeSubfolders,

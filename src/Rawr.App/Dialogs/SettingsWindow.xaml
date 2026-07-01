@@ -88,6 +88,27 @@
             </Setter>
             <EventSetter Event="Click" Handler="Reset_Click" />
         </Style>
+
+        <!-- Clickable colour swatch used for the burst-label colour presets. The
+             template shows the Background as a filled rounded rectangle so it works
+             regardless of the themed Button chrome; Tag carries the hex string. -->
+        <Style x:Key="ColorSwatchButton" TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <EventSetter Event="Click" Handler="BurstLabelPreset_Click" />
+        </Style>
     </Window.Resources>
 
     <Grid Background="{StaticResource BgBrush}">
@@ -275,6 +296,44 @@
                                     <ComboBox x:Name="SortFieldBox" MinWidth="160" VerticalAlignment="Center" />
                                     <Button Style="{StaticResource ResetButton}" Tag="DefaultSortField" />
                                 </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Colours -->
+                        <Border Style="{StaticResource SectionCard}">
+                            <StackPanel>
+                                <TextBlock Text="COLOURS" Style="{StaticResource SectionCardHeader}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="Burst label" VerticalAlignment="Center" Width="80" />
+                                    <Border x:Name="BurstLabelPreviewSwatch"
+                                            Width="28" Height="20"
+                                            CornerRadius="3"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            Margin="0,0,8,0" />
+                                    <TextBox x:Name="BurstLabelColorBox"
+                                             Width="110"
+                                             VerticalAlignment="Center"
+                                             TextChanged="BurstLabelColorBox_TextChanged" />
+                                    <Button Style="{StaticResource ResetButton}" Tag="BurstLabelColor" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <TextBlock Text="Presets:" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#CC1A1A1A" Tag="#CC1A1A1A" ToolTip="Dark grey (default)" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#E6000000" Tag="#E6000000" ToolTip="Black" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#CC6B7280" Tag="#CC6B7280" ToolTip="Grey" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#CC3B82F6" Tag="#CC3B82F6" ToolTip="Blue" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#CC00B8B8" Tag="#CC00B8B8" ToolTip="Teal" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#CC22C55E" Tag="#CC22C55E" ToolTip="Green" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#CCFF7A00" Tag="#CCFF7A00" ToolTip="Orange" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#CCEF4444" Tag="#CCEF4444" ToolTip="Red" />
+                                    <Button Style="{StaticResource ColorSwatchButton}" Background="#CC9C27B0" Tag="#CC9C27B0" ToolTip="Purple (old default)" />
+                                </StackPanel>
+                                <TextBlock Text="Background colour of the burst label on thumbnails, the preview, and the fullscreen preview. Accepts #RRGGBB or #AARRGGBB hex (the leading two digits are opacity)."
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0" />
                             </StackPanel>
                         </Border>
 

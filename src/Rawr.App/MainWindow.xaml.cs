@@ -107,7 +107,9 @@ public partial class MainWindow : Window
         // Expanded/collapsed state of each QUICK FILTERS sidebar subsection,
         // keyed by the toggle's x:Name. Null on first run / older layout files —
         // the XAML defaults apply then.
-        Dictionary<string, bool>? QuickFiltersExpanded = null);
+        Dictionary<string, bool>? QuickFiltersExpanded = null,
+        // Independent filmstrip visibility for the fullscreen view (see MainViewModel).
+        bool ShowFilmstripFullscreen = true);
 
     private bool _isPanning;
     private Point _panStart;
@@ -235,6 +237,7 @@ public partial class MainWindow : Window
         // keyboard shortcuts are in place by the time the window is shown.
         AppSettings.Current = AppSettings.Load();
         ApplyGridRenderWidth();
+        ThemeColors.ApplyBurstLabelColor(AppSettings.Current.BurstLabelColor);
 
         InitializeComponent();
         WindowHelper.ApplyDarkTitleBar(this);
@@ -310,7 +313,13 @@ public partial class MainWindow : Window
                         OnVideoSourceChanged();
                 }
                 if (e.PropertyName == nameof(MainViewModel.ShowFilmstrip) && DataContext is MainViewModel vmF)
-                    ApplyFilmstripVisibility(vmF.ShowFilmstrip);
+                {
+                    if (!vmF.IsPhotoFullscreen) ApplyFilmstripVisibility(vmF.ShowFilmstrip);
+                }
+                if (e.PropertyName == nameof(MainViewModel.ShowFilmstripFullscreen) && DataContext is MainViewModel vmFf)
+                {
+                    if (vmFf.IsPhotoFullscreen) ApplyFilmstripVisibility(vmFf.ShowFilmstripFullscreen);
+                }
                 if (e.PropertyName == nameof(MainViewModel.ShowSecondMonitor) && DataContext is MainViewModel vmS)
                     ApplySecondMonitorVisibility(vmS.ShowSecondMonitor);
                 if (e.PropertyName == nameof(MainViewModel.VideoSourceUri))
@@ -373,6 +382,7 @@ public partial class MainWindow : Window
                 RootGrid.RowDefinitions[3].Height = _savedFilmstripHeight;
                 vm.ShowGrid = layout.ShowGrid;
                 vm.ShowFilmstrip = layout.ShowFilmstrip;
+                vm.ShowFilmstripFullscreen = layout.ShowFilmstripFullscreen;
                 vm.IsGridExpanded = layout.IsGridExpanded;
                 ApplyGridVisibility(vm.ShowGrid);
                 ApplyFilmstripVisibility(vm.ShowFilmstrip);
@@ -433,7 +443,8 @@ public partial class MainWindow : Window
                 vm.IsGridExpanded,
                 vm.ExpandedGridColumnCount,
                 smLeft, smTop, smWidth, smHeight,
-                QuickFilterToggles().ToDictionary(t => t.Name, t => t.IsChecked == true));
+                QuickFilterToggles().ToDictionary(t => t.Name, t => t.IsChecked == true),
+                vm.ShowFilmstripFullscreen);
             File.WriteAllText(LayoutSettingsFile, JsonSerializer.Serialize(settings));
         }
         catch { /* non-critical */ }
@@ -601,6 +612,7 @@ public partial class MainWindow : Window
         var mainCols = MainContentRow.ColumnDefinitions;
         var splitCols = MainSplitGrid.ColumnDefinitions;
         var hwnd = new WindowInteropHelper(this).Handle;
+        var vm = DataContext as MainViewModel;
 
         if (fullscreen)
         {
@@ -613,10 +625,14 @@ public partial class MainWindow : Window
             _preFullscreenExposureBarVisibility = ExposureCompensationBar.Visibility;
             _preFullscreenActionBarVisibility = PreviewActionBar.Visibility;
 
-            // Collapse every RootGrid row except row 1 (the preview-bearing main split).
-            // WPF batches all of these into a single layout pass at Render priority.
-            for (int i = 0; i < rootRows.Count; i++)
-                if (i != 1) rootRows[i].Height = new GridLength(0);
+            // Collapse the toolbar (row 0) and status bar (row 4). Row 1 is the
+            // preview-bearing main split. WPF batches these into a single layout pass.
+            rootRows[0].Height = new GridLength(0);
+            rootRows[4].Height = new GridLength(0);
+
+            // The filmstrip (rows 2-3) has its own fullscreen visibility state so
+            // toggling it here never touches the windowed view, and vice-versa.
+            ApplyFilmstripVisibility(vm?.ShowFilmstripFullscreen ?? true);
 
             // Inside row 1, hide the sidebar (col 0) and its splitter (col 1).
             mainCols[0].MinWidth = 0;
@@ -656,9 +672,17 @@ public partial class MainWindow : Window
         }
         else
         {
+            // Rows 0 and 4 were collapsed on the way in; restore them here.
             if (_preFullscreenRowHeights != null)
-                for (int i = 0; i < rootRows.Count && i < _preFullscreenRowHeights.Length; i++)
-                    rootRows[i].Height = _preFullscreenRowHeights[i];
+            {
+                rootRows[0].Height = _preFullscreenRowHeights[0];
+                if (_preFullscreenRowHeights.Length > 4)
+                    rootRows[4].Height = _preFullscreenRowHeights[4];
+            }
+
+            // Reapply the windowed filmstrip state (independent of the fullscreen one
+            // we may have just been showing/hiding).
+            ApplyFilmstripVisibility(vm?.ShowFilmstrip ?? true);
 
             if (_preFullscreenMainCols != null)
             {
@@ -827,7 +851,11 @@ public partial class MainWindow : Window
         {
             rows[2].Height = new GridLength(4);
             rows[3].MinHeight = 80;
-            rows[3].Height = _savedFilmstripHeight;
+            // Only restore the saved height when coming back from hidden. On a
+            // fullscreen⇄windowed switch where both views want the strip shown, the
+            // row is already live at the user's height — leave it so we don't snap it.
+            if (rows[3].Height.Value <= 0)
+                rows[3].Height = _savedFilmstripHeight;
         }
         else
         {
@@ -838,6 +866,17 @@ public partial class MainWindow : Window
             rows[3].MinHeight = 0;
             rows[3].Height = new GridLength(0);
         }
+    }
+
+    // Double-clicking the filmstrip splitter hides the strip (same as F6 / the
+    // fullscreen close button). Handled on the tunnelling event so the second
+    // click doesn't kick off a resize drag first. The splitter is only hit-
+    // testable while the strip is shown, so this only ever collapses it.
+    private void FilmstripSplitter_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2 || DataContext is not MainViewModel vm) return;
+        vm.ToggleFilmstripCommand.Execute(null);
+        e.Handled = true;
     }
 
     // ── Grid panel ──
@@ -1795,6 +1834,7 @@ public partial class MainWindow : Window
         AppSettings.Current = dlg.Result;
         AppSettings.Current.Save();
         ApplyGridRenderWidth();
+        ThemeColors.ApplyBurstLabelColor(AppSettings.Current.BurstLabelColor);
 
         ApplyShortcuts(AppSettings.Current);
 

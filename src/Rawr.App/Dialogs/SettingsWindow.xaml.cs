@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Rawr.App.Controls;
+using Rawr.App.Services;
 using Rawr.App.Shortcuts;
 using Rawr.App.ViewModels;
 using Rawr.Core.Models;
@@ -104,6 +105,7 @@ public partial class SettingsWindow : Window
         ThumbHighestRated.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.HighestRated;
         ThumbFirstChronological.IsChecked = current.BurstThumbnailMode == BurstThumbnailMode.FirstChronological;
         CollapseOnOpen.IsChecked = current.CollapseBurstsOnOpen;
+        BurstLabelColorBox.Text = current.BurstLabelColor;  // TextChanged updates the swatch
         DateFormatBox.Text = current.DateFormat;
         DoubleClickZoomSlider.Value = Math.Clamp(current.DoubleClickZoom, 1.5, 16.0);
         ScrollSpeedSlider.Value = Math.Clamp(current.ScrollSpeedPercent, ScrollSpeed.MinPercent, ScrollSpeed.MaxPercent);
@@ -202,6 +204,24 @@ public partial class SettingsWindow : Window
     {
         if (sender is Button btn && btn.Tag is string fmt)
             DateFormatBox.Text = fmt;
+    }
+
+    // ── Burst label colour ──
+
+    private void BurstLabelColorBox_TextChanged(object sender, TextChangedEventArgs e) =>
+        UpdateBurstLabelPreview(BurstLabelColorBox.Text);
+
+    private void UpdateBurstLabelPreview(string hex)
+    {
+        // Leave the last valid swatch showing while a half-typed hex is invalid.
+        if (ThemeColors.TryParseColor(hex, out var c))
+            BurstLabelPreviewSwatch.Background = new SolidColorBrush(c);
+    }
+
+    private void BurstLabelPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string hex)
+            BurstLabelColorBox.Text = hex;
     }
 
     // ── Keyboard shortcuts ──
@@ -412,6 +432,10 @@ public partial class SettingsWindow : Window
                                     ? "dd-MM-yyyy  HH:mm:ss"
                                     : DateFormatBox.Text;
         s.CollapseBurstsOnOpen = CollapseOnOpen.IsChecked == true;
+        // Keep the previous colour if the box holds an unparseable hex.
+        s.BurstLabelColor     = ThemeColors.TryParseColor(BurstLabelColorBox.Text, out _)
+                                    ? BurstLabelColorBox.Text.Trim()
+                                    : _original.BurstLabelColor;
         s.DefaultSortField    = SortOptions[sortIdx].Value;
         s.FocusPeakingThreshold = (byte)FocusPeakingStrictnessSlider.Value;
         s.ClippingMode        = ClippingModeShadows.IsChecked == true ? ClippingMode.Shadows
@@ -533,6 +557,8 @@ public partial class SettingsWindow : Window
                 ThumbFirstChronological.IsChecked = d.BurstThumbnailMode == BurstThumbnailMode.FirstChronological;
                 break;
             case "CollapseBurstsOnOpen":     CollapseOnOpen.IsChecked = d.CollapseBurstsOnOpen; break;
+            // Colours
+            case "BurstLabelColor":          BurstLabelColorBox.Text = d.BurstLabelColor; break;
             // HDR
             case "HdrDetectionEnabled":      HdrEnabledCheck.IsChecked = d.HdrDetectionEnabled; break;
             case "HdrMinBracketSize":        HdrMinBracketSizeSlider.Value = d.HdrMinBracketSize; break;
