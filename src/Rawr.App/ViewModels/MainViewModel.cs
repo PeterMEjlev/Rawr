@@ -786,7 +786,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public int CopyTargetCount => CopyMode switch
     {
         CopySource.SelectedPhotos => SelectedPhotos.Count,
-        CopySource.CurrentView    => FilteredPhotos.Count,
+        // Matches CopyPickedAsync: count the expanded set so the number reflects
+        // what actually gets copied when bursts are collapsed.
+        CopySource.CurrentView    => _filteredExpanded.Count,
         _                          => 0
     };
 
@@ -859,6 +861,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableRangeCollection<PhotoItem> AllPhotos { get; } = [];
     public ObservableRangeCollection<PhotoItem> FilteredPhotos { get; } = [];
+
+    // Every photo matching the current filter, before burst collapse hides members
+    // behind their representative. FilteredPhotos is what the grid shows (one row
+    // per collapsed burst); this is what "copy the current view" must actually copy
+    // so grouped burst members that fit the filter aren't dropped. Kept in sync by
+    // ApplyFilter.
+    private List<PhotoItem> _filteredExpanded = [];
 
     // Mixed list that the grid view binds to: same photos as FilteredPhotos, plus
     // DateHeaderItem rows inserted at calendar-day boundaries when sorted by capture
@@ -6318,17 +6327,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             .ToList();
         StatusText = $"Writing XMP for {snapshots.Count}/{folderPhotos.Count} photos in this folder...";
 
-        int written = 0;
+        int written = 0, skipped = 0;
         await Task.Run(() =>
         {
             foreach (var (path, data) in snapshots)
             {
+                // Don't create empty sidecars for untouched photos. If one already
+                // exists (e.g. a rating was later cleared), still rewrite it so the
+                // cleared state propagates rather than leaving stale metadata.
+                if (data.IsEmpty && !File.Exists(XmpSidecar.SidecarPathFor(path)))
+                {
+                    skipped++;
+                    continue;
+                }
                 try { XmpSidecar.Write(path, data); written++; }
                 catch { /* skip files we can't write next to (read-only media, locked, …) */ }
             }
         });
 
-        StatusText = $"Wrote {written}/{snapshots.Count} XMP sidecars for this folder.";
+        StatusText = skipped > 0
+            ? $"Wrote {written} XMP sidecar(s); skipped {skipped} unchanged photo(s)."
+            : $"Wrote {written}/{snapshots.Count} XMP sidecars for this folder.";
     }
 
     /// <summary>
@@ -6677,6 +6696,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         var sorted = ApplySorting(visible).ToList();
+
+        // The full filter-matching set (bursts not yet collapsed) — this is the
+        // truth for "copy current view", which must include hidden burst members.
+        _filteredExpanded = sorted;
 
         // Reset any prior collapse markers — collapse is purely a presentation
         // pass derived from the current filter, never persisted.
@@ -7095,7 +7118,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         List<PhotoItem> photos = CopyMode switch
         {
             CopySource.SelectedPhotos => SelectedPhotosSnapshot(),
-            CopySource.CurrentView    => FilteredPhotos.ToList(),
+            // _filteredExpanded, not FilteredPhotos: when bursts are collapsed the
+            // grid shows one representative per group, but every matching member
+            // should be copied.
+            CopySource.CurrentView    => _filteredExpanded.ToList(),
             _                          => BuildCopyCustomFilter().ToList(),
         };
         if (photos.Count == 0)

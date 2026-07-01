@@ -114,6 +114,8 @@
                           Background="Transparent"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.CanContentScroll="False"
+                          ScrollViewer.ScrollChanged="FileGrid_ScrollChanged"
                           VirtualizingStackPanel.IsVirtualizing="True"
                           VirtualizingStackPanel.VirtualizationMode="Recycling"
                           PreviewMouseWheel="FileGrid_PreviewMouseWheel">
@@ -372,7 +374,7 @@
 
                 <Grid Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="90" />
                         <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
@@ -383,8 +385,13 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="Organize"
+                               Foreground="{StaticResource TextDimBrush}"
+                               FontSize="10"
+                               Margin="0,0,0,2" />
                     <TextBlock Grid.Row="0" Grid.Column="1"
-                               Text="Destination"
+                               Text="Mode"
                                Foreground="{StaticResource TextDimBrush}"
                                FontSize="10"
                                Margin="0,0,0,2" />
@@ -395,14 +402,16 @@
                                Margin="8,0,0,2" />
 
                     <!-- RAW -->
-                    <TextBlock Grid.Row="1" Grid.Column="0"
-                               Text="RAW"
-                               VerticalAlignment="Center" />
+                    <CheckBox x:Name="RawOrganizeCheck"
+                              Grid.Row="1" Grid.Column="0"
+                              Content="RAW"
+                              VerticalAlignment="Center"
+                              Checked="OrganizeCheck_Changed"
+                              Unchecked="OrganizeCheck_Changed" />
                     <ComboBox x:Name="RawModeCombo"
                               Grid.Row="1" Grid.Column="1"
                               Margin="0,2"
                               SelectionChanged="RuleCombo_SelectionChanged">
-                        <ComboBoxItem Content="Main folder" />
                         <ComboBoxItem Content="Subfolder" />
                         <ComboBoxItem Content="Skip (don't import)" />
                     </ComboBox>
@@ -412,14 +421,16 @@
                              VerticalAlignment="Center" />
 
                     <!-- JPEG -->
-                    <TextBlock Grid.Row="2" Grid.Column="0"
-                               Text="JPEG"
-                               VerticalAlignment="Center" />
+                    <CheckBox x:Name="JpegOrganizeCheck"
+                              Grid.Row="2" Grid.Column="0"
+                              Content="JPEG"
+                              VerticalAlignment="Center"
+                              Checked="OrganizeCheck_Changed"
+                              Unchecked="OrganizeCheck_Changed" />
                     <ComboBox x:Name="JpegModeCombo"
                               Grid.Row="2" Grid.Column="1"
                               Margin="0,2"
                               SelectionChanged="RuleCombo_SelectionChanged">
-                        <ComboBoxItem Content="Main folder" />
                         <ComboBoxItem Content="Subfolder" />
                         <ComboBoxItem Content="Skip (don't import)" />
                     </ComboBox>
@@ -429,14 +440,16 @@
                              VerticalAlignment="Center" />
 
                     <!-- Video -->
-                    <TextBlock Grid.Row="3" Grid.Column="0"
-                               Text="Video"
-                               VerticalAlignment="Center" />
+                    <CheckBox x:Name="VideoOrganizeCheck"
+                              Grid.Row="3" Grid.Column="0"
+                              Content="Video"
+                              VerticalAlignment="Center"
+                              Checked="OrganizeCheck_Changed"
+                              Unchecked="OrganizeCheck_Changed" />
                     <ComboBox x:Name="VideoModeCombo"
                               Grid.Row="3" Grid.Column="1"
                               Margin="0,2"
                               SelectionChanged="RuleCombo_SelectionChanged">
-                        <ComboBoxItem Content="Main folder" />
                         <ComboBoxItem Content="Subfolder" />
                         <ComboBoxItem Content="Skip (don't import)" />
                     </ComboBox>

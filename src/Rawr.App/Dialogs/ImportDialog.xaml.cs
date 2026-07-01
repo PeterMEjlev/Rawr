@@ -122,6 +122,10 @@ public partial class ImportDialog : Window
     private CancellationTokenSource? _cts;
     private CancellationTokenSource? _thumbnailCts;
     private int _anchorIndex = -1;
+    // True only while a copy is actually running. Used to block the window from
+    // closing mid-copy without also blocking the normal close after a successful
+    // import (the button stays disabled on success, so it can't be the guard).
+    private bool _importInFlight;
 
     public static readonly DependencyProperty TileSizeProperty =
         DependencyProperty.Register(nameof(TileSize), typeof(double), typeof(ImportDialog),
@@ -135,9 +139,19 @@ public partial class ImportDialog : Window
 
     private const double MinTileSize = 90;
     private const double MaxTileSize = 360;
+    // Border Margin in the grid tile template (all four sides). Used to derive
+    // the tile's outer size when mapping scroll offsets back to item indices.
+    private const double TileMargin = 6;
     private static readonly IPreviewExtractor _rawExtractor = CreateRawExtractor();
     private static readonly ShellThumbnailExtractor _shellExtractor = new();
     private const int ThumbnailPx = 256;
+
+    // Approximate item index at the centre of the grid viewport, updated on
+    // scroll/zoom. The thumbnail loader reads this to prioritise tiles the user
+    // is currently looking at. volatile: written on the UI thread, read on the
+    // loader thread; int reads/writes are atomic and a slightly stale value only
+    // means a marginally sub-optimal load order.
+    private volatile int _viewportCenterIndex;
 
     private static IPreviewExtractor CreateRawExtractor()
     {
@@ -174,8 +188,9 @@ public partial class ImportDialog : Window
         Loaded += async (_, _) => await PopulateAsync();
         Closing += (_, e) =>
         {
-            // Block close while a copy is in flight; the Cancel button handles abort.
-            if (_cts is { IsCancellationRequested: false } && ImportButton.IsEnabled == false)
+            // Block close only while a copy is genuinely running; the Stop button
+            // aborts it. A completed import closes normally (DialogResult = true).
+            if (_importInFlight)
             {
                 e.Cancel = true;
                 return;
@@ -212,30 +227,73 @@ public partial class ImportDialog : Window
         _thumbnailCts = new CancellationTokenSource();
         var ct = _thumbnailCts.Token;
         var dispatcher = Dispatcher;
-        var snapshot = Files.ToList();
+
+        // Snapshot each file with its position in the grid (== its index in Files,
+        // since the WrapPanel lays items out in collection order). We hand work out
+        // nearest-to-viewport first rather than top-down, so the tiles the user is
+        // looking at fill in before off-screen ones.
+        var pending = Files.Select((file, index) => (file, index)).ToList();
+        var parallelism = AppSettings.CappedParallelism(Math.Max(2, Environment.ProcessorCount / 2));
 
         _ = Task.Run(async () =>
         {
-            using var sem = new SemaphoreSlim(AppSettings.CappedParallelism(Math.Max(2, Environment.ProcessorCount / 2)));
-            var tasks = snapshot.Select(async file =>
+            using var sem = new SemaphoreSlim(parallelism);
+            var inFlight = new List<Task>();
+            try
             {
-                if (ct.IsCancellationRequested) return;
-                await sem.WaitAsync(ct).ConfigureAwait(false);
-                try
+                while (pending.Count > 0 && !ct.IsCancellationRequested)
                 {
-                    if (ct.IsCancellationRequested) return;
-                    var bmp = LoadThumbnail(file);
-                    if (bmp != null)
+                    await sem.WaitAsync(ct).ConfigureAwait(false);
+
+                    // Re-read the viewport centre on every hand-off so a scroll mid-load
+                    // immediately re-targets the queue at whatever is now on screen.
+                    int center = _viewportCenterIndex;
+                    int bestPos = 0, bestDist = int.MaxValue;
+                    for (int i = 0; i < pending.Count; i++)
                     {
-                        await dispatcher.InvokeAsync(() => file.Thumbnail = bmp);
+                        int d = Math.Abs(pending[i].index - center);
+                        if (d < bestDist) { bestDist = d; bestPos = i; }
                     }
+                    var file = pending[bestPos].file;
+                    // Swap-remove: O(1), and remaining order is irrelevant (we rescan).
+                    pending[bestPos] = pending[^1];
+                    pending.RemoveAt(pending.Count - 1);
+
+                    inFlight.Add(Task.Run(() =>
+                    {
+                        try
+                        {
+                            if (ct.IsCancellationRequested) return;
+                            var bmp = LoadThumbnail(file);
+                            if (bmp != null)
+                                _ = dispatcher.InvokeAsync(() => file.Thumbnail = bmp);
+                        }
+                        catch { /* per-file failure is non-fatal */ }
+                        finally { sem.Release(); }
+                    }, ct));
                 }
-                catch { /* per-file failure is non-fatal */ }
-                finally { sem.Release(); }
-            });
-            try { await Task.WhenAll(tasks); }
+                await Task.WhenAll(inFlight);
+            }
             catch (OperationCanceledException) { }
         }, ct);
+    }
+
+    // Maps the grid's current scroll position to an approximate item index at the
+    // centre of the viewport, so the thumbnail loader can prioritise visible tiles.
+    // Tiles are uniform (fixed TileSize + margins) and the WrapPanel is not
+    // virtualizing, so the grid scrolls by pixel and the geometry is exact enough.
+    private void FileGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        int count = Files.Count;
+        if (count == 0) return;
+        double tileOuter = TileSize + TileMargin * 2;
+        if (tileOuter <= 0 || e.ViewportWidth <= 0) return;
+
+        int cols = Math.Max(1, (int)(e.ViewportWidth / tileOuter));
+        double centerY = e.VerticalOffset + e.ViewportHeight / 2.0;
+        int centerRow = Math.Max(0, (int)(centerY / tileOuter));
+        int idx = centerRow * cols + cols / 2;
+        _viewportCenterIndex = Math.Clamp(idx, 0, count - 1);
     }
 
     private static BitmapSource? LoadThumbnail(ImportFile file)
@@ -383,19 +441,16 @@ public partial class ImportDialog : Window
 
     // ── Per-type organize rules ──
 
-    private static int ModeToIndex(ImportRouteMode m) => m switch
-    {
-        ImportRouteMode.Subfolder => 1,
-        ImportRouteMode.Skip => 2,
-        _ => 0,
-    };
+    // The mode combo holds only the two "organize on" choices; opting in/out is the
+    // per-type checkbox. Combo index 0 = Subfolder, 1 = Skip.
+    private static int OnModeToComboIndex(ImportRouteMode m) => m == ImportRouteMode.Skip ? 1 : 0;
+    private static ImportRouteMode ComboIndexToOnMode(int i) => i == 1 ? ImportRouteMode.Skip : ImportRouteMode.Subfolder;
 
-    private static ImportRouteMode IndexToMode(int i) => i switch
-    {
-        1 => ImportRouteMode.Subfolder,
-        2 => ImportRouteMode.Skip,
-        _ => ImportRouteMode.MainFolder,
-    };
+    // Effective routing for a type: MainFolder (flat) when its checkbox is off,
+    // otherwise whatever the mode combo says. This is the single source of truth
+    // for routing, exclusion, and persistence.
+    private static ImportRouteMode EffectiveMode(CheckBox check, ComboBox combo) =>
+        check.IsChecked == true ? ComboIndexToOnMode(combo.SelectedIndex) : ImportRouteMode.MainFolder;
 
     private void InitRuleControls()
     {
@@ -407,39 +462,64 @@ public partial class ImportDialog : Window
             var jpg = s.ImportJpegRule ?? new ImportTypeRule { Subfolder = "JPEG" };
             var vid = s.ImportVideoRule ?? new ImportTypeRule { Subfolder = "Video" };
 
-            RawModeCombo.SelectedIndex = ModeToIndex(raw.Mode);
-            JpegModeCombo.SelectedIndex = ModeToIndex(jpg.Mode);
-            VideoModeCombo.SelectedIndex = ModeToIndex(vid.Mode);
+            RawOrganizeCheck.IsChecked = raw.Mode != ImportRouteMode.MainFolder;
+            JpegOrganizeCheck.IsChecked = jpg.Mode != ImportRouteMode.MainFolder;
+            VideoOrganizeCheck.IsChecked = vid.Mode != ImportRouteMode.MainFolder;
+
+            RawModeCombo.SelectedIndex = OnModeToComboIndex(raw.Mode);
+            JpegModeCombo.SelectedIndex = OnModeToComboIndex(jpg.Mode);
+            VideoModeCombo.SelectedIndex = OnModeToComboIndex(vid.Mode);
 
             RawSubfolderBox.Text = string.IsNullOrWhiteSpace(raw.Subfolder) ? "RAW" : raw.Subfolder;
             JpegSubfolderBox.Text = string.IsNullOrWhiteSpace(jpg.Subfolder) ? "JPEG" : jpg.Subfolder;
             VideoSubfolderBox.Text = string.IsNullOrWhiteSpace(vid.Subfolder) ? "Video" : vid.Subfolder;
         }
         finally { _suppressRuleSync = false; }
-        UpdateSubfolderEnabled();
+        UpdateOrganizeRowStates();
     }
 
     private void RuleCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressRuleSync) return;
         if (RawModeCombo == null) return; // fired during XAML parse
-        UpdateSubfolderEnabled();
+        UpdateOrganizeRowStates();
         ApplyExclusions();
     }
 
-    private void UpdateSubfolderEnabled()
+    private void OrganizeCheck_Changed(object sender, RoutedEventArgs e)
     {
-        if (RawSubfolderBox == null) return;
-        RawSubfolderBox.IsEnabled = RawModeCombo.SelectedIndex == 1;
-        JpegSubfolderBox.IsEnabled = JpegModeCombo.SelectedIndex == 1;
-        VideoSubfolderBox.IsEnabled = VideoModeCombo.SelectedIndex == 1;
+        if (_suppressRuleSync) return;
+        if (RawOrganizeCheck == null) return; // fired during XAML parse
+        UpdateOrganizeRowStates();
+        ApplyExclusions();
+    }
+
+    // Greys out (and disables) each type's mode/name controls until its checkbox
+    // is ticked, so it's obvious at a glance which types are being organized. The
+    // subfolder box only matters when routing into a subfolder, not for Skip.
+    private void UpdateOrganizeRowStates()
+    {
+        if (RawOrganizeCheck == null || RawModeCombo == null) return;
+        UpdateOrganizeRow(RawOrganizeCheck, RawModeCombo, RawSubfolderBox);
+        UpdateOrganizeRow(JpegOrganizeCheck, JpegModeCombo, JpegSubfolderBox);
+        UpdateOrganizeRow(VideoOrganizeCheck, VideoModeCombo, VideoSubfolderBox);
+    }
+
+    private static void UpdateOrganizeRow(CheckBox check, ComboBox combo, TextBox box)
+    {
+        bool on = check.IsChecked == true;
+        combo.IsEnabled = on;
+        combo.Opacity = on ? 1.0 : 0.45;
+        bool needsName = on && combo.SelectedIndex == 0; // 0 = Subfolder
+        box.IsEnabled = needsName;
+        box.Opacity = needsName ? 1.0 : 0.45;
     }
 
     private (ImportRouteMode mode, string subfolder) RuleFor(MediaCategory cat) => cat switch
     {
-        MediaCategory.Raw => (IndexToMode(RawModeCombo.SelectedIndex), RawSubfolderBox.Text),
-        MediaCategory.Jpeg => (IndexToMode(JpegModeCombo.SelectedIndex), JpegSubfolderBox.Text),
-        _ => (IndexToMode(VideoModeCombo.SelectedIndex), VideoSubfolderBox.Text),
+        MediaCategory.Raw => (EffectiveMode(RawOrganizeCheck, RawModeCombo), RawSubfolderBox.Text),
+        MediaCategory.Jpeg => (EffectiveMode(JpegOrganizeCheck, JpegModeCombo), JpegSubfolderBox.Text),
+        _ => (EffectiveMode(VideoOrganizeCheck, VideoModeCombo), VideoSubfolderBox.Text),
     };
 
     // Marks files whose category is set to "Skip" as excluded (and clears their
@@ -470,11 +550,11 @@ public partial class ImportDialog : Window
     // main folder here.
     private Func<string, string> BuildTargetResolver(string dest)
     {
-        var rawMode = IndexToMode(RawModeCombo.SelectedIndex);
+        var rawMode = EffectiveMode(RawOrganizeCheck, RawModeCombo);
         var rawSub = SanitizeSegment(RawSubfolderBox.Text);
-        var jpgMode = IndexToMode(JpegModeCombo.SelectedIndex);
+        var jpgMode = EffectiveMode(JpegOrganizeCheck, JpegModeCombo);
         var jpgSub = SanitizeSegment(JpegSubfolderBox.Text);
-        var vidMode = IndexToMode(VideoModeCombo.SelectedIndex);
+        var vidMode = EffectiveMode(VideoOrganizeCheck, VideoModeCombo);
         var vidSub = SanitizeSegment(VideoSubfolderBox.Text);
 
         return src =>
@@ -496,17 +576,17 @@ public partial class ImportDialog : Window
         var s = AppSettings.Current;
         s.ImportRawRule = new ImportTypeRule
         {
-            Mode = IndexToMode(RawModeCombo.SelectedIndex),
+            Mode = EffectiveMode(RawOrganizeCheck, RawModeCombo),
             Subfolder = SanitizeSegment(RawSubfolderBox.Text),
         };
         s.ImportJpegRule = new ImportTypeRule
         {
-            Mode = IndexToMode(JpegModeCombo.SelectedIndex),
+            Mode = EffectiveMode(JpegOrganizeCheck, JpegModeCombo),
             Subfolder = SanitizeSegment(JpegSubfolderBox.Text),
         };
         s.ImportVideoRule = new ImportTypeRule
         {
-            Mode = IndexToMode(VideoModeCombo.SelectedIndex),
+            Mode = EffectiveMode(VideoOrganizeCheck, VideoModeCombo),
             Subfolder = SanitizeSegment(VideoSubfolderBox.Text),
         };
     }
@@ -647,6 +727,11 @@ public partial class ImportDialog : Window
         var selected = Files.Where(f => f.IsSelected && !f.IsExcluded).Select(f => f.FullPath).ToList();
         if (selected.Count == 0) return;
 
+        // Stop loading thumbnails so no lingering read handles keep the card
+        // volume locked when we try to eject it after the copy.
+        _thumbnailCts?.Cancel();
+
+        _importInFlight = true;
         ImportButton.IsEnabled = false;
         DestinationBox.IsEnabled = false;
         SelectAllCheck.IsEnabled = false;
@@ -672,10 +757,12 @@ public partial class ImportDialog : Window
                 selected, dest, resolver, progress, _cts.Token);
             CommitRulesToSettings();
             ImportSucceeded = true;
+            _importInFlight = false;
             DialogResult = true;
         }
         catch (OperationCanceledException)
         {
+            _importInFlight = false;
             StatusText.Text = "Cancelled.";
             ImportButton.IsEnabled = true;
             DestinationBox.IsEnabled = true;
@@ -688,6 +775,7 @@ public partial class ImportDialog : Window
         }
         catch (Exception ex)
         {
+            _importInFlight = false;
             MessageBox.Show(this, $"Import failed:\n{ex.Message}", "Import", MessageBoxButton.OK, MessageBoxImage.Error);
             ImportButton.IsEnabled = true;
             DestinationBox.IsEnabled = true;

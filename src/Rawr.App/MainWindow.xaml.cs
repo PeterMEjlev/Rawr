@@ -1716,8 +1716,9 @@ public partial class MainWindow : Window
         {
             var defaultDest = AppSettings.Current.LastImportDestination ?? "";
             string? treeRoot = null;
-            if (DataContext is MainViewModel vmRoot && vmRoot.FolderTreeRoots.Count > 0)
-                treeRoot = vmRoot.FolderTreeRoots[0].FullPath;
+            bool hadFolderOpen = DataContext is MainViewModel vmRoot && vmRoot.FolderTreeRoots.Count > 0;
+            if (hadFolderOpen)
+                treeRoot = ((MainViewModel)DataContext).FolderTreeRoots[0].FullPath;
             var dlg = new ImportDialog(card, defaultDest, treeRoot) { Owner = this };
             var ok = dlg.ShowDialog() == true;
 
@@ -1733,7 +1734,8 @@ public partial class MainWindow : Window
 
             if (dlg.EjectAfter && !string.IsNullOrEmpty(dlg.SourceDriveLetter))
             {
-                var ejected = MediaCardWatcher.TryEject(dlg.SourceDriveLetter!);
+                // Off the UI thread: TryEject retries the volume lock for up to ~1.5s.
+                var ejected = await Task.Run(() => MediaCardWatcher.TryEject(dlg.SourceDriveLetter!));
                 summary += ejected
                     ? "\n\nCard ejected - safe to remove."
                     : "\n\nCould not eject the card automatically.";
@@ -1741,7 +1743,10 @@ public partial class MainWindow : Window
 
             MessageBox.Show(this, summary, "Import complete", MessageBoxButton.OK, MessageBoxImage.Information);
 
-            if (r.Copied > 0 && DataContext is MainViewModel vm)
+            // Only jump to the imported photos when the user wasn't already working
+            // in an open folder — importing into a subfolder of the current shoot
+            // shouldn't yank them out of it.
+            if (r.Copied > 0 && !hadFolderOpen && DataContext is MainViewModel vm)
             {
                 await vm.OpenRootFolderAsync(dlg.Destination);
             }

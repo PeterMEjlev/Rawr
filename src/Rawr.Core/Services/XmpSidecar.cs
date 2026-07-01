@@ -148,4 +148,13 @@ public static class XmpSidecar
     }
 }
 
-public sealed record XmpData(int? Rating, string? Label, List<string> Keywords);
+public sealed record XmpData(int? Rating, string? Label, List<string> Keywords)
+{
+    /// <summary>
+    /// True when the photo carries no cull metadata worth persisting — no rating,
+    /// no color label, and no keywords (which also covers pick/reject, since those
+    /// ride along as keywords). Used to avoid littering a folder with empty
+    /// sidecars for untouched photos.
+    /// </summary>
+    public bool IsEmpty => !Rating.HasValue && string.IsNullOrEmpty(Label) && Keywords.Count == 0;
+}

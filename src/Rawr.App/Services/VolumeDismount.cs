@@ -52,7 +52,10 @@ internal static class VolumeDismount
 
             if (handle.IsInvalid) return false;
 
-            if (!DeviceIoControl(handle, FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out _, IntPtr.Zero))
+            // Locking fails if any handle to the volume is still open. Right after a
+            // copy, Windows (and our own just-closed file streams) may take a moment
+            // to release them, so retry briefly instead of giving up on the first try.
+            if (!LockWithRetry(handle))
                 return false;
             if (!DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out _, IntPtr.Zero))
                 return false;
@@ -63,5 +66,17 @@ internal static class VolumeDismount
         {
             return false;
         }
+    }
+
+    // ~1.5s total. Runs off the UI thread (see caller), so the sleeps are harmless.
+    private static bool LockWithRetry(SafeFileHandle handle)
+    {
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            if (DeviceIoControl(handle, FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out _, IntPtr.Zero))
+                return true;
+            Thread.Sleep(150);
+        }
+        return false;
     }
 }
