@@ -29,6 +29,7 @@ public enum ExposureFilterMode { Any, ClippedHighlights, CrushedShadows }
 public enum FaceFilterMode { Any, ClosedEyes }
 public enum SidePanelView { Histogram, PixelPeek }
 public enum CopySource { SelectedPhotos, CurrentView, CustomFilter }
+public enum ExportOperation { Copy, Move }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -226,6 +227,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     // ── Observable state ──
 
+    [NotifyPropertyChangedFor(nameof(EmptyStateMessage))]
     [ObservableProperty] private string _currentFolder = "";
     [ObservableProperty] private string _statusText = "Open a folder to begin (Ctrl+O)";
 
@@ -727,6 +729,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool HasActiveFilters => RatingFilterMode != RatingFilterMode.Any || FlagFilter.HasValue || ColorLabelFilter.HasValue || TagFilter != null || BurstFilter != BurstFilterMode.Any || ImageTypeFilter != ImageTypeFilterMode.Any || ExposureFilter != ExposureFilterMode.Any || FaceFilter != FaceFilterMode.Any || IsTimeOfDayFilterActive || IsRegionFilterActive || IsCameraFilterActive || IsSubjectFilterActive;
 
+    // Text for the centred empty-state overlay (shown when SelectedPhoto is null).
+    // Distinguishes "no folder open" from "folder open but the active filters
+    // hide everything" so the user isn't told to Ctrl+O when a folder is already
+    // loaded. When filtered-out, spells out the active criteria via
+    // FilterDescription (kept fresh by UpdateFilterDescription, which runs earlier
+    // in ApplyFilter). Notified from OnCurrentFolderChanged and at the end of
+    // ApplyFilter.
+    public string EmptyStateMessage =>
+        string.IsNullOrEmpty(CurrentFolder) ? "Press Ctrl+O to open a folder of RAW photos"
+        : HasActiveFilters ? $"No photos match the active filters: {FilterDescription}"
+        : "No photos in this folder";
+
     [ObservableProperty] private int _burstCount;
 
     // When true, FilteredPhotos shows one representative tile per burst (the
@@ -783,6 +797,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand] private void UseCopyCurrentView()    => CopyMode = CopySource.CurrentView;
     [RelayCommand] private void UseCopyCustomFilter()   => CopyMode = CopySource.CustomFilter;
 
+    // Copy vs. Move. Move exports as usual, then sends the originals to the
+    // Recycle Bin — so it doubles as "relocate", and combined with a JPEG
+    // quality preset it becomes "replace the RAW with a JPEG".
+    [ObservableProperty]
+    private ExportOperation _copyOperation = ExportOperation.Copy;
+
+    [RelayCommand] private void UseCopyOperation() => CopyOperation = ExportOperation.Copy;
+    [RelayCommand] private void UseMoveOperation() => CopyOperation = ExportOperation.Move;
+
     public int CopyTargetCount => CopyMode switch
     {
         CopySource.SelectedPhotos => SelectedPhotos.Count,
@@ -791,6 +814,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         CopySource.CurrentView    => _filteredExpanded.Count,
         _                          => 0
     };
+
+    // Shown on the "Current view" export button regardless of the selected source,
+    // so it always reflects how many photos that option would export. Refreshed
+    // from ApplyFilter (the only place _filteredExpanded changes).
+    public int CurrentViewCount => _filteredExpanded.Count;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CopyActiveRatingValue))]
@@ -6750,6 +6778,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RestoreSelection(previousSelection);
         RefreshFilterBuckets();
         OnPropertyChanged(nameof(CopyTargetCount));
+        OnPropertyChanged(nameof(CurrentViewCount));
+        OnPropertyChanged(nameof(EmptyStateMessage));
         SaveSessionIfNeeded();
     }
 
@@ -7120,14 +7150,29 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             CopySource.SelectedPhotos => SelectedPhotosSnapshot(),
             // _filteredExpanded, not FilteredPhotos: when bursts are collapsed the
             // grid shows one representative per group, but every matching member
-            // should be copied.
+            // should be exported.
             CopySource.CurrentView    => _filteredExpanded.ToList(),
             _                          => BuildCopyCustomFilter().ToList(),
         };
         if (photos.Count == 0)
         {
-            StatusText = "No photos match the copy criteria.";
+            StatusText = "No photos match the export criteria.";
             return;
+        }
+
+        bool move = CopyOperation == ExportOperation.Move;
+        var preset = CopyQualityPreset;
+
+        // Move recycles the originals once the export succeeds. When the preset
+        // transcodes to JPEG the original RAW is effectively replaced, so spell
+        // that out before doing something the user can't trivially undo.
+        if (move)
+        {
+            string warning = preset.TranscodeToJpeg
+                ? $"Move {photos.Count} photo(s)?\n\nEach will be exported as {preset.Label} and the original file sent to the Recycle Bin — the original RAW/full-quality file will not be kept."
+                : $"Move {photos.Count} photo(s)?\n\nOriginals will be sent to the Recycle Bin after they are copied.";
+            if (MessageBox.Show(warning, "Move photos", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
         }
 
         var dialog = new OpenFolderDialog { Title = "Select destination folder" };
@@ -7137,25 +7182,52 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ? CopyCustomBaseName.Trim()
             : null;
 
-        var preset = CopyQualityPreset;
         Directory.CreateDirectory(dialog.FolderName);
-        StatusText = $"Copying {photos.Count} photos ({preset.Label})...";
+        string verb = move ? "Moving" : "Copying";
+        StatusText = $"{verb} {photos.Count} photos ({preset.Label})...";
 
         var exporter = new PhotoExporter(_extractor);
         int digits = photos.Count.ToString().Length;
-        int copied = 0;
+        int exported = 0;
+        var toRecycle = move ? new List<PhotoItem>() : null;
         for (int i = 0; i < photos.Count; i++)
         {
             var photo = photos[i];
-            StatusText = $"Copying {i + 1}/{photos.Count} ({preset.Label}): {photo.FileName}";
+            StatusText = $"{verb} {i + 1}/{photos.Count} ({preset.Label}): {photo.FileName}";
             try
             {
                 if (await exporter.ExportAsync(photo, dialog.FolderName, preset, baseName, i + 1, digits))
-                    copied++;
+                {
+                    exported++;
+                    toRecycle?.Add(photo);
+                }
             }
             catch { /* skip files that fail to decode/copy */ }
         }
-        StatusText = $"Copied {copied}/{photos.Count} photos to {dialog.FolderName} ({preset.Label})";
+
+        // Only originals that actually exported are recycled; a failed decode
+        // leaves its source untouched. Batch the removal so ApplyFilter runs once.
+        if (move && toRecycle is { Count: > 0 })
+        {
+            var nextAnchor = PickAnchorAfterDeletion(toRecycle);
+            foreach (var photo in toRecycle)
+            {
+                try
+                {
+                    FileSystem.DeleteFile(photo.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+                    DbFor(photo).DeletePhoto(photo.FileName);
+                    AllPhotos.Remove(photo);
+                }
+                catch { /* leave the original in place if it can't be recycled */ }
+            }
+            if (nextAnchor != null && AllPhotos.Contains(nextAnchor))
+                SelectedPhoto = nextAnchor;
+            TotalCount = AllPhotos.Count;
+            ApplyFilter();
+        }
+
+        string done = move ? "Moved" : "Copied";
+        StatusText = $"{done} {exported}/{photos.Count} photos to {dialog.FolderName} ({preset.Label})";
     }
 
     private IEnumerable<PhotoItem> BuildCopyCustomFilter()

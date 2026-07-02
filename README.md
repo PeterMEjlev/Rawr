@@ -56,8 +56,8 @@ RAWR's only job is to:
 | `Ctrl+Shift+R`  | Cycle rating filter (0/1/2/3/4/5)     |
 | `Ctrl+Shift+F`  | Cycle flag filter (none/pick/reject)  |
 | `Ctrl+Shift+X`  | Clear all filters                     |
-| `Ctrl+C`        | Copy picked photos to a folder        |
-| `Ctrl+E`        | Export picked file paths as `.txt`    |
+| `Ctrl+C`        | Export picked photos to a folder      |
+| `Ctrl+E`        | Open the export (copy / move) menu    |
 
 ## Building from source
 

@@ -202,6 +202,10 @@ public partial class ImportDialog : Window
     private async Task PopulateAsync()
     {
         StatusText.Text = "Scanning…";
+        ScanSpinner.Visibility = Visibility.Visible;
+        ScanOverlayText.Text = "Scanning card…";
+        ScanOverlay.Visibility = Visibility.Visible;
+
         var root = _root;
         var files = await Task.Run(() =>
         {
@@ -217,6 +221,18 @@ public partial class ImportDialog : Window
         }
         ApplyExclusions();
         StatusText.Text = "";
+
+        // Hide the overlay once files are in; if the card yielded nothing, leave it
+        // up as a static "empty" message (no spinner) instead of a blank panel.
+        if (Files.Count == 0)
+        {
+            ScanSpinner.Visibility = Visibility.Collapsed;
+            ScanOverlayText.Text = "No importable photos or videos found on this card.";
+        }
+        else
+        {
+            ScanOverlay.Visibility = Visibility.Collapsed;
+        }
 
         StartThumbnailLoader();
     }

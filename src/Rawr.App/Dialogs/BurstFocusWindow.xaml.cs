@@ -255,10 +255,32 @@ public partial class BurstFocusWindow : Window, INotifyPropertyChanged
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
-        if (e.Key != Key.Down) return;
 
-        e.Handled = true;
-        Close();
+        // Let text-input / open dropdown controls keep the arrow keys for caret
+        // movement and item navigation.
+        if (Keyboard.FocusedElement is TextBox or PasswordBox or RichTextBox) return;
+        if (Keyboard.FocusedElement is ComboBox) return;
+
+        // Arrow navigation must work no matter which control has focus — the
+        // filmstrip, the histogram, the peek view, etc. Handle it here in the
+        // tunneling PreviewKeyDown (which fires at the window root) rather than
+        // via bubbling InputBindings, so a focused child can't swallow the key
+        // before it reaches the window. Mirrors the main window's arrow handling.
+        switch (e.Key)
+        {
+            case Key.Right:
+                MoveBy(1);
+                e.Handled = true;
+                break;
+            case Key.Left:
+                MoveBy(-1);
+                e.Handled = true;
+                break;
+            case Key.Down:
+                e.Handled = true;
+                Close();
+                break;
+        }
     }
 
     private void RevealAfterFirstRender()

@@ -225,6 +225,26 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
+
+                <!-- Scan overlay: covers the empty file area while the card is being
+                     enumerated (and reports an empty card afterwards). Toggled from
+                     PopulateAsync. Sits on top of the (empty) list views. -->
+                <StackPanel x:Name="ScanOverlay"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed">
+                    <ProgressBar x:Name="ScanSpinner"
+                                 IsIndeterminate="True"
+                                 Width="180" Height="4"
+                                 BorderThickness="0" />
+                    <TextBlock x:Name="ScanOverlayText"
+                               Text="Scanning card…"
+                               Foreground="{StaticResource TextDimBrush}"
+                               FontSize="13"
+                               HorizontalAlignment="Center"
+                               Margin="0,12,0,0" />
+                </StackPanel>
             </Grid>
         </Border>
 

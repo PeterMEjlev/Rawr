@@ -126,7 +126,6 @@ public partial class MainWindow : Window
     private GridLength[]? _preFullscreenMainCols;
     private GridLength[]? _preFullscreenSplitCols;
     private Visibility _preFullscreenExposureBarVisibility;
-    private Visibility _preFullscreenActionBarVisibility;
     private bool _isPhotoFullscreen;
     private long _fullscreenTransitionVersion;
     private PhotoItem? _prevSelectedPhoto;
@@ -184,6 +183,12 @@ public partial class MainWindow : Window
     /// <summary>Toggles the tags popup. Bound by default to 'T' via the shortcut registry.</summary>
     public ICommand OpenTagsCommand { get; }
 
+    /// <summary>Opens the card-import dialog. Bound by default to Ctrl+I via the shortcut registry.</summary>
+    public ICommand ImportFromCardCommand { get; }
+
+    /// <summary>Toggles the export (copy/move) popup. Bound by default to Ctrl+E via the shortcut registry.</summary>
+    public ICommand OpenExportCommand { get; }
+
     public ICommand ToggleVideoMuteCommand { get; }
 
     public ICommand IncreaseVideoSpeedCommand { get; }
@@ -210,6 +215,13 @@ public partial class MainWindow : Window
         OpenTagsCommand = new RelayCommand(() =>
         {
             if (TagsPopup is not null) TagsPopup.IsOpen = !TagsPopup.IsOpen;
+        });
+
+        ImportFromCardCommand = new RelayCommand(() => OnImportFromCard(this, new RoutedEventArgs()));
+
+        OpenExportCommand = new RelayCommand(() =>
+        {
+            if (CopyPopup is not null) CopyPopup.IsOpen = !CopyPopup.IsOpen;
         });
 
         ToggleVideoMuteCommand = new RelayCommand(() => VideoMute_Click(this, new RoutedEventArgs()));
@@ -623,7 +635,6 @@ public partial class MainWindow : Window
             _preFullscreenMainCols = mainCols.Select(c => c.Width).ToArray();
             _preFullscreenSplitCols = splitCols.Select(c => c.Width).ToArray();
             _preFullscreenExposureBarVisibility = ExposureCompensationBar.Visibility;
-            _preFullscreenActionBarVisibility = PreviewActionBar.Visibility;
 
             // Collapse the toolbar (row 0) and status bar (row 4). Row 1 is the
             // preview-bearing main split. WPF batches these into a single layout pass.
@@ -649,7 +660,6 @@ public partial class MainWindow : Window
             // Hide the exposure-compensation bar; keep the video-controls bar in the
             // same row visible (it's bound to VideoSourceUri so it only shows for videos).
             ExposureCompensationBar.Visibility = Visibility.Collapsed;
-            PreviewActionBar.Visibility = Visibility.Collapsed;
 
             // The WM_GETMINMAXINFO hook (gated by _isPhotoFullscreen) now reports the
             // full monitor as the maximized bounds, so we no longer need the visible
@@ -699,7 +709,6 @@ public partial class MainWindow : Window
             }
 
             ExposureCompensationBar.Visibility = _preFullscreenExposureBarVisibility;
-            PreviewActionBar.Visibility = _preFullscreenActionBarVisibility;
 
             // _isPhotoFullscreen is already false above, so the hook now reports
             // workarea bounds — restore chrome and re-trigger a maximize/restore so the

@@ -45,7 +45,7 @@
             <DockPanel LastChildFill="False">
                 <Button DockPanel.Dock="Left" Content="📂 Open Folder…" Command="{Binding OpenFolderCommand}" Margin="0,0,8,0" ToolTip="Ctrl+O" />
                 <Button DockPanel.Dock="Left" Content="📥 Import…" Click="OnImportFromCard" Margin="0,0,8,0"
-                        ToolTip="Import photos and videos from a connected SD / CF card." />
+                        ToolTip="Import photos and videos from a connected SD / CF card. (Ctrl+I)" />
                 <Button DockPanel.Dock="Left" Content="📝 Sync XMP" Command="{Binding SyncAllXmpCommand}" Margin="0,0,8,0"
                         ToolTip="{Binding SyncXmpTooltip}" />
                 <Button DockPanel.Dock="Left" Content="🗺 Map" Click="OnOpenMap" Margin="0,0,8,0"
@@ -987,8 +987,8 @@
                                   IsChecked="{Binding IsOpen, ElementName=CopyPopup, Mode=TwoWay}"
                                   PreviewMouseLeftButtonDown="CopyToggleButton_PreviewMouseLeftButtonDown"
                                   PreviewMouseLeftButtonUp="CopyToggleButton_PreviewMouseLeftButtonUp"
-                                  Content="📋 Copy…"
-                                  ToolTip="Choose which photos to copy" />
+                                  Content="📤 Export…"
+                                  ToolTip="Choose which photos to export" />
                     <Popup x:Name="CopyPopup"
                            StaysOpen="False"
                            Placement="Bottom"
@@ -1005,9 +1005,10 @@
                                 <!-- Source -->
                                 <TextBlock Text="SOURCE" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Button Content="{Binding SelectedPhotosCount, StringFormat='Selected ({0})'}"
+                                    <Button Content="{Binding SelectedPhotosCount}"
+                                            ContentStringFormat="Current selection ({0})"
                                             Command="{Binding UseCopySelectedPhotosCommand}" Margin="0,0,3,0"
-                                            ToolTip="Copy the photos you've selected in the grid / filmstrip (Ctrl-click and Shift-click to multi-select)">
+                                            ToolTip="Export the photos you've selected in the grid / filmstrip (Ctrl-click and Shift-click to multi-select)">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
@@ -1018,7 +1019,9 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="Current view" Command="{Binding UseCopyCurrentViewCommand}" Margin="0,0,3,0">
+                                    <Button Content="{Binding CurrentViewCount}"
+                                            ContentStringFormat="Current view ({0})"
+                                            Command="{Binding UseCopyCurrentViewCommand}" Margin="0,0,3,0">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Style.Triggers>
@@ -1042,18 +1045,14 @@
                                     </Button>
                                 </StackPanel>
 
-                                <!-- Custom filter criteria (only enabled when source is "Custom filter") -->
+                                <!-- Custom filter criteria (only shown when source is "Custom filter") -->
                                 <StackPanel>
                                     <StackPanel.Style>
                                         <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding CopyMode}" Value="SelectedPhotos">
-                                                    <Setter Property="IsEnabled" Value="False" />
-                                                    <Setter Property="Opacity" Value="0.4" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding CopyMode}" Value="CurrentView">
-                                                    <Setter Property="IsEnabled" Value="False" />
-                                                    <Setter Property="Opacity" Value="0.4" />
+                                                <DataTrigger Binding="{Binding CopyMode}" Value="CustomFilter">
+                                                    <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -1272,9 +1271,38 @@
                                     </Grid>
                                 </StackPanel>
 
+                                <!-- Operation -->
+                                <TextBlock Text="OPERATION" FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,5" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button Content="Copy" Command="{Binding UseCopyOperationCommand}" Margin="0,0,3,0"
+                                            ToolTip="Copy photos to the destination, leaving the originals in place">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyOperation}" Value="Copy">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Move" Command="{Binding UseMoveOperationCommand}"
+                                            ToolTip="Copy photos to the destination, then send the originals to the Recycle Bin">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CopyOperation}" Value="Move">
+                                                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+
                                 <Separator Margin="0,2,0,8" />
-                                <Button Content="📋 Copy…" Command="{Binding CopyPickedCommand}"
-                                        HorizontalAlignment="Stretch" ToolTip="Ctrl+C - copy matching photos to a folder" />
+                                <Button Content="📤 Export…" Command="{Binding CopyPickedCommand}"
+                                        HorizontalAlignment="Stretch" ToolTip="Ctrl+C — export matching photos to a folder" />
 
                             </StackPanel>
                         </Border>
@@ -1383,17 +1411,8 @@
             </DockPanel>
         </Border>
 
-        <!-- ================ MAIN SPLIT (sidebar + grid panel + preview + metadata) + action bar ================ -->
-        <!-- Wrapper so the filmstrip splitter sits directly between the preview
-             region and the filmstrip; the action bar rides at the bottom of the
-             preview region instead of being a sibling row the splitter resizes. -->
-        <Grid Grid.Row="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />     <!-- Preview + metadata -->
-                <RowDefinition Height="Auto" />  <!-- Preview action bar -->
-            </Grid.RowDefinitions>
-
-        <Grid x:Name="MainContentRow" Grid.Row="0">
+        <!-- ================ MAIN SPLIT (sidebar + grid panel + preview + metadata) ================ -->
+        <Grid x:Name="MainContentRow" Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="220" MinWidth="160" MaxWidth="400" />  <!-- Sidebar -->
                 <ColumnDefinition Width="4" />                                    <!-- Splitter -->
@@ -2624,7 +2643,7 @@
                 </Border>
 
                 <!-- Empty-state overlay -->
-                <TextBlock Text="Press Ctrl+O to open a folder of RAW photos"
+                <TextBlock Text="{Binding EmptyStateMessage}"
                            Foreground="{StaticResource TextDimBrush}"
                            FontSize="16"
                            HorizontalAlignment="Center"
@@ -2868,10 +2887,10 @@
                                FontSize="11" />
                 </Border>
 
-                <!-- "Show filmstrip" pull-tab (bottom-centre). Appears whenever the
-                     filmstrip for the current view is hidden — in fullscreen or the
-                     windowed view — so the user can bring it back by pointer without
-                     knowing the F6 shortcut. ToggleFilmstrip targets the active view. -->
+                <!-- "Show filmstrip" pull-tab (bottom-centre), fullscreen only. The
+                     windowed view carries the same toggle in the status bar, but that
+                     bar is collapsed while immersed — so this pointer-only affordance
+                     brings the strip back in fullscreen (mirrors F6). -->
                 <Button Grid.Row="0"
                         HorizontalAlignment="Center" VerticalAlignment="Bottom"
                         Margin="0,0,0,10"
@@ -2890,14 +2909,6 @@
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsPhotoFullscreen}" Value="True" />
                                         <Condition Binding="{Binding ShowFilmstripFullscreen}" Value="False" />
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </MultiDataTrigger>
-                                <!-- Windowed view: windowed filmstrip hidden. -->
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsPhotoFullscreen}" Value="False" />
-                                        <Condition Binding="{Binding ShowFilmstrip}" Value="False" />
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible" />
                                 </MultiDataTrigger>
@@ -3022,32 +3033,6 @@
                                      SetSidePanelViewCommand="{Binding SetSidePanelViewCommand}"
                                      SetHistogramModeCommand="{Binding SetHistogramModeCommand}" />
         </Grid>
-        </Grid>
-        <!-- ================ PREVIEW ACTION BAR ================ -->
-        <Border x:Name="PreviewActionBar" Grid.Row="1"
-                Background="{StaticResource BgToolbarBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="6,3">
-            <StackPanel Orientation="Horizontal">
-                <ToggleButton IsChecked="{Binding IsGridExpanded}"
-                              Padding="8,2"
-                              FontSize="11"
-                              MinWidth="0"
-                              ToolTip="{Binding FullGridToggleTooltip}">
-                    <ToggleButton.Style>
-                        <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
-                            <Setter Property="Content" Value="⛶ Full Grid" />
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Content" Value="⛶ Exit Full Grid" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ToggleButton.Style>
-                </ToggleButton>
-            </StackPanel>
-        </Border>
         </Grid>
 
         <!-- ================ FILMSTRIP SPLITTER ================ -->
@@ -3337,32 +3322,56 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="8,4">
-            <DockPanel LastChildFill="True">
-                <TextBlock DockPanel.Dock="Right"
-                           Text="{Binding CurrentFolder}"
-                           Foreground="{StaticResource TextDimBrush}"
-                           TextTrimming="CharacterEllipsis" />
-                <!-- Background-activity ticker — sits between the status line and
-                     the folder path. Hidden when nothing is running so it doesn't
-                     reserve dead space. -->
-                <StackPanel DockPanel.Dock="Right"
-                            Orientation="Horizontal"
-                            Margin="0,0,12,0"
-                            VerticalAlignment="Center"
-                            Visibility="{Binding IsBackgroundActive, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Text="⏳"
-                               Margin="0,0,4,0"
-                               FontSize="11"
-                               Foreground="{StaticResource AccentBrush}"
-                               VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding BackgroundActivity}"
-                               Foreground="{StaticResource AccentBrush}"
-                               FontStyle="Italic"
-                               TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextBrush}" />
-            </DockPanel>
+            <Grid>
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Right"
+                               Text="{Binding CurrentFolder}"
+                               Foreground="{StaticResource TextDimBrush}"
+                               TextTrimming="CharacterEllipsis" />
+                    <!-- Background-activity ticker — sits between the status line and
+                         the folder path. Hidden when nothing is running so it doesn't
+                         reserve dead space. -->
+                    <StackPanel DockPanel.Dock="Right"
+                                Orientation="Horizontal"
+                                Margin="0,0,12,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsBackgroundActive, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="⏳"
+                                   Margin="0,0,4,0"
+                                   FontSize="11"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding BackgroundActivity}"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   FontStyle="Italic"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextBrush}" />
+                </DockPanel>
+
+                <!-- Filmstrip show/hide toggle, centred in the bottom bar. ▲ brings the
+                     filmstrip back when it's hidden; ▼ dismisses it when it's showing.
+                     Windowed only — the status bar is collapsed in fullscreen, which
+                     keeps its own pull-tab / close button for that case. -->
+                <Button HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Padding="18,0" FontSize="10"
+                        Command="{Binding ToggleFilmstripCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Content" Value="&#x25B2;" />
+                            <Setter Property="ToolTip" Value="Show the filmstrip (F6)" />
+                            <Setter Property="Opacity" Value="0.85" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowFilmstrip}" Value="True">
+                                    <Setter Property="Content" Value="&#x25BC;" />
+                                    <Setter Property="ToolTip" Value="Hide the filmstrip (F6)" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
         </Border>
 
         <Grid x:Name="PhotoFullscreenTransitionOverlay"

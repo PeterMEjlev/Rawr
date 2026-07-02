@@ -197,6 +197,19 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlHoverBrush}" />
                         </Trigger>
+                        <!-- An "active" button signals itself by binding Background to the
+                             accent (see the toggle-style DataTriggers). The plain hover
+                             setter above targets the border directly, overriding that
+                             TemplateBinding — so without this the button drops back to the
+                             neutral hover fill and looks inactive while hovered. Re-assert
+                             the accent when hovering an active button. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="Background" Value="{StaticResource AccentBrush}" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}" />
+                        </MultiTrigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgControlPressedBrush}" />
                         </Trigger>

@@ -25,11 +25,11 @@ public static class CopyQualityPresets
     // (left = small/lossy, right = original RAW). Default is FullIndex.
     public static readonly CopyQualityPreset[] All =
     [
-        new("Email",  "≤1024 px JPEG Q75 - small enough to email", true,  75, 1024),
-        new("Web",    "≤2560 px JPEG Q85",                         true,  85, 2560),
-        new("Medium", "Full resolution JPEG Q85",                  true,  85, 0),
-        new("High",   "Full resolution JPEG Q95",                  true,  95, 0),
-        new("Full",   "Original file, no conversion",              false, 0,  0),
+        new("Email (JPG)",  "≤1024 px JPEG Q75 - small enough to email", true,  75, 1024),
+        new("Web (JPG)",    "≤2560 px JPEG Q85",                         true,  85, 2560),
+        new("Medium (JPG)", "Full resolution JPEG Q85",                  true,  85, 0),
+        new("High (JPG)",   "Full resolution JPEG Q95",                  true,  95, 0),
+        new("Full (RAW)",   "Original file, no conversion",              false, 0,  0),
     ];
 
     public const int FullIndex = 4;

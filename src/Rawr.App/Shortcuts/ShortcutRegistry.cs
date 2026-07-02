@@ -28,7 +28,9 @@ public static class ShortcutRegistry
         {
             // File ops
             new("OpenFolder",     "Open folder",        CatFile, Key.O, ModifierKeys.Control, Vm(vm => vm.OpenFolderCommand)),
-new("CopyPicked",     "Copy picked photos", CatFile, Key.C, ModifierKeys.Control, Vm(vm => vm.CopyPickedCommand)),
+            new("OpenImport",     "Import from card",   CatFile, Key.I, ModifierKeys.Control, w => w.ImportFromCardCommand),
+            new("OpenExport",     "Open export menu",   CatFile, Key.E, ModifierKeys.Control, w => w.OpenExportCommand),
+new("CopyPicked",     "Export picked photos", CatFile, Key.C, ModifierKeys.Control, Vm(vm => vm.CopyPickedCommand)),
             new("SyncXmp",        "Sync XMP sidecars",  CatFile, Key.S, ModifierKeys.Control, Vm(vm => vm.SyncAllXmpCommand)),
 
             // Navigation
