@@ -7481,6 +7481,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (SelectedPhoto == null) return;
         var pos = SelectedIndex + 1;
         var total = FilteredPhotos.Count;
+        // When bursts are collapsed the visible count hides grouped members, so the
+        // real photo count is _filteredExpanded (the pre-collapse filter set). Show
+        // it in parens — e.g. "6/17 (67 Total)" — only when collapsing actually
+        // hides something, so the uncollapsed view stays uncluttered.
+        var burstTotal = BurstCollapsed && _filteredExpanded.Count != total
+            ? $" ({_filteredExpanded.Count} Total)"
+            : "";
         var flag = SelectedPhoto.Flag switch
         {
             CullFlag.Pick => " [PICK]",
@@ -7488,7 +7495,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _ => ""
         };
         var stars = SelectedPhoto.Rating > 0 ? $" {new string('★', SelectedPhoto.Rating)}" : "";
-        StatusText = $"{pos}/{total}  {SelectedPhoto.FileName}{stars}{flag}  Filter: {FilterDescription}";
+        StatusText = $"{pos}/{total}{burstTotal}  {SelectedPhoto.FileName}{stars}{flag}  Filter: {FilterDescription}";
     }
 
     // ── Sidebar filter buckets ──
