@@ -84,18 +84,11 @@ public sealed class PhotoExporter
     private bool TranscodeAndWrite(PhotoItem photo, string destPath, CopyQualityPreset preset, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        var (source, metadata) = LoadSourceAndMetadata(photo);
+        // Downscaling now happens inside the decode (WIC scales in the JPEG's DCT
+        // domain) rather than via a full decode + TransformedBitmap, so the source
+        // arrives already at the target size.
+        var (source, metadata) = LoadSourceAndMetadata(photo, preset.MaxLongEdge);
         if (source == null) return false;
-
-        if (preset.MaxLongEdge > 0)
-        {
-            int longEdge = Math.Max(source.PixelWidth, source.PixelHeight);
-            if (longEdge > preset.MaxLongEdge)
-            {
-                double scale = (double)preset.MaxLongEdge / longEdge;
-                source = new TransformedBitmap(source, new ScaleTransform(scale, scale));
-            }
-        }
 
         var encoder = new JpegBitmapEncoder { QualityLevel = preset.JpegQuality };
         encoder.Frames.Add(CreateFrame(source, metadata));
@@ -118,22 +111,75 @@ public sealed class PhotoExporter
         return BitmapFrame.Create(source);
     }
 
-    private (BitmapSource? source, BitmapMetadata? metadata) LoadSourceAndMetadata(PhotoItem photo)
+    private (BitmapSource? source, BitmapMetadata? metadata) LoadSourceAndMetadata(PhotoItem photo, int maxLongEdge)
     {
+        byte[]? bytes;
         if (photo.IsRaw)
         {
             // Embedded full-resolution JPEG: camera-baked colour, sensor-sized, fast to read.
             // Going through the linear demosaic path would be 10-100× slower and is overkill
             // for a "copy at lower quality" workflow.
-            byte[]? jpegBytes = _extractor.ExtractFullJpeg(photo.FilePath);
-            if (jpegBytes == null) return (null, null);
-            return DecodeFromBytes(jpegBytes);
+            bytes = _extractor.ExtractFullJpeg(photo.FilePath);
+        }
+        else
+        {
+            try { bytes = File.ReadAllBytes(photo.FilePath); }
+            catch { bytes = null; }
         }
 
+        if (bytes == null) return (null, null);
+        return DecodeFromBytes(bytes, maxLongEdge);
+    }
+
+    private static (BitmapSource? source, BitmapMetadata? metadata) DecodeFromBytes(byte[] bytes, int maxLongEdge)
+    {
         try
         {
-            using var stream = File.OpenRead(photo.FilePath);
-            return DecodeFromStream(stream);
+            // Header-only probe (DelayCreation + no cache): native dimensions and
+            // EXIF without decoding any pixels. Cloning the metadata detaches it from
+            // the probe stream so we can dispose the stream immediately.
+            int nativeW, nativeH;
+            BitmapMetadata? meta;
+            using (var probe = new MemoryStream(bytes, writable: false))
+            {
+                var frame0 = BitmapDecoder.Create(
+                    probe,
+                    BitmapCreateOptions.DelayCreation | BitmapCreateOptions.IgnoreColorProfile,
+                    BitmapCacheOption.None).Frames[0];
+                nativeW = frame0.PixelWidth;
+                nativeH = frame0.PixelHeight;
+                meta = TryReadMetadata(frame0);
+            }
+
+            // Downscale during decode when the source exceeds the target long edge.
+            // WIC scales in the JPEG's DCT domain — far cheaper and higher quality
+            // than decoding the full sensor-sized image and shrinking it afterwards
+            // (a 45MP source is ~260MB of pixels; bilinear at 8:1 also aliases).
+            // DecodePixelWidth/Height operate on the un-oriented pixel grid, matching
+            // the native dimensions read above; orientation stays carried in metadata
+            // exactly as before, so there's no rotation change.
+            if (maxLongEdge > 0 && Math.Max(nativeW, nativeH) > maxLongEdge)
+            {
+                var bi = new BitmapImage();
+                bi.BeginInit();
+                bi.StreamSource = new MemoryStream(bytes, writable: false);
+                bi.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                bi.CacheOption = BitmapCacheOption.OnLoad;
+                if (nativeW >= nativeH) bi.DecodePixelWidth = maxLongEdge;
+                else bi.DecodePixelHeight = maxLongEdge;
+                bi.EndInit();
+                bi.Freeze();
+                return (bi, meta);
+            }
+
+            // Full-resolution presets (and already-small sources): decode natively,
+            // preserving the source pixel format.
+            using var full = new MemoryStream(bytes, writable: false);
+            var frame = BitmapDecoder.Create(
+                full,
+                BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreColorProfile,
+                BitmapCacheOption.OnLoad).Frames[0];
+            return (frame, meta);
         }
         catch
         {
@@ -141,28 +187,11 @@ public sealed class PhotoExporter
         }
     }
 
-    private static (BitmapSource? source, BitmapMetadata? metadata) DecodeFromBytes(byte[] bytes)
+    // Cloned so the returned metadata survives disposal of the stream it was read
+    // from. BitmapMetadata.Clone() materialises the values into an in-memory copy.
+    private static BitmapMetadata? TryReadMetadata(BitmapFrame frame)
     {
-        try
-        {
-            using var ms = new MemoryStream(bytes);
-            return DecodeFromStream(ms);
-        }
-        catch
-        {
-            return (null, null);
-        }
-    }
-
-    private static (BitmapSource? source, BitmapMetadata? metadata) DecodeFromStream(Stream stream)
-    {
-        var decoder = BitmapDecoder.Create(
-            stream,
-            BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreColorProfile,
-            BitmapCacheOption.OnLoad);
-        var frame = decoder.Frames[0];
-        BitmapMetadata? meta = null;
-        try { meta = frame.Metadata as BitmapMetadata; } catch { }
-        return (frame, meta);
+        try { return (frame.Metadata as BitmapMetadata)?.Clone() as BitmapMetadata; }
+        catch { return null; }
     }
 }

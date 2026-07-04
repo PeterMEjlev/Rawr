@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Rawr.Raw;
@@ -28,8 +29,13 @@ public static class ExposureProcessor
         converted.CopyPixels(pixels, stride, 0);
 
         float gain = (float)Math.Pow(2.0, stops);
+        // Gain is constant across the frame, so precompute the 256-entry map once
+        // and index it per byte instead of a float multiply + clamp per byte.
+        var lut = new byte[256];
+        for (int v = 0; v < 256; v++)
+            lut[v] = (byte)Math.Clamp(v * gain, 0f, 255f);
         for (int i = 0; i < pixels.Length; i++)
-            pixels[i] = (byte)Math.Clamp(pixels[i] * gain, 0f, 255f);
+            pixels[i] = lut[pixels[i]];
 
         var result = BitmapSource.Create(w, h, source.DpiX, source.DpiY, PixelFormats.Bgr24, null, pixels, stride);
         result.Freeze();
@@ -53,7 +59,6 @@ public static class ExposureProcessor
         int h = raw.Height;
         int n = w * h;
         int stride = w * 3;
-        byte[] bgr = new byte[h * stride];
         ushort[] src = raw.Pixels;
 
         double gain = Math.Pow(2.0, stops);
@@ -65,10 +70,20 @@ public static class ExposureProcessor
         // roughly equal across channels, but the eye sees it as colour speckle —
         // i.e. it concentrates in chroma. A small box on chroma kills the speckle
         // while leaving luma detail (the part the eye locks onto) untouched.
-        float[] luma = new float[n];
-        float[] cb = new float[n]; // B - Y
-        float[] cr = new float[n]; // R - Y
-
+        //
+        // Rent the planes rather than allocate: at 2400px preview these total
+        // ~130MB of short-lived LOH per call (hundreds of MB at full-res), and the
+        // slider fires Render continuously during a drag. Rented buffers may be
+        // larger than requested, but every pass writes exactly the pixels it reads
+        // (indices bounded by w/h) so the excess tail is never touched.
+        var floatPool = ArrayPool<float>.Shared;
+        var bytePool = ArrayPool<byte>.Shared;
+        float[] luma = floatPool.Rent(n);
+        float[] cb = floatPool.Rent(n); // B - Y
+        float[] cr = floatPool.Rent(n); // R - Y
+        byte[] bgr = bytePool.Rent(h * stride);
+        try
+        {
         Parallel.For(0, h, po, yy =>
         {
             int rowI = yy * w;
@@ -155,9 +170,19 @@ public static class ExposureProcessor
         });
 
         ct.ThrowIfCancellationRequested();
+        // BitmapSource.Create copies the pixel bytes into its own buffer, so bgr can
+        // safely go back to the pool once the source exists.
         var result = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgr24, null, bgr, stride);
         result.Freeze();
         return result;
+        }
+        finally
+        {
+            floatPool.Return(luma);
+            floatPool.Return(cb);
+            floatPool.Return(cr);
+            bytePool.Return(bgr);
+        }
     }
 
     // Sliding-window box blur, horizontal then vertical. Edges clamp-extend.
@@ -165,46 +190,57 @@ public static class ExposureProcessor
     {
         int taps = radius * 2 + 1;
         float inv = 1f / taps;
-        var tmp = new float[plane.Length];
-
-        Parallel.For(0, h, po, y =>
+        // Pooled scratch (the caller already pools the plane itself). Both passes
+        // index within [0, w*h), so an oversized rented buffer's tail is untouched
+        // and needs no clearing — the horizontal pass writes every cell the vertical
+        // pass later reads.
+        var pool = ArrayPool<float>.Shared;
+        var tmp = pool.Rent(w * h);
+        try
         {
-            int row = y * w;
-            float sum = 0f;
-            for (int k = -radius; k <= radius; k++)
+            Parallel.For(0, h, po, y =>
             {
-                int xc = k < 0 ? 0 : k >= w ? w - 1 : k;
-                sum += plane[row + xc];
-            }
-            for (int x = 0; x < w; x++)
-            {
-                tmp[row + x] = sum * inv;
-                int addX = x + radius + 1;
-                int subX = x - radius;
-                if (addX > w - 1) addX = w - 1;
-                if (subX < 0) subX = 0;
-                sum += plane[row + addX] - plane[row + subX];
-            }
-        });
+                int row = y * w;
+                float sum = 0f;
+                for (int k = -radius; k <= radius; k++)
+                {
+                    int xc = k < 0 ? 0 : k >= w ? w - 1 : k;
+                    sum += plane[row + xc];
+                }
+                for (int x = 0; x < w; x++)
+                {
+                    tmp[row + x] = sum * inv;
+                    int addX = x + radius + 1;
+                    int subX = x - radius;
+                    if (addX > w - 1) addX = w - 1;
+                    if (subX < 0) subX = 0;
+                    sum += plane[row + addX] - plane[row + subX];
+                }
+            });
 
-        Parallel.For(0, w, po, x =>
+            Parallel.For(0, w, po, x =>
+            {
+                float sum = 0f;
+                for (int k = -radius; k <= radius; k++)
+                {
+                    int yc = k < 0 ? 0 : k >= h ? h - 1 : k;
+                    sum += tmp[yc * w + x];
+                }
+                for (int y = 0; y < h; y++)
+                {
+                    plane[y * w + x] = sum * inv;
+                    int addY = y + radius + 1;
+                    int subY = y - radius;
+                    if (addY > h - 1) addY = h - 1;
+                    if (subY < 0) subY = 0;
+                    sum += tmp[addY * w + x] - tmp[subY * w + x];
+                }
+            });
+        }
+        finally
         {
-            float sum = 0f;
-            for (int k = -radius; k <= radius; k++)
-            {
-                int yc = k < 0 ? 0 : k >= h ? h - 1 : k;
-                sum += tmp[yc * w + x];
-            }
-            for (int y = 0; y < h; y++)
-            {
-                plane[y * w + x] = sum * inv;
-                int addY = y + radius + 1;
-                int subY = y - radius;
-                if (addY > h - 1) addY = h - 1;
-                if (subY < 0) subY = 0;
-                sum += tmp[addY * w + x] - tmp[subY * w + x];
-            }
-        });
+            pool.Return(tmp);
+        }
     }
 
     private static float[] BuildLinearToSrgbLutF()

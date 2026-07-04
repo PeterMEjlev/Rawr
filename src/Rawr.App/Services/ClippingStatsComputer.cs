@@ -1,7 +1,3 @@
-using System.IO;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-
 namespace Rawr.App.Services;
 
 /// <summary>
@@ -22,41 +18,40 @@ public static class ClippingStatsComputer
 
     public static Stats Compute(byte[] jpegBytes, byte thresholdPct)
     {
-        // Decode at the same width HistogramComputer uses — plenty of samples,
-        // fast enough to run inside the parallel preview pipeline.
-        var bi = new BitmapImage();
-        bi.BeginInit();
-        bi.StreamSource = new MemoryStream(jpegBytes);
-        bi.DecodePixelWidth = 512;
-        bi.CreateOptions = BitmapCreateOptions.None;
-        bi.CacheOption = BitmapCacheOption.OnLoad;
-        bi.EndInit();
-        bi.Freeze();
+        var decoded = ThumbnailPixels.DecodeBgr24(jpegBytes)
+            ?? throw new InvalidOperationException("thumbnail decode failed");
+        return Compute(decoded.Bgr, decoded.Width, decoded.Height, decoded.Stride, thresholdPct);
+    }
 
-        var converted = new FormatConvertedBitmap(bi, PixelFormats.Bgr24, null, 0);
-        converted.Freeze();
-
-        int w = converted.PixelWidth;
-        int h = converted.PixelHeight;
-        int stride = w * 3;
-        byte[] pixels = new byte[h * stride];
-        converted.CopyPixels(pixels, stride, 0);
-
+    /// <summary>
+    /// Overload for callers that have already decoded the thumbnail to a packed
+    /// Bgr24 buffer (the folder-indexing pass shares one decode with the perceptual
+    /// hash). <paramref name="stride"/> is bytes per row (width*3 for packed input).
+    /// </summary>
+    public static Stats Compute(byte[] bgr, int width, int height, int stride, byte thresholdPct)
+    {
         int hiCut = (int)Math.Round(thresholdPct * 255.0 / 100.0);
         int loCut = 255 - hiCut;
 
-        int total = w * h;
+        int total = width * height;
+        if (total <= 0) return new Stats(0f, 0f);
+
         int highlightHits = 0;
         int shadowHits = 0;
-        for (int i = 0; i < pixels.Length; i += 3)
+        for (int y = 0; y < height; y++)
         {
-            byte b = pixels[i];
-            byte g = pixels[i + 1];
-            byte r = pixels[i + 2];
-            if (r >= hiCut || g >= hiCut || b >= hiCut)
-                highlightHits++;
-            else if (r <= loCut && g <= loCut && b <= loCut)
-                shadowHits++;
+            int row = y * stride;
+            for (int x = 0; x < width; x++)
+            {
+                int i = row + x * 3;
+                byte b = bgr[i];
+                byte g = bgr[i + 1];
+                byte r = bgr[i + 2];
+                if (r >= hiCut || g >= hiCut || b >= hiCut)
+                    highlightHits++;
+                else if (r <= loCut && g <= loCut && b <= loCut)
+                    shadowHits++;
+            }
         }
 
         return new Stats(

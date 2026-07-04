@@ -1,7 +1,4 @@
-using System.IO;
 using System.Numerics;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace Rawr.App.Services;
 
@@ -13,11 +10,9 @@ public static class PerceptualHash
 {
     private const int HashWidth = 9;   // 9 columns → 8 horizontal comparisons per row
     private const int HashHeight = 8;
-    private const int DecodeWidth = 64;
 
-    // Larger grayscale buffer used by FrameShiftEstimator. Chosen to match the
-    // decode width above so a single decode produces both outputs, and large
-    // enough that 2D cross-correlation can resolve panorama-scale shifts.
+    // Larger grayscale buffer used by FrameShiftEstimator. Large enough that 2D
+    // cross-correlation can resolve panorama-scale shifts.
     public const int StripWidth = 32;
     public const int StripHeight = 24;
 
@@ -31,30 +26,40 @@ public static class PerceptualHash
     /// </summary>
     public static (ulong? Hash, byte[]? Strip) ComputeWithStrip(byte[]? jpegBytes)
     {
-        if (jpegBytes == null || jpegBytes.Length == 0) return (null, null);
+        var decoded = ThumbnailPixels.DecodeBgr24(jpegBytes);
+        if (decoded == null) return (null, null);
+        return ComputeWithStrip(decoded.Value.Bgr, decoded.Value.Width, decoded.Value.Height, decoded.Value.Stride);
+    }
+
+    /// <summary>
+    /// Overload for callers that already decoded the thumbnail to a packed Bgr24
+    /// buffer (the folder-indexing pass shares one decode with the clipping stats).
+    /// The buffer is converted to luma and box-averaged down to the hash grid and
+    /// strip. Hash values are effectively identical to the former Gray8/64px path —
+    /// the dHash compares relative cell brightness, which box-averaging preserves
+    /// across source resolutions — so persisted hashes stay comparable.
+    /// </summary>
+    public static (ulong? Hash, byte[]? Strip) ComputeWithStrip(byte[] bgr, int width, int height, int stride)
+    {
         try
         {
-            var bi = new BitmapImage();
-            bi.BeginInit();
-            bi.StreamSource = new MemoryStream(jpegBytes);
-            bi.DecodePixelWidth = DecodeWidth;
-            bi.CreateOptions = BitmapCreateOptions.None;
-            bi.CacheOption = BitmapCacheOption.OnLoad;
-            bi.EndInit();
-            bi.Freeze();
+            if (width < HashWidth || height < HashHeight) return (null, null);
 
-            var gray = new FormatConvertedBitmap(bi, PixelFormats.Gray8, null, 0);
-            gray.Freeze();
+            // Pack to a single-channel luma buffer (stride = width) so Resample can
+            // box-average it. Rec.601 coefficients match WIC's Bgr→Gray8 conversion.
+            var gray = new byte[width * height];
+            for (int y = 0; y < height; y++)
+            {
+                int row = y * stride;
+                int grow = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    int i = row + x * 3;
+                    gray[grow + x] = (byte)((bgr[i + 2] * 299 + bgr[i + 1] * 587 + bgr[i] * 114) / 1000);
+                }
+            }
 
-            int w = gray.PixelWidth;
-            int h = gray.PixelHeight;
-            if (w < HashWidth || h < HashHeight) return (null, null);
-
-            int stride = (w + 3) & ~3; // Gray8 stride is rounded up to 4 bytes
-            var src = new byte[stride * h];
-            gray.CopyPixels(src, stride, 0);
-
-            var small = Resample(src, stride, w, h, HashWidth, HashHeight);
+            var small = Resample(gray, width, width, height, HashWidth, HashHeight);
 
             ulong hash = 0UL;
             int bit = 0;
@@ -70,8 +75,8 @@ public static class PerceptualHash
             }
 
             byte[]? strip = null;
-            if (w >= StripWidth && h >= StripHeight)
-                strip = Resample(src, stride, w, h, StripWidth, StripHeight);
+            if (width >= StripWidth && height >= StripHeight)
+                strip = Resample(gray, width, width, height, StripWidth, StripHeight);
 
             return (hash, strip);
         }

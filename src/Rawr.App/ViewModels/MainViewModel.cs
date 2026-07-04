@@ -1343,6 +1343,31 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         photo.ClosedEyeCount = state.ClosedEyeCount;
         photo.MinEyeOpenScore = state.MinEyeOpenScore;
         photo.SubjectTags = state.SubjectTags;
+
+        // Restore cached EXIF metadata + grayscale strip when the source file is
+        // unchanged since they were computed, so GeneratePreviewsAsync can skip the
+        // per-file EXIF read (thousands of RAW opens + WIC decodes) and the thumbnail
+        // decode that rebuilds the strip. One stat gates both; on any mismatch we
+        // leave them null so the indexing pass refreshes them.
+        if ((state.MetaJson != null || state.GrayStrip != null)
+            && state.MetaMtime != 0)
+        {
+            try
+            {
+                var info = new FileInfo(photo.FilePath);
+                if (info.Exists && info.Length == state.MetaSize
+                    && info.LastWriteTimeUtc.Ticks == state.MetaMtime)
+                {
+                    photo.MetaSourceSize = state.MetaSize;
+                    photo.MetaSourceMtimeTicks = state.MetaMtime;
+                    if (state.MetaJson != null)
+                        photo.Metadata = PhotoMetadataSerializer.Deserialize(state.MetaJson);
+                    if (state.GrayStrip != null)
+                        photo.GrayBuffer = state.GrayStrip;
+                }
+            }
+            catch { /* stat failed — refresh from scratch during indexing */ }
+        }
     }
 
     /// <summary>
@@ -2006,35 +2031,64 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                         }
                     }
 
-                    var metadata = photo.IsVideo
-                        ? RunWithTimeout(() => ExtractorFor(photo).ExtractMetadata(photo.FilePath), 5000)
-                        : ExtractorFor(photo).ExtractMetadata(photo.FilePath);
-                    if (thumbBytes != null || metadata != null)
-                        QueuePreviewUpdate(new PreviewUpdate(photo, thumbBytes, metadata));
-
-                    // Compute the perceptual hash from the thumbnail once and reuse on every
-                    // subsequent open via the SQLite cache. Used by BurstDetector below.
-                    // The grayscale strip is computed in the same decode and feeds
-                    // PanoramaDetector — it's transient (not persisted) so we always
-                    // refresh it when a thumbnail is available.
-                    if (thumbBytes != null && (photo.Phash == null || photo.GrayBuffer == null))
+                    // Metadata may already be restored from the DB cache (source file
+                    // unchanged since extraction) — skip the expensive per-file EXIF
+                    // read in that case. When extracting fresh, stamp the source
+                    // staleness key so this session's SaveBatch persists a valid cache.
+                    PhotoMetadata? metadata = photo.Metadata;
+                    bool freshMeta = metadata == null;
+                    if (freshMeta)
                     {
-                        var (hash, strip) = Rawr.App.Services.PerceptualHash.ComputeWithStrip(thumbBytes);
-                        if (photo.Phash == null) photo.Phash = hash;
-                        if (photo.GrayBuffer == null) photo.GrayBuffer = strip;
-                    }
-
-                    // Same lifecycle for clipping percentages — feeds the sidebar Exposure
-                    // buckets. Recompute when the per-pixel threshold changes between sessions.
-                    if (thumbBytes != null && (photo.HighlightClippedPct == null || photo.ShadowClippedPct == null))
-                    {
-                        try
+                        metadata = photo.IsVideo
+                            ? RunWithTimeout(() => ExtractorFor(photo).ExtractMetadata(photo.FilePath), 5000)
+                            : ExtractorFor(photo).ExtractMetadata(photo.FilePath);
+                        if (photo.MetaSourceMtimeTicks == 0)
                         {
-                            var stats = Rawr.App.Services.ClippingStatsComputer.Compute(thumbBytes, AppSettings.Current.ClippingThreshold);
-                            photo.HighlightClippedPct = stats.HighlightPct;
-                            photo.ShadowClippedPct = stats.ShadowPct;
+                            try
+                            {
+                                var fi = new FileInfo(photo.FilePath);
+                                photo.MetaSourceSize = fi.Length;
+                                photo.MetaSourceMtimeTicks = fi.LastWriteTimeUtc.Ticks;
+                            }
+                            catch { /* stat failed — row saves with no key, re-extracts next open */ }
                         }
-                        catch { /* malformed thumbnail; leave nulls — bucket will skip this photo */ }
+                    }
+                    // Always push a resident thumbnail to the UI; only push metadata
+                    // when freshly extracted (a cached value is already on the item).
+                    if (thumbBytes != null || (freshMeta && metadata != null))
+                        QueuePreviewUpdate(new PreviewUpdate(photo, thumbBytes, freshMeta ? metadata : null));
+
+                    // Perceptual hash (persisted, drives BurstDetector), grayscale
+                    // strip (transient, feeds PanoramaDetector), and clipping
+                    // percentages (persisted, feeds the sidebar Exposure buckets) all
+                    // derive from the same thumbnail. JPEG decode dominates this stage,
+                    // so decode once and share the buffer instead of decoding the same
+                    // bytes twice per photo.
+                    bool needsHash = photo.Phash == null || photo.GrayBuffer == null;
+                    bool needsClip = photo.HighlightClippedPct == null || photo.ShadowClippedPct == null;
+                    if (thumbBytes != null && (needsHash || needsClip))
+                    {
+                        var decoded = Rawr.App.Services.ThumbnailPixels.DecodeBgr24(thumbBytes);
+                        if (decoded != null)
+                        {
+                            var px = decoded.Value;
+                            if (needsHash)
+                            {
+                                var (hash, strip) = Rawr.App.Services.PerceptualHash.ComputeWithStrip(px.Bgr, px.Width, px.Height, px.Stride);
+                                if (photo.Phash == null) photo.Phash = hash;
+                                if (photo.GrayBuffer == null) photo.GrayBuffer = strip;
+                            }
+                            if (needsClip)
+                            {
+                                try
+                                {
+                                    var stats = Rawr.App.Services.ClippingStatsComputer.Compute(px.Bgr, px.Width, px.Height, px.Stride, AppSettings.Current.ClippingThreshold);
+                                    photo.HighlightClippedPct = stats.HighlightPct;
+                                    photo.ShadowClippedPct = stats.ShadowPct;
+                                }
+                                catch { /* leave nulls — bucket will skip this photo */ }
+                            }
+                        }
                     }
 
                     var d = Interlocked.Increment(ref done);
@@ -7188,22 +7242,45 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var exporter = new PhotoExporter(_extractor);
         int digits = photos.Count.ToString().Length;
-        int exported = 0;
-        var toRecycle = move ? new List<PhotoItem>() : null;
-        for (int i = 0; i < photos.Count; i++)
-        {
-            var photo = photos[i];
-            StatusText = $"{verb} {i + 1}/{photos.Count} ({preset.Label}): {photo.FileName}";
-            try
+
+        // Decode + encode is CPU/IO-heavy and fully independent per photo, so export
+        // in parallel instead of awaiting one at a time. Half the cores keeps the UI
+        // and the disk read side from thrashing while still giving ~3-4× on a bulk
+        // export. The per-photo sequence number is the photo's grid index, so
+        // custom-renamed output names stay deterministic regardless of the order the
+        // exports actually finish in. LibRaw/WIC extraction uses a fresh handle per
+        // call (same as the folder-load Parallel.ForEach), so concurrent calls on the
+        // shared _extractor are safe.
+        var exportedFlags = new bool[photos.Count];
+        int processed = 0;
+        // Progress reporter created on the UI thread: its Post runs on the dispatcher
+        // and — because every body reports before Parallel.ForEachAsync completes —
+        // all reports are queued ahead of this method's await continuation, so the
+        // final "Copied N/N" status set below always lands last (no stale overwrite).
+        var progress = new Progress<int>(p => StatusText = $"{verb} {p}/{photos.Count} ({preset.Label})...");
+        int parallelism = Math.Max(1, Environment.ProcessorCount / 2);
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, photos.Count),
+            new ParallelOptions { MaxDegreeOfParallelism = parallelism },
+            async (i, token) =>
             {
-                if (await exporter.ExportAsync(photo, dialog.FolderName, preset, baseName, i + 1, digits))
+                try
                 {
-                    exported++;
-                    toRecycle?.Add(photo);
+                    // Each iteration owns a distinct index, so writing exportedFlags[i]
+                    // needs no synchronisation; the post-await read below sees every write.
+                    if (await exporter.ExportAsync(photos[i], dialog.FolderName, preset, baseName, i + 1, digits, token))
+                        exportedFlags[i] = true;
                 }
-            }
-            catch { /* skip files that fail to decode/copy */ }
-        }
+                catch { /* skip files that fail to decode/copy */ }
+
+                int p = Interlocked.Increment(ref processed);
+                if (p % 8 == 0 || p == photos.Count)
+                    ((IProgress<int>)progress).Report(p);
+            });
+
+        int exported = exportedFlags.Count(f => f);
+        // Preserve grid order for the recycle sweep + anchor pick below.
+        var toRecycle = move ? photos.Where((_, i) => exportedFlags[i]).ToList() : null;
 
         // Only originals that actually exported are recycled; a failed decode
         // leaves its source untouched. Batch the removal so ApplyFilter runs once.

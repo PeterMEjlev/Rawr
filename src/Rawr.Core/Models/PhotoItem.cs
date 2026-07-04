@@ -94,8 +94,16 @@ public sealed partial class PhotoItem : ObservableObject
 
     // Small grayscale buffer (~32×24, 768 bytes) computed from the thumbnail
     // alongside the dHash and used by PanoramaDetector to estimate frame-to-frame
-    // shift. Transient — recomputed on next folder open, not persisted.
+    // shift. Persisted as a BLOB so a reopen can skip the thumbnail decode.
     public byte[]? GrayBuffer { get; set; }
+
+    // Source file size + last-write ticks captured when this photo's cached
+    // derived data (EXIF metadata, grayscale strip) was computed. Used as the
+    // staleness key so a reopen can trust the cached Metadata/GrayBuffer only when
+    // the underlying file is unchanged. 0 = not yet stamped. Not persisted on the
+    // PhotoItem itself — written to / read from the DB row.
+    public long MetaSourceSize { get; set; }
+    public long MetaSourceMtimeTicks { get; set; }
 
     // Share of thumbnail pixels (0-100) classified as clipped highlights or
     // crushed shadows respectively. Computed once from the cached thumbnail JPEG

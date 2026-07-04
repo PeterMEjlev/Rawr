@@ -36,6 +36,21 @@ public sealed class CullingDatabase : IDisposable
         var db = new SqliteConnection($"Data Source={dbPath}");
         db.Open();
 
+        // WAL turns each commit into a sequential append instead of the default
+        // DELETE-mode journal (create journal + two fsyncs + delete per commit).
+        // Single-photo Save fires on every rating/flag keystroke, so on HDD/NAS
+        // the default mode is the "rating feels sticky" stutter. synchronous=NORMAL
+        // is app-crash-safe (worst case on a power cut is losing the last rating,
+        // acceptable for culling data); busy_timeout lets the background classifier
+        // saves wait out a UI-thread write instead of throwing SQLITE_BUSY. The
+        // -wal/-shm companions live inside .rawr/ so folder portability is intact,
+        // and filesystems that can't do WAL silently keep the previous behaviour.
+        using (var pragma = db.CreateCommand())
+        {
+            pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;";
+            pragma.ExecuteNonQuery();
+        }
+
         var instance = new CullingDatabase(db);
         instance.EnsureSchema();
         return instance;
@@ -123,6 +138,36 @@ public sealed class CullingDatabase : IDisposable
             alter.ExecuteNonQuery();
         }
 
+        // Cached EXIF metadata + grayscale strip so a reopen can skip the per-file
+        // EXIF read (thousands of RAW opens + WIC decodes otherwise) and the
+        // thumbnail decode that recomputes the strip. meta_size / meta_mtime are the
+        // source file's size + last-write ticks at extraction time; the loader trusts
+        // the cache only when they still match. All NULL until first computed.
+        if (!ColumnExists("photos", "meta_size"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN meta_size INTEGER";
+            alter.ExecuteNonQuery();
+        }
+        if (!ColumnExists("photos", "meta_mtime"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN meta_mtime INTEGER";
+            alter.ExecuteNonQuery();
+        }
+        if (!ColumnExists("photos", "meta_json"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN meta_json TEXT";
+            alter.ExecuteNonQuery();
+        }
+        if (!ColumnExists("photos", "gray_strip"))
+        {
+            using var alter = _db.CreateCommand();
+            alter.CommandText = "ALTER TABLE photos ADD COLUMN gray_strip BLOB";
+            alter.ExecuteNonQuery();
+        }
+
         // System tags (e.g. auto-generated HDR) are owned by RAWR — they can't be
         // renamed or deleted from the UI and carry their own pill color.
         if (!ColumnExists("custom_groups", "is_system"))
@@ -163,7 +208,7 @@ public sealed class CullingDatabase : IDisposable
         var result = new Dictionary<string, PhotoState>(StringComparer.OrdinalIgnoreCase);
 
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score, subject_tags FROM photos";
+        cmd.CommandText = "SELECT file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score, subject_tags, meta_size, meta_mtime, meta_json, gray_strip FROM photos";
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -179,6 +224,11 @@ public sealed class CullingDatabase : IDisposable
             float? minEyeOpenScore = reader.IsDBNull(11) ? null : (float)reader.GetDouble(11);
             SubjectTag? subjectTags = reader.IsDBNull(12) ? null : (SubjectTag)reader.GetInt32(12);
 
+            long metaSize = reader.IsDBNull(13) ? 0 : reader.GetInt64(13);
+            long metaMtime = reader.IsDBNull(14) ? 0 : reader.GetInt64(14);
+            string? metaJson = reader.IsDBNull(15) ? null : reader.GetString(15);
+            byte[]? grayStrip = reader.IsDBNull(16) ? null : (byte[])reader.GetValue(16);
+
             result[reader.GetString(0)] = new PhotoState
             {
                 Rating = reader.GetInt32(1),
@@ -193,6 +243,10 @@ public sealed class CullingDatabase : IDisposable
                 ClosedEyeCount = closedEyeCount,
                 MinEyeOpenScore = minEyeOpenScore,
                 SubjectTags = subjectTags,
+                MetaSize = metaSize,
+                MetaMtime = metaMtime,
+                MetaJson = metaJson,
+                GrayStrip = grayStrip,
             };
         }
 
@@ -200,42 +254,96 @@ public sealed class CullingDatabase : IDisposable
         }
     }
 
+    // Upsert SQL for one photo row. Kept as a constant so Save and SaveBatch share
+    // the exact same statement — SaveBatch prepares it once and rebinds per photo.
+    private const string UpsertPhotoSql = """
+        INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score, subject_tags, meta_size, meta_mtime, meta_json, gray_strip)
+        VALUES ($name, $rating, $flag, $color, $group, $best, $phash, $hi, $lo, $faces, $closedEyes, $minOpen, $subject, $metaSize, $metaMtime, $metaJson, $grayStrip)
+        ON CONFLICT(file_name) DO UPDATE SET
+            rating = $rating,
+            flag = $flag,
+            color_label = $color,
+            group_id = $group,
+            is_best = $best,
+            phash = $phash,
+            highlight_clipped_pct = $hi,
+            shadow_clipped_pct = $lo,
+            face_count = $faces,
+            closed_eye_count = $closedEyes,
+            min_eye_open_score = $minOpen,
+            subject_tags = $subject,
+            meta_size = $metaSize,
+            meta_mtime = $metaMtime,
+            meta_json = $metaJson,
+            gray_strip = $grayStrip
+        """;
+
+    // Builds the upsert command with every parameter pre-registered (typed, empty
+    // value). Callers bind via BindPhoto then execute; SaveBatch reuses one instance
+    // across the whole transaction so the statement is prepared exactly once instead
+    // of re-parsed per photo (10k preparations on the post-load sweep otherwise).
+    private SqliteCommand CreateUpsertCommand()
+    {
+        var cmd = _db.CreateCommand();
+        cmd.CommandText = UpsertPhotoSql;
+        cmd.Parameters.Add("$name", SqliteType.Text);
+        cmd.Parameters.Add("$rating", SqliteType.Integer);
+        cmd.Parameters.Add("$flag", SqliteType.Integer);
+        cmd.Parameters.Add("$color", SqliteType.Integer);
+        cmd.Parameters.Add("$group", SqliteType.Integer);
+        cmd.Parameters.Add("$best", SqliteType.Integer);
+        cmd.Parameters.Add("$phash", SqliteType.Integer);
+        cmd.Parameters.Add("$hi", SqliteType.Real);
+        cmd.Parameters.Add("$lo", SqliteType.Real);
+        cmd.Parameters.Add("$faces", SqliteType.Integer);
+        cmd.Parameters.Add("$closedEyes", SqliteType.Integer);
+        cmd.Parameters.Add("$minOpen", SqliteType.Real);
+        cmd.Parameters.Add("$subject", SqliteType.Integer);
+        cmd.Parameters.Add("$metaSize", SqliteType.Integer);
+        cmd.Parameters.Add("$metaMtime", SqliteType.Integer);
+        cmd.Parameters.Add("$metaJson", SqliteType.Text);
+        cmd.Parameters.Add("$grayStrip", SqliteType.Blob);
+        return cmd;
+    }
+
+    private static void BindPhoto(SqliteCommand cmd, PhotoItem photo)
+    {
+        var p = cmd.Parameters;
+        p["$name"].Value = photo.FileName;
+        p["$rating"].Value = photo.Rating;
+        p["$flag"].Value = (int)photo.Flag;
+        p["$color"].Value = (int)photo.ColorLabel;
+        p["$group"].Value = photo.GroupId;
+        p["$best"].Value = photo.IsBestInGroup ? 1 : 0;
+        p["$phash"].Value = photo.Phash.HasValue ? unchecked((long)photo.Phash.Value) : 0L;
+        p["$hi"].Value = (object?)photo.HighlightClippedPct ?? DBNull.Value;
+        p["$lo"].Value = (object?)photo.ShadowClippedPct ?? DBNull.Value;
+        p["$faces"].Value = (object?)photo.FaceCount ?? DBNull.Value;
+        p["$closedEyes"].Value = (object?)photo.ClosedEyeCount ?? DBNull.Value;
+        p["$minOpen"].Value = (object?)photo.MinEyeOpenScore ?? DBNull.Value;
+        p["$subject"].Value = photo.SubjectTags.HasValue ? (object)(int)photo.SubjectTags.Value : DBNull.Value;
+
+        // Persist the cached metadata + strip only when a staleness key was stamped
+        // (photo touched its source this session); otherwise write NULLs so the next
+        // load re-extracts rather than trusting an unkeyed row.
+        bool hasKey = photo.MetaSourceMtimeTicks != 0;
+        p["$metaSize"].Value = hasKey ? photo.MetaSourceSize : DBNull.Value;
+        p["$metaMtime"].Value = hasKey ? photo.MetaSourceMtimeTicks : DBNull.Value;
+        p["$metaJson"].Value = hasKey && photo.Metadata != null
+            ? PhotoMetadataSerializer.Serialize(photo.Metadata)
+            : (object)DBNull.Value;
+        p["$grayStrip"].Value = hasKey && photo.GrayBuffer != null
+            ? photo.GrayBuffer
+            : (object)DBNull.Value;
+    }
+
     public void Save(PhotoItem photo)
     {
         lock (_gate)
         {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO photos (file_name, rating, flag, color_label, group_id, is_best, phash, highlight_clipped_pct, shadow_clipped_pct, face_count, closed_eye_count, min_eye_open_score, subject_tags)
-            VALUES ($name, $rating, $flag, $color, $group, $best, $phash, $hi, $lo, $faces, $closedEyes, $minOpen, $subject)
-            ON CONFLICT(file_name) DO UPDATE SET
-                rating = $rating,
-                flag = $flag,
-                color_label = $color,
-                group_id = $group,
-                is_best = $best,
-                phash = $phash,
-                highlight_clipped_pct = $hi,
-                shadow_clipped_pct = $lo,
-                face_count = $faces,
-                closed_eye_count = $closedEyes,
-                min_eye_open_score = $minOpen,
-                subject_tags = $subject
-            """;
-        cmd.Parameters.AddWithValue("$name", photo.FileName);
-        cmd.Parameters.AddWithValue("$rating", photo.Rating);
-        cmd.Parameters.AddWithValue("$flag", (int)photo.Flag);
-        cmd.Parameters.AddWithValue("$color", (int)photo.ColorLabel);
-        cmd.Parameters.AddWithValue("$group", photo.GroupId);
-        cmd.Parameters.AddWithValue("$best", photo.IsBestInGroup ? 1 : 0);
-        cmd.Parameters.AddWithValue("$phash", photo.Phash.HasValue ? unchecked((long)photo.Phash.Value) : 0L);
-        cmd.Parameters.AddWithValue("$hi", (object?)photo.HighlightClippedPct ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$lo", (object?)photo.ShadowClippedPct ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$faces", (object?)photo.FaceCount ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$closedEyes", (object?)photo.ClosedEyeCount ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$minOpen", (object?)photo.MinEyeOpenScore ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$subject", photo.SubjectTags.HasValue ? (object)(int)photo.SubjectTags.Value : DBNull.Value);
-        cmd.ExecuteNonQuery();
+            using var cmd = CreateUpsertCommand();
+            BindPhoto(cmd, photo);
+            cmd.ExecuteNonQuery();
         }
     }
 
@@ -243,12 +351,16 @@ public sealed class CullingDatabase : IDisposable
     {
         lock (_gate)
         {
-        using var tx = _db.BeginTransaction();
-        foreach (var photo in photos)
-        {
-            Save(photo);
-        }
-        tx.Commit();
+            using var tx = _db.BeginTransaction();
+            using var cmd = CreateUpsertCommand();
+            cmd.Transaction = tx;
+            cmd.Prepare();
+            foreach (var photo in photos)
+            {
+                BindPhoto(cmd, photo);
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
         }
     }
 
@@ -451,4 +563,13 @@ public record PhotoState
     public int? ClosedEyeCount { get; init; }
     public float? MinEyeOpenScore { get; init; }
     public SubjectTag? SubjectTags { get; init; }
+
+    // Cached EXIF metadata + grayscale strip and the source-file staleness key they
+    // were computed against. MetaSize/MetaMtime == 0 (or null blobs) means "not
+    // cached"; the loader validates the key against the current file before trusting
+    // MetaJson/GrayStrip.
+    public long MetaSize { get; init; }
+    public long MetaMtime { get; init; }
+    public string? MetaJson { get; init; }
+    public byte[]? GrayStrip { get; init; }
 }
